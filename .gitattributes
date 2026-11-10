@@ -1,0 +1,8 @@
+# PDF, imagens e modelos são binários: o Git não pode mexer nas quebras de linha deles
+# (num PDF isso muda as posições internas e o arquivo deixa de abrir).
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.tif binary
+*.tiff binary
