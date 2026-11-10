@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.0.1_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-0.1.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -31,6 +31,7 @@
   <a href="#-visão-geral">Visão Geral</a> •
   <a href="#-como-vai-funcionar">Como vai funcionar</a> •
   <a href="#-dados-fictícios">Dados fictícios</a> •
+  <a href="#-certificados-fictícios">Certificados fictícios</a> •
   <a href="#️-tecnologias">Tecnologias</a> •
   <a href="#️-roteiro">Roteiro</a>
 </p>
@@ -101,12 +102,68 @@ o acerto de verdade.
 > projeto. Testes com certificados reais acontecem só no computador do autor, e aqui aparecem apenas
 > os **números de acerto**.
 
+## 🧾 Certificados fictícios
+
+O primeiro passo foi construir um **gerador de certificados inventados**: o modelo só aprende com
+exemplos que têm a resposta certa, e certificados reais não podem aparecer aqui. Cada certificado
+gerado sai em **três arquivos**: o PDF **digital**, o mesmo certificado **"escaneado"** e o
+**gabarito**.
+
+**Cinco laboratórios inventados**, cada um com o seu jeito de montar a folha — para o modelo
+aprender o que cada informação **é**, e não decorar onde ela fica:
+
+<p align="center">
+  <img src="docs/figuras/laboratorios.png" alt="Topo de um certificado fictício de cada um dos cinco laboratórios inventados" width="100%"/>
+</p>
+
+| O que muda de um laboratório para outro | Exemplos |
+|---|---|
+| Nome das informações | "Data da calibração", "Calibrado em", "DATA CALIBRACAO", "Calibration date" |
+| Nome e ordem das colunas | "Valor indicado", "VI", "LEITURA", "Medido" — e a leitura às vezes vem antes do padrão |
+| Formato da data | 09/03/2026 · 9 de março de 2026 · 09.03.2026 · 2026-03-09 · 09/mar/2026 |
+| Números | vírgula ou ponto decimal; erro com ou sem "+"; fator k na tabela ou só na observação |
+| Aparência | três fontes, três cabeçalhos, informações em lista ou em quadro, posição levemente sorteada |
+
+**Digital × escaneado.** Muitos certificados chegam escaneados: são só uma foto da folha, sem
+texto dentro do PDF. O gerador imita um scanner — folha um pouco torta, ruído do papel, desfoque e
+compressão JPEG — para treinar e medir também a leitura por OCR:
+
+<p align="center">
+  <img src="docs/figuras/digital_x_escaneado.png" alt="O mesmo certificado fictício na versão digital e na versão escaneada" width="100%"/>
+</p>
+
+**O gabarito.** Para cada informação importante, o gabarito guarda **o valor certo e a caixa
+onde ele está na folha** — também na versão torta. É com isso que o modelo vai ser ensinado e
+corrigido:
+
+<p align="center">
+  <img src="docs/figuras/gabarito.png" alt="Certificado escaneado com as caixas do gabarito coloridas por tipo de informação" width="70%"/>
+</p>
+
+<details>
+<summary><b>Como o gerador garante que o gabarito está certo</b></summary>
+
+- Testes automáticos abrem cada PDF digital e conferem que o texto **dentro de cada caixa** é
+  exatamente a resposta anotada.
+- No escaneado, conferem que o PDF **não tem texto nenhum** (só imagem) e que dentro das caixas
+  giradas há tinta — ou seja, elas acompanharam o giro da folha.
+- Pontos coerentes: erro = encontrado − nominal; o primeiro e o último ponto são o começo e o fim
+  da faixa; os do meio são valores "redondos", como num certificado de verdade.
+- Cada certificado tem a sua **semente**: gerar de novo produz exatamente o mesmo arquivo, para
+  repetir treinos e comparar resultados de forma justa.
+- Exemplos prontos (um de cada laboratório) em [`exemplos/`](exemplos/).
+
+</details>
+
 ## 🛠️ Tecnologias
 
 | Tecnologia | Aplicação no projeto |
 |---|---|
 | Python | Linguagem de todo o projeto. |
 | scikit-learn | Modelo de machine learning (gratuito, roda no computador). |
+| reportlab | Escreve os PDFs digitais dos certificados fictícios. |
+| pypdfium2 | Transforma o PDF em imagem (para o "escaneado") e lê o texto do PDF. |
+| Pillow | Imita o scanner: giro, ruído, desfoque e compressão JPEG. |
 | OCR local | Leitura dos certificados escaneados (definido na etapa de leitura). |
 | pytest + ruff | Testes automáticos com certificados fictícios e padronização do código. |
 | Git + GitHub | Uma branch e um pull request por etapa; decisões registradas em ADRs. |
@@ -117,7 +174,7 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 ## 🗺️ Roteiro
 
 - [x] Etapa 0 — Fundação (estrutura, versão, testes, decisões de arquitetura)
-- [ ] Etapa 1 — Gerador de certificados fictícios (digital e "escaneado") com gabarito
+- [x] Etapa 1 — Gerador de certificados fictícios (5 laboratórios, digital e "escaneado") com gabarito anotado
 - [ ] Etapa 2 — Leitura do PDF: texto direto e OCR
 - [ ] Etapa 3 — Machine learning: encontrar os campos; acerto medido em treino × teste
 - [ ] Etapa 4 — Conferência com o plano: erro ± U dentro da tolerância
