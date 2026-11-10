@@ -1,0 +1,28 @@
+# Certificados REAIS e qualquer dado da empresa — nunca vão para o GitHub (só ficam neste PC)
+dados/
+
+# Segurança extra: nenhum PDF ou imagem solta entra no Git...
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+# ...a não ser os exemplos FICTÍCIOS (gerados pelo próprio projeto) e as figuras do README
+!exemplos/**
+!docs/figuras/**
+
+# Ambiente virtual do Python
+.venv/
+
+# Arquivos gerados pelo Python, testes e ruff
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Modelos treinados (são gerados de novo pelo treino; podem ter aprendido com dados reais)
+modelos/
+*.joblib
+*.pkl
