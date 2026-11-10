@@ -1,0 +1,37 @@
+# Ficha do projeto: nome, versão do Python, bibliotecas e configuração das ferramentas.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leitor_certificados"
+dynamic = ["version"]  # vem de src/leitor_certificados/__init__.py (__version__)
+description = "IA (machine learning) que lê certificados de calibração em PDF e confere com o plano"
+requires-python = ">=3.12"
+# As bibliotecas entram etapa por etapa (PDF, OCR, scikit-learn), cada uma com o porquê.
+dependencies = []
+
+[project.optional-dependencies]
+# Ferramentas só de desenvolvimento
+dev = [
+    "pytest>=8.0",      # testes automáticos
+    "ruff>=0.6",        # verificação de estilo e erros
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "leitor_certificados.__version__"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/F = erros básicos, I = ordem dos imports, B = armadilhas comuns, UP = sintaxe moderna
+select = ["E", "F", "I", "B", "UP"]
