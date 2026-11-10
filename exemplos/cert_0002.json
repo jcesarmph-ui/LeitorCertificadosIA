@@ -1,0 +1,1377 @@
+{
+  "ficticio": true,
+  "semente": "2026-2",
+  "certificado": {
+    "id": "cert_0002",
+    "laboratorio": "ventania",
+    "numero": "VT-8160/2026",
+    "data_calibracao": "2026-06-11",
+    "data_emissao": "2026-06-14",
+    "cliente": "Indústria Modelo Ltda",
+    "tipo": "Manômetro",
+    "codigo": "MN-8534",
+    "fabricante": "Tessmar",
+    "serie": "F986368",
+    "faixa_min": 0.0,
+    "faixa_max": 16.0,
+    "resolucao": 0.2,
+    "unidade": "bar",
+    "casas": 1,
+    "temperatura": 19.6,
+    "umidade": 61,
+    "tecnico": "Ana Freitas",
+    "pontos": [
+      {
+        "nominal": 0,
+        "encontrado": 0.0,
+        "erro": 0.0,
+        "incerteza": 0.36,
+        "k": 2.0
+      },
+      {
+        "nominal": 2,
+        "encontrado": 2.2,
+        "erro": 0.2,
+        "incerteza": 0.22,
+        "k": 2.03
+      },
+      {
+        "nominal": 4,
+        "encontrado": 4.4,
+        "erro": 0.4,
+        "incerteza": 0.41,
+        "k": 2.11
+      },
+      {
+        "nominal": 6,
+        "encontrado": 6.0,
+        "erro": 0.0,
+        "incerteza": 0.36,
+        "k": 2.03
+      },
+      {
+        "nominal": 8,
+        "encontrado": 8.0,
+        "erro": 0.0,
+        "incerteza": 0.43,
+        "k": 2.05
+      },
+      {
+        "nominal": 10,
+        "encontrado": 9.8,
+        "erro": -0.2,
+        "incerteza": 0.18,
+        "k": 2.0
+      },
+      {
+        "nominal": 12,
+        "encontrado": 12.4,
+        "erro": 0.4,
+        "incerteza": 0.41,
+        "k": 2.0
+      },
+      {
+        "nominal": 14,
+        "encontrado": 14.0,
+        "erro": 0.0,
+        "incerteza": 0.44,
+        "k": 2.0
+      },
+      {
+        "nominal": 16,
+        "encontrado": 16.0,
+        "erro": 0.0,
+        "incerteza": 0.18,
+        "k": 2.03
+      }
+    ]
+  },
+  "nome_laboratorio": "Ventania Metrology Lab",
+  "digital": {
+    "arquivo": "cert_0002_digital.pdf",
+    "campos": [
+      {
+        "campo": "laboratorio",
+        "texto": "Ventania Metrology Lab",
+        "caixa": [
+          0.0712,
+          0.0512,
+          0.3175,
+          0.067
+        ]
+      },
+      {
+        "campo": "numero_certificado",
+        "texto": "VT-8160/2026",
+        "caixa": [
+          0.7861,
+          0.1148,
+          0.9032,
+          0.1282
+        ]
+      },
+      {
+        "campo": "cliente",
+        "texto": "Indústria Modelo Ltda",
+        "caixa": [
+          0.0712,
+          0.1668,
+          0.2457,
+          0.1789
+        ]
+      },
+      {
+        "campo": "tipo",
+        "texto": "Manômetro",
+        "caixa": [
+          0.4872,
+          0.1668,
+          0.5777,
+          0.1789
+        ]
+      },
+      {
+        "campo": "fabricante",
+        "texto": "Tessmar",
+        "caixa": [
+          0.0712,
+          0.1977,
+          0.1403,
+          0.2098
+        ]
+      },
+      {
+        "campo": "codigo",
+        "texto": "MN-8534",
+        "caixa": [
+          0.4872,
+          0.1977,
+          0.5562,
+          0.2098
+        ]
+      },
+      {
+        "campo": "serie",
+        "texto": "F986368",
+        "caixa": [
+          0.0712,
+          0.2286,
+          0.1375,
+          0.2407
+        ]
+      },
+      {
+        "campo": "faixa",
+        "texto": "0 to 16 bar",
+        "caixa": [
+          0.4872,
+          0.2286,
+          0.5712,
+          0.2407
+        ]
+      },
+      {
+        "campo": "resolucao",
+        "texto": "0.2 bar",
+        "caixa": [
+          0.0712,
+          0.2595,
+          0.1253,
+          0.2716
+        ]
+      },
+      {
+        "campo": "data_calibracao",
+        "texto": "2026-06-11",
+        "caixa": [
+          0.4872,
+          0.2595,
+          0.5731,
+          0.2716
+        ]
+      },
+      {
+        "campo": "data_emissao",
+        "texto": "2026-06-14",
+        "caixa": [
+          0.0712,
+          0.2904,
+          0.1571,
+          0.3025
+        ]
+      },
+      {
+        "campo": "temperatura",
+        "texto": "19.6 °C",
+        "caixa": [
+          0.4872,
+          0.2904,
+          0.5434,
+          0.3025
+        ]
+      },
+      {
+        "campo": "umidade",
+        "texto": "61 %",
+        "caixa": [
+          0.0712,
+          0.3212,
+          0.1094,
+          0.3334
+        ]
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "0.0",
+        "caixa": [
+          0.1427,
+          0.3878,
+          0.166,
+          0.3999
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "0.0",
+        "caixa": [
+          0.3091,
+          0.3878,
+          0.3324,
+          0.3999
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.0",
+        "caixa": [
+          0.4755,
+          0.3878,
+          0.4988,
+          0.3999
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.36",
+        "caixa": [
+          0.6372,
+          0.3878,
+          0.6699,
+          0.3999
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.00",
+        "caixa": [
+          0.8036,
+          0.3878,
+          0.8363,
+          0.3999
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "2.0",
+        "caixa": [
+          0.1427,
+          0.408,
+          0.166,
+          0.4201
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "2.2",
+        "caixa": [
+          0.3091,
+          0.408,
+          0.3324,
+          0.4201
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.2",
+        "caixa": [
+          0.4755,
+          0.408,
+          0.4988,
+          0.4201
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.22",
+        "caixa": [
+          0.6372,
+          0.408,
+          0.6699,
+          0.4201
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.03",
+        "caixa": [
+          0.8036,
+          0.408,
+          0.8363,
+          0.4201
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "4.0",
+        "caixa": [
+          0.1427,
+          0.4281,
+          0.166,
+          0.4403
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "4.4",
+        "caixa": [
+          0.3091,
+          0.4281,
+          0.3324,
+          0.4403
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.4",
+        "caixa": [
+          0.4755,
+          0.4281,
+          0.4988,
+          0.4403
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.41",
+        "caixa": [
+          0.6372,
+          0.4281,
+          0.6699,
+          0.4403
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.11",
+        "caixa": [
+          0.8036,
+          0.4281,
+          0.8363,
+          0.4403
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "6.0",
+        "caixa": [
+          0.1427,
+          0.4483,
+          0.166,
+          0.4605
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "6.0",
+        "caixa": [
+          0.3091,
+          0.4483,
+          0.3324,
+          0.4605
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.0",
+        "caixa": [
+          0.4755,
+          0.4483,
+          0.4988,
+          0.4605
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.36",
+        "caixa": [
+          0.6372,
+          0.4483,
+          0.6699,
+          0.4605
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.03",
+        "caixa": [
+          0.8036,
+          0.4483,
+          0.8363,
+          0.4605
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "8.0",
+        "caixa": [
+          0.1427,
+          0.4685,
+          0.166,
+          0.4806
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "8.0",
+        "caixa": [
+          0.3091,
+          0.4685,
+          0.3324,
+          0.4806
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.0",
+        "caixa": [
+          0.4755,
+          0.4685,
+          0.4988,
+          0.4806
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.43",
+        "caixa": [
+          0.6372,
+          0.4685,
+          0.6699,
+          0.4806
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.05",
+        "caixa": [
+          0.8036,
+          0.4685,
+          0.8363,
+          0.4806
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "10.0",
+        "caixa": [
+          0.138,
+          0.4887,
+          0.1707,
+          0.5008
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "9.8",
+        "caixa": [
+          0.3091,
+          0.4887,
+          0.3324,
+          0.5008
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "-0.2",
+        "caixa": [
+          0.4727,
+          0.4887,
+          0.5016,
+          0.5008
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.18",
+        "caixa": [
+          0.6372,
+          0.4887,
+          0.6699,
+          0.5008
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.00",
+        "caixa": [
+          0.8036,
+          0.4887,
+          0.8363,
+          0.5008
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "12.0",
+        "caixa": [
+          0.138,
+          0.5089,
+          0.1707,
+          0.521
+        ],
+        "ponto": 6
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "12.4",
+        "caixa": [
+          0.3044,
+          0.5089,
+          0.3371,
+          0.521
+        ],
+        "ponto": 6
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.4",
+        "caixa": [
+          0.4755,
+          0.5089,
+          0.4988,
+          0.521
+        ],
+        "ponto": 6
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.41",
+        "caixa": [
+          0.6372,
+          0.5089,
+          0.6699,
+          0.521
+        ],
+        "ponto": 6
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.00",
+        "caixa": [
+          0.8036,
+          0.5089,
+          0.8363,
+          0.521
+        ],
+        "ponto": 6
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "14.0",
+        "caixa": [
+          0.138,
+          0.5291,
+          0.1707,
+          0.5412
+        ],
+        "ponto": 7
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "14.0",
+        "caixa": [
+          0.3044,
+          0.5291,
+          0.3371,
+          0.5412
+        ],
+        "ponto": 7
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.0",
+        "caixa": [
+          0.4755,
+          0.5291,
+          0.4988,
+          0.5412
+        ],
+        "ponto": 7
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.44",
+        "caixa": [
+          0.6372,
+          0.5291,
+          0.6699,
+          0.5412
+        ],
+        "ponto": 7
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.00",
+        "caixa": [
+          0.8036,
+          0.5291,
+          0.8363,
+          0.5412
+        ],
+        "ponto": 7
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "16.0",
+        "caixa": [
+          0.138,
+          0.5493,
+          0.1707,
+          0.5614
+        ],
+        "ponto": 8
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "16.0",
+        "caixa": [
+          0.3044,
+          0.5493,
+          0.3371,
+          0.5614
+        ],
+        "ponto": 8
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.0",
+        "caixa": [
+          0.4755,
+          0.5493,
+          0.4988,
+          0.5614
+        ],
+        "ponto": 8
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.18",
+        "caixa": [
+          0.6372,
+          0.5493,
+          0.6699,
+          0.5614
+        ],
+        "ponto": 8
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.03",
+        "caixa": [
+          0.8036,
+          0.5493,
+          0.8363,
+          0.5614
+        ],
+        "ponto": 8
+      },
+      {
+        "campo": "tecnico",
+        "texto": "Ana Freitas",
+        "caixa": [
+          0.0712,
+          0.6598,
+          0.1571,
+          0.6719
+        ]
+      }
+    ]
+  },
+  "escaneado": {
+    "arquivo": "cert_0002_escaneado.pdf",
+    "campos": [
+      {
+        "campo": "laboratorio",
+        "texto": "Ventania Metrology Lab",
+        "caixa": [
+          0.0658,
+          0.0527,
+          0.3122,
+          0.0699
+        ]
+      },
+      {
+        "campo": "numero_certificado",
+        "texto": "VT-8160/2026",
+        "caixa": [
+          0.7799,
+          0.1205,
+          0.8972,
+          0.1345
+        ]
+      },
+      {
+        "campo": "cliente",
+        "texto": "Indústria Modelo Ltda",
+        "caixa": [
+          0.0645,
+          0.1683,
+          0.2391,
+          0.1814
+        ]
+      },
+      {
+        "campo": "tipo",
+        "texto": "Manômetro",
+        "caixa": [
+          0.4804,
+          0.1707,
+          0.5711,
+          0.1834
+        ]
+      },
+      {
+        "campo": "fabricante",
+        "texto": "Tessmar",
+        "caixa": [
+          0.0641,
+          0.1992,
+          0.1333,
+          0.2117
+        ]
+      },
+      {
+        "campo": "codigo",
+        "texto": "MN-8534",
+        "caixa": [
+          0.4801,
+          0.2016,
+          0.5492,
+          0.2141
+        ]
+      },
+      {
+        "campo": "serie",
+        "texto": "F986368",
+        "caixa": [
+          0.0637,
+          0.2301,
+          0.1302,
+          0.2426
+        ]
+      },
+      {
+        "campo": "faixa",
+        "texto": "0 to 16 bar",
+        "caixa": [
+          0.4797,
+          0.2325,
+          0.5639,
+          0.2451
+        ]
+      },
+      {
+        "campo": "resolucao",
+        "texto": "0.2 bar",
+        "caixa": [
+          0.0634,
+          0.261,
+          0.1176,
+          0.2734
+        ]
+      },
+      {
+        "campo": "data_calibracao",
+        "texto": "2026-06-11",
+        "caixa": [
+          0.4794,
+          0.2634,
+          0.5654,
+          0.276
+        ]
+      },
+      {
+        "campo": "data_emissao",
+        "texto": "2026-06-14",
+        "caixa": [
+          0.063,
+          0.2919,
+          0.1491,
+          0.3045
+        ]
+      },
+      {
+        "campo": "temperatura",
+        "texto": "19.6 °C",
+        "caixa": [
+          0.479,
+          0.2943,
+          0.5354,
+          0.3067
+        ]
+      },
+      {
+        "campo": "umidade",
+        "texto": "61 %",
+        "caixa": [
+          0.0627,
+          0.3227,
+          0.101,
+          0.3351
+        ]
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "0.0",
+        "caixa": [
+          0.1334,
+          0.3897,
+          0.1568,
+          0.402
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "0.0",
+        "caixa": [
+          0.2998,
+          0.3907,
+          0.3232,
+          0.4029
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.0",
+        "caixa": [
+          0.4662,
+          0.3917,
+          0.4896,
+          0.4039
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.36",
+        "caixa": [
+          0.6279,
+          0.3926,
+          0.6607,
+          0.4049
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.00",
+        "caixa": [
+          0.7943,
+          0.3936,
+          0.8271,
+          0.4058
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "2.0",
+        "caixa": [
+          0.1332,
+          0.4099,
+          0.1566,
+          0.4222
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "2.2",
+        "caixa": [
+          0.2996,
+          0.4109,
+          0.323,
+          0.4231
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.2",
+        "caixa": [
+          0.466,
+          0.4119,
+          0.4894,
+          0.4241
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.22",
+        "caixa": [
+          0.6276,
+          0.4128,
+          0.6605,
+          0.4251
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.03",
+        "caixa": [
+          0.794,
+          0.4138,
+          0.8269,
+          0.426
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "4.0",
+        "caixa": [
+          0.1329,
+          0.43,
+          0.1564,
+          0.4424
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "4.4",
+        "caixa": [
+          0.2993,
+          0.431,
+          0.3228,
+          0.4433
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.4",
+        "caixa": [
+          0.4657,
+          0.432,
+          0.4892,
+          0.4443
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.41",
+        "caixa": [
+          0.6274,
+          0.4329,
+          0.6603,
+          0.4453
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.11",
+        "caixa": [
+          0.7938,
+          0.4339,
+          0.8266,
+          0.4462
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "6.0",
+        "caixa": [
+          0.1327,
+          0.4502,
+          0.1561,
+          0.4626
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "6.0",
+        "caixa": [
+          0.2991,
+          0.4512,
+          0.3225,
+          0.4635
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.0",
+        "caixa": [
+          0.4655,
+          0.4522,
+          0.4889,
+          0.4645
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.36",
+        "caixa": [
+          0.6272,
+          0.4531,
+          0.66,
+          0.4655
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.03",
+        "caixa": [
+          0.7936,
+          0.4541,
+          0.8264,
+          0.4664
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "8.0",
+        "caixa": [
+          0.1325,
+          0.4704,
+          0.1559,
+          0.4827
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "8.0",
+        "caixa": [
+          0.2989,
+          0.4714,
+          0.3223,
+          0.4836
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.0",
+        "caixa": [
+          0.4653,
+          0.4723,
+          0.4887,
+          0.4846
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.43",
+        "caixa": [
+          0.6269,
+          0.4733,
+          0.6598,
+          0.4856
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.05",
+        "caixa": [
+          0.7933,
+          0.4743,
+          0.8262,
+          0.4865
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "10.0",
+        "caixa": [
+          0.1275,
+          0.4906,
+          0.1604,
+          0.5029
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "9.8",
+        "caixa": [
+          0.2986,
+          0.4916,
+          0.3221,
+          0.5038
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "-0.2",
+        "caixa": [
+          0.4622,
+          0.4925,
+          0.4913,
+          0.5048
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.18",
+        "caixa": [
+          0.6267,
+          0.4935,
+          0.6595,
+          0.5058
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.00",
+        "caixa": [
+          0.7931,
+          0.4945,
+          0.8259,
+          0.5067
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "12.0",
+        "caixa": [
+          0.1273,
+          0.5108,
+          0.1601,
+          0.5231
+        ],
+        "ponto": 6
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "12.4",
+        "caixa": [
+          0.2937,
+          0.5118,
+          0.3265,
+          0.524
+        ],
+        "ponto": 6
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.4",
+        "caixa": [
+          0.4648,
+          0.5127,
+          0.4882,
+          0.525
+        ],
+        "ponto": 6
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.41",
+        "caixa": [
+          0.6265,
+          0.5137,
+          0.6593,
+          0.526
+        ],
+        "ponto": 6
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.00",
+        "caixa": [
+          0.7929,
+          0.5147,
+          0.8257,
+          0.5269
+        ],
+        "ponto": 6
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "14.0",
+        "caixa": [
+          0.1271,
+          0.531,
+          0.1599,
+          0.5433
+        ],
+        "ponto": 7
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "14.0",
+        "caixa": [
+          0.2935,
+          0.532,
+          0.3263,
+          0.5442
+        ],
+        "ponto": 7
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.0",
+        "caixa": [
+          0.4645,
+          0.5329,
+          0.488,
+          0.5452
+        ],
+        "ponto": 7
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.44",
+        "caixa": [
+          0.6262,
+          0.5339,
+          0.6591,
+          0.5462
+        ],
+        "ponto": 7
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.00",
+        "caixa": [
+          0.7926,
+          0.5349,
+          0.8255,
+          0.5471
+        ],
+        "ponto": 7
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "16.0",
+        "caixa": [
+          0.1268,
+          0.5512,
+          0.1597,
+          0.5635
+        ],
+        "ponto": 8
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "16.0",
+        "caixa": [
+          0.2932,
+          0.5522,
+          0.3261,
+          0.5644
+        ],
+        "ponto": 8
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0.0",
+        "caixa": [
+          0.4643,
+          0.5531,
+          0.4878,
+          0.5654
+        ],
+        "ponto": 8
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0.18",
+        "caixa": [
+          0.626,
+          0.5541,
+          0.6588,
+          0.5664
+        ],
+        "ponto": 8
+      },
+      {
+        "campo": "ponto.k",
+        "texto": "2.03",
+        "caixa": [
+          0.7924,
+          0.5551,
+          0.8252,
+          0.5673
+        ],
+        "ponto": 8
+      },
+      {
+        "campo": "tecnico",
+        "texto": "Ana Freitas",
+        "caixa": [
+          0.0587,
+          0.6613,
+          0.1448,
+          0.6739
+        ]
+      }
+    ],
+    "dpi": 150,
+    "angulo_graus": -0.47,
+    "deslocamento_px": [
+      -13,
+      7
+    ],
+    "qualidade_jpeg": 59
+  }
+}
