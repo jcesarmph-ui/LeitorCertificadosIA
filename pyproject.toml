@@ -16,6 +16,7 @@ dependencies = [
     "pillow>=10.0",     # etapa 1: "suja" a imagem (giro, ruído, desfoque, JPEG) como um scanner
     "rapidocr>=3.0",    # etapa 2: OCR local (lê o texto da imagem do escaneado)
     "onnxruntime>=1.18",  # etapa 2: roda os modelos do OCR neste computador, sem internet
+    "scikit-learn>=1.5",  # etapa 3: o modelo de machine learning que aprende o que cada palavra é
     "numpy>=2.0",       # etapa 2: a imagem vira uma tabela de números para o OCR
 ]
 
