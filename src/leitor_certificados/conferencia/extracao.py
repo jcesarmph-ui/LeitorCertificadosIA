@@ -36,12 +36,14 @@ class PontoLido:
     erro: float | None
     incerteza: float | None
     caixa: tuple[float, float, float, float]  # a linha na folha (para desenhar o check)
+    numeros: tuple[float, ...] = ()  # todos os números da linha, da esquerda para a direita
 
 
 @dataclass(frozen=True)
 class CertificadoLido:
     codigo: str | None
     pontos: list[PontoLido]
+    textos: tuple[str, ...] = ()  # as palavras da folha na ordem de leitura (procurar o código)
 
 
 def _linhas(palavras: list[Palavra]) -> list[list[Palavra]]:
@@ -70,24 +72,35 @@ def montar_certificado(modelo: Pipeline, pagina: Pagina) -> CertificadoLido:
         for p, (rotulo, _) in zip(pagina.palavras, previsoes, strict=True)
         if rotulo.startswith("ponto.")
     ]
+    rotulo_de = {id(p): t for p, t in da_tabela}
     pontos: list[PontoLido] = []
-    for linha in _linhas([p for p, _ in da_tabela]):
-        tipos = {id(p): t for p, t in da_tabela}
+    for linha in _linhas(pagina.palavras):
+        da_linha = [p for p in linha if id(p) in rotulo_de]
+        if len(da_linha) < 2:
+            continue
         valores: dict[str, str] = {}
-        for p in sorted(linha, key=lambda q: q.caixa[0]):
-            valores[tipos[id(p)]] = (valores.get(tipos[id(p)], "") + " " + p.texto).strip()
+        for p in sorted(da_linha, key=lambda q: q.caixa[0]):
+            tipo = rotulo_de[id(p)]
+            valores[tipo] = (valores.get(tipo, "") + " " + p.texto).strip()
+        esq = min(p.caixa[0] for p in da_linha)
+        dir_ = max(p.caixa[2] for p in da_linha)
+        numeros = tuple(
+            n for p in sorted(linha, key=lambda q: q.caixa[0])
+            if esq <= p.centro[0] <= dir_ and (n := para_numero(p.texto)) is not None
+        )
         nominal = para_numero(valores.get("nominal", ""))
         if nominal is None:
-            continue
-        esq = min(p.caixa[0] for p in linha)
-        topo = min(p.caixa[1] for p in linha)
-        dir_ = max(p.caixa[2] for p in linha)
-        base = max(p.caixa[3] for p in linha)
+            if len(numeros) < 3:
+                continue
+            nominal = numeros[0]  # chute; o plano pode corrigir (reatribuição)
         pontos.append(PontoLido(
             nominal=nominal,
             encontrado=para_numero(valores.get("encontrado", "")),
             erro=para_numero(valores.get("erro", "")),
             incerteza=para_numero(valores.get("incerteza", "")),
-            caixa=(esq, topo, dir_, base),
+            caixa=(esq, min(p.caixa[1] for p in da_linha), dir_,
+                   max(p.caixa[3] for p in da_linha)),
+            numeros=numeros,
         ))
-    return CertificadoLido(codigo, pontos)
+    ordem = sorted(pagina.palavras, key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
+    return CertificadoLido(codigo, pontos, tuple(p.texto for p in ordem))

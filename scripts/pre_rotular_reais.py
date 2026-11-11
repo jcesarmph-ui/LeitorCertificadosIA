@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 import pypdfium2 as pdfium
-from PIL import Image, ImageDraw, ImageFont
+from PIL import ImageDraw, ImageFont
 
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))

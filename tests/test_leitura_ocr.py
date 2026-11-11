@@ -68,3 +68,25 @@ def test_separar_rotulo_grudado_na_resposta():
     for texto in ("10:30", "CERTIFICADO:", "Metrovix"):
         palavra = Palavra(texto, (0.1, 0.1, 0.2, 0.12))
         assert _separar_rotulo(palavra) == [palavra]
+
+
+def test_folha_de_cabeca_para_baixo_e_virada_sozinha(lote, tmp_path):
+    """O scanner às vezes puxa a folha invertida: o OCR tenta 180° e fica com a melhor leitura."""
+    import pypdfium2 as pdfium
+
+    pasta, gabaritos = lote
+    gabarito = gabaritos[0]
+    original = pdfium.PdfDocument(str(pasta / gabarito["escaneado"]["arquivo"]))
+    imagem = original[0].render(scale=200 / 72).to_pil().rotate(180)
+    original.close()
+    invertido = tmp_path / "invertido.pdf"
+    imagem.save(invertido, "PDF", resolution=200)
+
+    (pagina,) = ler_pdf(invertido)
+    assert pagina.rotacao == 180
+    certos = total = 0
+    for campo in gabarito["escaneado"]["campos"]:
+        total += 1
+        lido = pagina.texto_na_caixa(campo["caixa"], folga=0.004)
+        certos += _sem_espacos(lido) == _sem_espacos(campo["texto"])
+    assert certos / total >= 0.85, f"{certos} de {total}"
