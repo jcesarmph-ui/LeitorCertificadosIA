@@ -1,0 +1,93 @@
+"""Do resultado do modelo (rótulo de cada palavra) para os pontos medidos do certificado.
+
+O modelo diz o que cada palavra é; aqui montamos a tabela: as palavras `ponto.nominal`,
+`ponto.encontrado`, `ponto.erro` e `ponto.incerteza` que estão na mesma linha da folha formam um
+ponto. Cada texto vira número (vírgula ou ponto decimal, com ou sem "+"/"−").
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+from sklearn.pipeline import Pipeline
+
+from ..aprendizado.modelo import prever
+from ..leitura import Pagina, Palavra
+
+_NUMERO = re.compile(r"^[+\-−]?\d+(?:[.,]\d+)?$")
+
+
+def para_numero(texto: str) -> float | None:
+    """"-0,001" → -0.001; "+1.350,00" → 1350.0; "abc" → None. Um só separador é decimal."""
+    t = "".join(texto.split()).replace("−", "-").replace("±", "")
+    if "," in t and "." in t:  # o último separador é o decimal; o outro é de milhar
+        decimal = "," if t.rfind(",") > t.rfind(".") else "."
+        t = t.replace("." if decimal == "," else ",", "").replace(decimal, ".")
+    else:
+        t = t.replace(",", ".")
+    return float(t) if _NUMERO.match(t) else None
+
+
+@dataclass(frozen=True)
+class PontoLido:
+    nominal: float
+    encontrado: float | None
+    erro: float | None
+    incerteza: float | None
+    caixa: tuple[float, float, float, float]  # a linha na folha (para desenhar o check)
+
+
+@dataclass(frozen=True)
+class CertificadoLido:
+    codigo: str | None
+    pontos: list[PontoLido]
+
+
+def _linhas(palavras: list[Palavra]) -> list[list[Palavra]]:
+    ordenadas = sorted(palavras, key=lambda p: p.centro[1])
+    linhas: list[list[Palavra]] = []
+    for p in ordenadas:
+        altura = p.caixa[3] - p.caixa[1]
+        if linhas and abs(p.centro[1] - linhas[-1][0].centro[1]) <= 0.6 * max(altura, 1e-6):
+            linhas[-1].append(p)
+        else:
+            linhas.append([p])
+    return linhas
+
+
+def montar_certificado(modelo: Pipeline, pagina: Pagina) -> CertificadoLido:
+    """Usa o modelo para achar o código do instrumento e os pontos da tabela."""
+    previsoes = prever(modelo, pagina)
+    codigo_palavras = [
+        p for p, (rotulo, _) in zip(pagina.palavras, previsoes, strict=True) if rotulo == "codigo"
+    ]
+    codigo_palavras.sort(key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
+    codigo = " ".join(p.texto for p in codigo_palavras) or None
+
+    da_tabela: list[tuple[Palavra, str]] = [
+        (p, rotulo.removeprefix("ponto."))
+        for p, (rotulo, _) in zip(pagina.palavras, previsoes, strict=True)
+        if rotulo.startswith("ponto.")
+    ]
+    pontos: list[PontoLido] = []
+    for linha in _linhas([p for p, _ in da_tabela]):
+        tipos = {id(p): t for p, t in da_tabela}
+        valores: dict[str, str] = {}
+        for p in sorted(linha, key=lambda q: q.caixa[0]):
+            valores[tipos[id(p)]] = (valores.get(tipos[id(p)], "") + " " + p.texto).strip()
+        nominal = para_numero(valores.get("nominal", ""))
+        if nominal is None:
+            continue
+        esq = min(p.caixa[0] for p in linha)
+        topo = min(p.caixa[1] for p in linha)
+        dir_ = max(p.caixa[2] for p in linha)
+        base = max(p.caixa[3] for p in linha)
+        pontos.append(PontoLido(
+            nominal=nominal,
+            encontrado=para_numero(valores.get("encontrado", "")),
+            erro=para_numero(valores.get("erro", "")),
+            incerteza=para_numero(valores.get("incerteza", "")),
+            caixa=(esq, topo, dir_, base),
+        ))
+    return CertificadoLido(codigo, pontos)
