@@ -10,7 +10,11 @@ dynamic = ["version"]  # vem de src/leitor_certificados/__init__.py (__version__
 description = "IA (machine learning) que lê certificados de calibração em PDF e confere com o plano"
 requires-python = ">=3.12"
 # As bibliotecas entram etapa por etapa (PDF, OCR, scikit-learn), cada uma com o porquê.
-dependencies = []
+dependencies = [
+    "reportlab>=4.0",   # etapa 1: escreve os PDFs digitais dos certificados fictícios
+    "pypdfium2>=4.0",   # etapa 1: transforma PDF em imagem (para o "escaneado") e lê o texto
+    "pillow>=10.0",     # etapa 1: "suja" a imagem (giro, ruído, desfoque, JPEG) como um scanner
+]
 
 [project.optional-dependencies]
 # Ferramentas só de desenvolvimento

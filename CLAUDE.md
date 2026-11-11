@@ -26,3 +26,11 @@ deste projeto.
 
 ## Certificados do usuário
 Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
+
+## Onde paramos
+- Etapa 0 (fundação) juntada no PR #1.
+- **Etapa 1 (2026-11-10, versão 0.1.0)**: `src/leitor_certificados/ficticio/` — 5 laboratórios
+  inventados, PDF digital + escaneado + gabarito `.json` com caixas (ADR 0003). Lote:
+  `python -m leitor_certificados.ficticio.gerar --pasta dados/ficticios --quantidade 200`
+  (fora do Git). Exemplos e figuras do README: `scripts/exemplos_e_figuras.py`.
+- Próximo: etapa 2 (ler o PDF: texto direto e OCR local).

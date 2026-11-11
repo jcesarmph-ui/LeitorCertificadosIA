@@ -1,0 +1,894 @@
+{
+  "ficticio": true,
+  "semente": "2026-1",
+  "certificado": {
+    "id": "cert_0001",
+    "laboratorio": "bom_sereno",
+    "numero": "BS 20255570",
+    "data_calibracao": "2025-05-28",
+    "data_emissao": "2025-06-03",
+    "cliente": "Caldeiraria Demonstração Ltda",
+    "tipo": "Relógio comparador",
+    "codigo": "RC-9844",
+    "fabricante": "Metrovix",
+    "serie": "H744054",
+    "faixa_min": 0.0,
+    "faixa_max": 10.0,
+    "resolucao": 0.001,
+    "unidade": "mm",
+    "casas": 3,
+    "temperatura": 22.5,
+    "umidade": 56,
+    "tecnico": "Júlio Duarte",
+    "pontos": [
+      {
+        "nominal": 0,
+        "encontrado": -0.001,
+        "erro": -0.001,
+        "incerteza": 0.0012,
+        "k": 2.0
+      },
+      {
+        "nominal": 2,
+        "encontrado": 2.001,
+        "erro": 0.001,
+        "incerteza": 0.002,
+        "k": 2.0
+      },
+      {
+        "nominal": 4,
+        "encontrado": 4.001,
+        "erro": 0.001,
+        "incerteza": 0.0014,
+        "k": 2.0
+      },
+      {
+        "nominal": 6,
+        "encontrado": 5.999,
+        "erro": -0.001,
+        "incerteza": 0.0008,
+        "k": 2.0
+      },
+      {
+        "nominal": 8,
+        "encontrado": 7.994,
+        "erro": -0.006,
+        "incerteza": 0.0009,
+        "k": 2.0
+      },
+      {
+        "nominal": 10,
+        "encontrado": 10.0,
+        "erro": 0.0,
+        "incerteza": 0.0013,
+        "k": 2.0
+      }
+    ]
+  },
+  "nome_laboratorio": "Laboratório Bom Sereno de Ensaios e Calibração",
+  "digital": {
+    "arquivo": "cert_0001_digital.pdf",
+    "campos": [
+      {
+        "campo": "laboratorio",
+        "texto": "Laboratório Bom Sereno de Ensaios e Calibração",
+        "caixa": [
+          0.2219,
+          0.0498,
+          0.7539,
+          0.068
+        ]
+      },
+      {
+        "campo": "numero_certificado",
+        "texto": "BS 20255570",
+        "caixa": [
+          0.8028,
+          0.1319,
+          0.9039,
+          0.1453
+        ]
+      },
+      {
+        "campo": "cliente",
+        "texto": "Caldeiraria Demonstração Ltda",
+        "caixa": [
+          0.0719,
+          0.1744,
+          0.3015,
+          0.1865
+        ]
+      },
+      {
+        "campo": "data_calibracao",
+        "texto": "28/mai/2025",
+        "caixa": [
+          0.4879,
+          0.1744,
+          0.5747,
+          0.1865
+        ]
+      },
+      {
+        "campo": "tipo",
+        "texto": "Relógio comparador",
+        "caixa": [
+          0.0719,
+          0.2053,
+          0.2189,
+          0.2174
+        ]
+      },
+      {
+        "campo": "data_emissao",
+        "texto": "03/jun/2025",
+        "caixa": [
+          0.4879,
+          0.2053,
+          0.5719,
+          0.2174
+        ]
+      },
+      {
+        "campo": "codigo",
+        "texto": "RC-9844",
+        "caixa": [
+          0.0719,
+          0.2362,
+          0.1353,
+          0.2483
+        ]
+      },
+      {
+        "campo": "fabricante",
+        "texto": "Metrovix",
+        "caixa": [
+          0.4879,
+          0.2362,
+          0.5541,
+          0.2483
+        ]
+      },
+      {
+        "campo": "faixa",
+        "texto": "0 a 10 mm",
+        "caixa": [
+          0.0719,
+          0.2671,
+          0.1461,
+          0.2792
+        ]
+      },
+      {
+        "campo": "serie",
+        "texto": "H744054",
+        "caixa": [
+          0.4879,
+          0.2671,
+          0.5514,
+          0.2792
+        ]
+      },
+      {
+        "campo": "resolucao",
+        "texto": "0,001 mm",
+        "caixa": [
+          0.0719,
+          0.298,
+          0.1419,
+          0.3101
+        ]
+      },
+      {
+        "campo": "temperatura",
+        "texto": "22,5 °C",
+        "caixa": [
+          0.4879,
+          0.298,
+          0.5403,
+          0.3101
+        ]
+      },
+      {
+        "campo": "umidade",
+        "texto": "56 %",
+        "caixa": [
+          0.0719,
+          0.3288,
+          0.1097,
+          0.341
+        ]
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "0,000",
+        "caixa": [
+          0.3026,
+          0.3954,
+          0.3404,
+          0.4075
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "-0,001",
+        "caixa": [
+          0.4662,
+          0.3954,
+          0.5096,
+          0.4075
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "-0,001",
+        "caixa": [
+          0.6326,
+          0.3954,
+          0.676,
+          0.4075
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0,0012",
+        "caixa": [
+          0.7976,
+          0.3954,
+          0.8438,
+          0.4075
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "2,000",
+        "caixa": [
+          0.3026,
+          0.4156,
+          0.3404,
+          0.4277
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "2,001",
+        "caixa": [
+          0.469,
+          0.4156,
+          0.5068,
+          0.4277
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0,001",
+        "caixa": [
+          0.6354,
+          0.4156,
+          0.6732,
+          0.4277
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0,0020",
+        "caixa": [
+          0.7976,
+          0.4156,
+          0.8438,
+          0.4277
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "4,000",
+        "caixa": [
+          0.3026,
+          0.4357,
+          0.3404,
+          0.4479
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "4,001",
+        "caixa": [
+          0.469,
+          0.4357,
+          0.5068,
+          0.4479
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0,001",
+        "caixa": [
+          0.6354,
+          0.4357,
+          0.6732,
+          0.4479
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0,0014",
+        "caixa": [
+          0.7976,
+          0.4357,
+          0.8438,
+          0.4479
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "6,000",
+        "caixa": [
+          0.3026,
+          0.4559,
+          0.3404,
+          0.4681
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "5,999",
+        "caixa": [
+          0.469,
+          0.4559,
+          0.5068,
+          0.4681
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "-0,001",
+        "caixa": [
+          0.6326,
+          0.4559,
+          0.676,
+          0.4681
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0,0008",
+        "caixa": [
+          0.7976,
+          0.4559,
+          0.8438,
+          0.4681
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "8,000",
+        "caixa": [
+          0.3026,
+          0.4761,
+          0.3404,
+          0.4882
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "7,994",
+        "caixa": [
+          0.469,
+          0.4761,
+          0.5068,
+          0.4882
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "-0,006",
+        "caixa": [
+          0.6326,
+          0.4761,
+          0.676,
+          0.4882
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0,0009",
+        "caixa": [
+          0.7976,
+          0.4761,
+          0.8438,
+          0.4882
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "10,000",
+        "caixa": [
+          0.2984,
+          0.4963,
+          0.3446,
+          0.5084
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "10,000",
+        "caixa": [
+          0.4648,
+          0.4963,
+          0.511,
+          0.5084
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0,000",
+        "caixa": [
+          0.6354,
+          0.4963,
+          0.6732,
+          0.5084
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0,0013",
+        "caixa": [
+          0.7976,
+          0.4963,
+          0.8438,
+          0.5084
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "tecnico",
+        "texto": "Júlio Duarte",
+        "caixa": [
+          0.0719,
+          0.6068,
+          0.1545,
+          0.6189
+        ]
+      }
+    ]
+  },
+  "escaneado": {
+    "arquivo": "cert_0001_escaneado.pdf",
+    "campos": [
+      {
+        "campo": "laboratorio",
+        "texto": "Laboratório Bom Sereno de Ensaios e Calibração",
+        "caixa": [
+          0.2222,
+          0.0426,
+          0.7544,
+          0.064
+        ]
+      },
+      {
+        "campo": "numero_certificado",
+        "texto": "BS 20255570",
+        "caixa": [
+          0.8022,
+          0.1281,
+          0.9034,
+          0.1421
+        ]
+      },
+      {
+        "campo": "cliente",
+        "texto": "Caldeiraria Demonstração Ltda",
+        "caixa": [
+          0.0708,
+          0.1663,
+          0.3005,
+          0.1798
+        ]
+      },
+      {
+        "campo": "data_calibracao",
+        "texto": "28/mai/2025",
+        "caixa": [
+          0.4868,
+          0.1688,
+          0.5737,
+          0.1814
+        ]
+      },
+      {
+        "campo": "tipo",
+        "texto": "Relógio comparador",
+        "caixa": [
+          0.0704,
+          0.1972,
+          0.2176,
+          0.2102
+        ]
+      },
+      {
+        "campo": "data_emissao",
+        "texto": "03/jun/2025",
+        "caixa": [
+          0.4864,
+          0.1997,
+          0.5706,
+          0.2123
+        ]
+      },
+      {
+        "campo": "codigo",
+        "texto": "RC-9844",
+        "caixa": [
+          0.0701,
+          0.2281,
+          0.1336,
+          0.2406
+        ]
+      },
+      {
+        "campo": "fabricante",
+        "texto": "Metrovix",
+        "caixa": [
+          0.486,
+          0.2306,
+          0.5524,
+          0.2431
+        ]
+      },
+      {
+        "campo": "faixa",
+        "texto": "0 a 10 mm",
+        "caixa": [
+          0.0697,
+          0.259,
+          0.144,
+          0.2716
+        ]
+      },
+      {
+        "campo": "serie",
+        "texto": "H744054",
+        "caixa": [
+          0.4857,
+          0.2615,
+          0.5493,
+          0.274
+        ]
+      },
+      {
+        "campo": "resolucao",
+        "texto": "0,001 mm",
+        "caixa": [
+          0.0693,
+          0.2899,
+          0.1395,
+          0.3024
+        ]
+      },
+      {
+        "campo": "temperatura",
+        "texto": "22,5 °C",
+        "caixa": [
+          0.4853,
+          0.2924,
+          0.5379,
+          0.3048
+        ]
+      },
+      {
+        "campo": "umidade",
+        "texto": "56 %",
+        "caixa": [
+          0.069,
+          0.3207,
+          0.1069,
+          0.3331
+        ]
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "0,000",
+        "caixa": [
+          0.2989,
+          0.3887,
+          0.3368,
+          0.401
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "-0,001",
+        "caixa": [
+          0.4625,
+          0.3896,
+          0.506,
+          0.402
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "-0,001",
+        "caixa": [
+          0.6289,
+          0.3906,
+          0.6724,
+          0.403
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0,0012",
+        "caixa": [
+          0.7938,
+          0.3916,
+          0.8402,
+          0.404
+        ],
+        "ponto": 0
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "2,000",
+        "caixa": [
+          0.2986,
+          0.4089,
+          0.3366,
+          0.4212
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "2,001",
+        "caixa": [
+          0.465,
+          0.4099,
+          0.503,
+          0.4222
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0,001",
+        "caixa": [
+          0.6314,
+          0.4108,
+          0.6694,
+          0.4232
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0,0020",
+        "caixa": [
+          0.7936,
+          0.4118,
+          0.84,
+          0.4242
+        ],
+        "ponto": 1
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "4,000",
+        "caixa": [
+          0.2984,
+          0.429,
+          0.3363,
+          0.4414
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "4,001",
+        "caixa": [
+          0.4648,
+          0.43,
+          0.5027,
+          0.4424
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0,001",
+        "caixa": [
+          0.6312,
+          0.4309,
+          0.6691,
+          0.4434
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0,0014",
+        "caixa": [
+          0.7934,
+          0.4319,
+          0.8397,
+          0.4444
+        ],
+        "ponto": 2
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "6,000",
+        "caixa": [
+          0.2981,
+          0.4492,
+          0.3361,
+          0.4616
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "5,999",
+        "caixa": [
+          0.4645,
+          0.4502,
+          0.5025,
+          0.4626
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "-0,001",
+        "caixa": [
+          0.6281,
+          0.4511,
+          0.6717,
+          0.4636
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0,0008",
+        "caixa": [
+          0.7931,
+          0.4521,
+          0.8395,
+          0.4646
+        ],
+        "ponto": 3
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "8,000",
+        "caixa": [
+          0.2979,
+          0.4694,
+          0.3359,
+          0.4817
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "7,994",
+        "caixa": [
+          0.4643,
+          0.4704,
+          0.5022,
+          0.4827
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "-0,006",
+        "caixa": [
+          0.6279,
+          0.4713,
+          0.6714,
+          0.4837
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0,0009",
+        "caixa": [
+          0.7929,
+          0.4723,
+          0.8392,
+          0.4847
+        ],
+        "ponto": 4
+      },
+      {
+        "campo": "ponto.nominal",
+        "texto": "10,000",
+        "caixa": [
+          0.2935,
+          0.4895,
+          0.3398,
+          0.5019
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.encontrado",
+        "texto": "10,000",
+        "caixa": [
+          0.4599,
+          0.4905,
+          0.5062,
+          0.5029
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.erro",
+        "texto": "0,000",
+        "caixa": [
+          0.6305,
+          0.4915,
+          0.6684,
+          0.5039
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "ponto.incerteza",
+        "texto": "0,0013",
+        "caixa": [
+          0.7927,
+          0.4925,
+          0.839,
+          0.5049
+        ],
+        "ponto": 5
+      },
+      {
+        "campo": "tecnico",
+        "texto": "Júlio Duarte",
+        "caixa": [
+          0.0657,
+          0.5987,
+          0.1484,
+          0.6113
+        ]
+      }
+    ],
+    "dpi": 200,
+    "angulo_graus": -0.48,
+    "deslocamento_px": [
+      -8,
+      -13
+    ],
+    "qualidade_jpeg": 48
+  }
+}
