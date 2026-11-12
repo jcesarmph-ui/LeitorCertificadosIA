@@ -3,6 +3,7 @@
 Só certificados FICTÍCIOS, gerados pelo próprio projeto numa pasta temporária. Nenhum dado real.
 """
 
+import colorsys
 import json
 import os
 import time
@@ -14,7 +15,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt  # noqa: E402
 from PySide6.QtGui import QWheelEvent  # noqa: E402
-from PySide6.QtWidgets import QApplication, QComboBox  # noqa: E402
+from PySide6.QtTest import QTest  # noqa: E402
+from PySide6.QtWidgets import QApplication, QComboBox, QLabel  # noqa: E402
 
 from leitor_certificados import __version__  # noqa: E402
 from leitor_certificados.conferencia.avaliacao import Resultado  # noqa: E402
@@ -22,13 +24,17 @@ from leitor_certificados.ficticio.gerar import gerar_um  # noqa: E402
 from leitor_certificados.ficticio.plano import criar_banco_de_planos  # noqa: E402
 from leitor_certificados.interface.estilo import aplicar_estilo  # noqa: E402
 from leitor_certificados.interface.janela import Janela  # noqa: E402
+from leitor_certificados.interface.legenda import icone_do_rotulo  # noqa: E402
+from leitor_certificados.interface.paletas import PALETA_ATUAL, PALETAS  # noqa: E402
 from leitor_certificados.interface.servico import (  # noqa: E402
     ROTULOS,
     Pastas,
     Servico,
+    arquivo_de_correcoes,
     descrever_pontos,
     descrever_tolerancia,
     gravar_correcao,
+    gravar_manual,
     numero,
     renderizar_folha,
 )
@@ -210,4 +216,167 @@ def test_arquivo_que_nao_e_pdf_vira_aviso_na_tela_sem_pop_up(app, mundo, tmp_pat
     ruim.write_text("não sou um pdf")
     janela.abrir(ruim)
     assert not janela.ocupado and "Não consegui abrir" in janela.avisos.text()
+    janela.close()
+
+
+# ---------------------------------------------------------------- segunda rodada de ajustes
+
+def test_valor_digitado_a_mao_confere_na_hora_e_volta_ao_reabrir(mundo):
+    servico, pastas, certificado = mundo
+    analise = servico.analisar(certificado)
+    codigo_lido = analise.conferencia.codigo
+    gravar_manual(pastas, analise, "codigo", "ZZ-9999")  # código que não existe no cadastro
+    servico.reconferir(analise)
+    assert analise.conferencia.resultado == Resultado.PENDENTE
+    dados = json.loads(arquivo_de_correcoes(pastas, certificado).read_text(encoding="utf-8"))
+    assert dados["manual"] == {"codigo": "ZZ-9999"}
+    # uma correção de rótulo depois não apaga o valor digitado
+    gravar_correcao(pastas, analise, [0], analise.rotulos[0])
+    dados = json.loads(arquivo_de_correcoes(pastas, certificado).read_text(encoding="utf-8"))
+    assert dados["manual"] == {"codigo": "ZZ-9999"}
+    reaberta = servico.analisar(certificado)
+    assert reaberta.manual == {"codigo": "ZZ-9999"}
+    assert reaberta.conferencia.resultado == Resultado.PENDENTE
+    gravar_manual(pastas, reaberta, "codigo", codigo_lido)  # o código certo, digitado
+    servico.reconferir(reaberta)
+    assert reaberta.conferencia.resultado != Resultado.PENDENTE
+    gravar_manual(pastas, reaberta, "codigo", "")  # vazio apaga
+    assert "manual" not in json.loads(
+        arquivo_de_correcoes(pastas, certificado).read_text(encoding="utf-8"))
+    with pytest.raises(ValueError):
+        gravar_manual(pastas, reaberta, "fabricante", "x")
+
+
+def test_certeza_baixa_vira_revisar_e_o_ponto_mostra_a_certeza(mundo):
+    servico, _, certificado = mundo
+    analise = servico.analisar(certificado)
+    campo = next(i for i, r in enumerate(analise.rotulos)
+                 if r != "outro" and i not in analise.corrigidas)
+    analise.previsoes[campo] = (analise.previsoes[campo][0], 0.3)
+    assert analise.revisar(campo)
+    analise.previsoes[campo] = (analise.previsoes[campo][0], 0.9)
+    assert not analise.revisar(campo)
+    linhas = descrever_pontos(analise.conferencia, analise)
+    assert linhas and all(0 < c <= 1 for c in linhas[0].certezas.values())
+    assert "nominal" in linhas[0].certezas
+
+
+def test_paletas_nao_usam_verde_vermelho_nem_amarelo_fortes():
+    for nome, opcao in PALETAS.items():
+        for rgb in [*opcao.cores.values(), opcao.padrao]:
+            h, s, v = colorsys.rgb_to_hsv(*(c / 255 for c in rgb))
+            graus = h * 360
+            forte = s > 0.5 and v > 0.4
+            proibida = graus < 15 or graus > 345 or 45 <= graus <= 65 or 85 <= graus <= 160
+            assert not (forte and proibida), f"paleta {nome}: {rgb} parece verde/vermelho/amarelo"
+    assert PALETA_ATUAL in PALETAS
+
+
+def _abrir_pronto(app, servico, certificado):
+    janela = Janela(servico)
+    janela.resize(1500, 900)
+    janela.show()
+    janela.abrir(certificado)
+    esperar(app, janela)
+    return janela
+
+
+def test_botao_principal_vira_analisar_outro(app, mundo):
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    assert janela.botao_abrir.text() == "Abrir certificado"
+    janela.abrir(certificado)
+    assert janela.folha.brilhando() and janela.botao_cancelar.isVisibleTo(janela)
+    esperar(app, janela)
+    assert not janela.folha.brilhando()
+    assert janela.botao_abrir.text() == "Analisar outro"
+    janela.close()
+
+
+def test_cancelar_volta_ao_que_estava_e_joga_o_resultado_fora(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    anterior = janela.analise
+    janela.abrir(certificado)
+    janela.cancelar_analise()
+    assert not janela.ocupado and not janela.folha.brilhando()
+    assert janela.analise is anterior and janela.parecer.text() != "—"
+    for tarefa in list(janela._tarefas):  # a thread termina em segundo plano...
+        tarefa.wait(60000)
+    app.processEvents()
+    assert janela.analise is anterior  # ...e o resultado dela é ignorado
+    # cancelar sem nada antes volta para a folha vazia
+    vazia = Janela(servico)
+    vazia.abrir(certificado)
+    vazia.cancelar_analise()
+    assert vazia.analise is None and vazia.botao_abrir.text() == "Abrir certificado"
+    for tarefa in list(vazia._tarefas):
+        tarefa.wait(60000)
+    janela.close()
+    vazia.close()
+
+
+def _roda(folha, ctrl: bool):
+    meio = QPointF(folha.viewport().width() / 2, folha.viewport().height() / 2)
+    modificador = (Qt.KeyboardModifier.ControlModifier if ctrl
+                   else Qt.KeyboardModifier.NoModifier)
+    return QWheelEvent(meio, folha.viewport().mapToGlobal(meio), QPoint(0, 0), QPoint(0, 120),
+                       Qt.MouseButton.NoButton, modificador, Qt.ScrollPhase.NoScrollPhase, False)
+
+
+def test_ctrl_roda_da_zoom_e_a_roda_sozinha_so_rola(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    folha = janela.folha
+    escala = folha.transform().m11()
+    app.sendEvent(folha.viewport(), _roda(folha, ctrl=False))
+    assert folha.transform().m11() == pytest.approx(escala)
+    app.sendEvent(folha.viewport(), _roda(folha, ctrl=True))
+    assert folha.transform().m11() == pytest.approx(escala * 1.15)
+    janela.close()
+
+
+def test_clicar_num_ponto_conferido_abre_o_quadrinho_e_esc_fecha(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    folha = janela.folha
+    folha.centerOn(folha._zonas[0].rect().center())
+    app.processEvents()
+    local = folha.mapFromScene(folha._zonas[0].rect().center())
+    QTest.mouseClick(folha.viewport(), Qt.MouseButton.LeftButton,
+                     Qt.KeyboardModifier.NoModifier, local)
+    app.processEvents()
+    assert janela.quadro is not None and janela.quadro.isVisible()
+    textos = " ".join(w.text() for w in janela.quadro.findChildren(QLabel))
+    assert "Certeza do modelo" in textos and "Tolerância do plano" in textos
+    QTest.keyClick(janela.quadro, Qt.Key.Key_Escape)
+    app.processEvents()
+    assert janela.quadro is None or not janela.quadro.isVisible()
+    # clicar fora de um ponto conferido não abre nada
+    QTest.mouseClick(folha.viewport(), Qt.MouseButton.LeftButton,
+                     Qt.KeyboardModifier.NoModifier, QPoint(3, 3))
+    app.processEvents()
+    assert janela.quadro is None or not janela.quadro.isVisible()
+    janela.close()
+
+
+def test_legenda_e_lista_de_rotulos_com_cor(app):
+    janela = Janela(Servico(Pastas()))
+    assert len(janela.legenda.nomes) == 21 and "Revisar (certeza baixa)" in janela.legenda.nomes
+    assert all(not icone_do_rotulo(r).isNull() for r in ROTULOS)
+    janela.close()
+
+
+def test_digitar_codigo_na_tela_mostra_digitado(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    janela.botao_corrigir.setChecked(True)
+    assert janela.faixa_manual.isVisibleTo(janela)
+    janela.valor_manual.setText("BAL-005")
+    janela.usar_valor_manual()
+    assert janela.campos["codigo"].text() == "BAL-005 (digitado)"
+    assert janela.parecer.text() == "PENDENTE"  # código desconhecido: pendente, nunca aprovado
+    janela.valor_manual.setText("")
+    janela.usar_valor_manual()  # apaga: volta ao que o modelo leu
+    assert "(digitado)" not in janela.campos["codigo"].text()
     janela.close()

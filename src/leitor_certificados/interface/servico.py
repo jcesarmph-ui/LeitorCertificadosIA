@@ -1,10 +1,11 @@
-"""O fluxo do programa, sem nada de tela: analisar, corrigir e aprender.
+"""O fluxo do programa, sem nada de tela: analisar, corrigir, digitar à mão e aprender.
 
 Tudo aqui pode ser testado sem abrir janela. A interface só chama estas funções (em segundo
 plano, porque o OCR e o treino demoram) e desenha o que elas devolvem.
 
 Onde ficam as coisas (todas FORA do Git — ADR 0002; `dados/` e `modelos/` estão no .gitignore):
-- `dados/reais_marcacao/<nome>.palavras.json` — as correções feitas à mão;
+- `dados/reais_marcacao/<nome>.palavras.json` — as correções feitas à mão (e os valores
+  digitados, na chave `manual`);
 - `dados/ficticios/` — certificados inventados usados no treino base;
 - `dados/banco_dq05/release_1_2_0/calibracao.db` — cópia do banco dos planos (só leitura);
 - `modelos/modelo_atual.joblib` — o modelo treinado.
@@ -12,8 +13,8 @@ Onde ficam as coisas (todas FORA do Git — ADR 0002; `dados/` e `modelos/` est�
 
 from __future__ import annotations
 
+import dataclasses
 import json
-import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,7 +28,7 @@ from ..aprendizado.rotulos import rotular
 from ..conferencia.avaliacao import Avaliacao, Resultado
 from ..conferencia.conferir import Conferencia, conferir
 from ..conferencia.extracao import CertificadoLido, montar_certificado
-from ..conferencia.plano import PlanosDQ05, normalizar_codigo
+from ..conferencia.plano import PlanosDQ05
 from ..ficticio.gerar import gerar_um
 from ..leitura import Pagina
 from ..leitura.ler import ler_pdf
@@ -60,6 +61,9 @@ ROTULOS: dict[str, str] = {
     "ponto.criterio": "Ponto: critério de aceitação",
 }
 
+# O que dá para digitar à mão quando o modelo não consegue ler (ex.: código escrito a caneta).
+CAMPOS_MANUAIS: dict[str, str] = {"codigo": "Código do instrumento", "faixa": "Faixa"}
+
 
 @dataclass
 class Pastas:
@@ -85,11 +89,17 @@ class Analise:
     certificado: CertificadoLido | None = None
     conferencia: Conferencia | None = None
     campos: dict[str, str] = field(default_factory=dict)  # o que o modelo leu (faixa, tipo…)
-    faixa_cadastro: str | None = None  # a faixa do instrumento no cadastro (só informação)
+    manual: dict[str, str] = field(default_factory=dict)  # valores digitados à mão
     avisos: list[str] = field(default_factory=list)  # problemas da análise (banco ausente…)
 
     def certeza(self, i: int) -> float:
         return 1.0 if i in self.corrigidas else self.previsoes[i][1]
+
+    def revisar(self, i: int) -> bool:
+        """Palavra que o modelo acha que é um campo, mas com pouca certeza (< limiar): a
+        conferência a ignora e a tela pede para a pessoa revisar."""
+        return (self.rotulos[i] != "outro" and i not in self.corrigidas
+                and self.previsoes[i][1] < ml.LIMIAR_CERTEZA)
 
 
 Progresso = Callable[[str], None]
@@ -125,54 +135,64 @@ def _lido_confere(itens: list[dict], pagina: Pagina) -> bool:
         i["texto"] == p.texto for i, p in zip(itens, pagina.palavras, strict=True))
 
 
-def _correcoes_existentes(pastas: Pastas, caminho: Path, pagina: Pagina) -> dict[int, str]:
-    """{índice da palavra: rótulo corrigido} — só o que a pessoa de fato mudou."""
+def _ler_arquivo(pastas: Pastas, caminho: Path) -> dict:
     arquivo = arquivo_de_correcoes(pastas, caminho)
-    if not arquivo.exists():
-        return {}
-    itens = json.loads(arquivo.read_text(encoding="utf-8"))["palavras"]
-    if not _lido_confere(itens, pagina):
+    return json.loads(arquivo.read_text(encoding="utf-8")) if arquivo.exists() else {}
+
+
+def _correcoes_existentes(dados: dict, pagina: Pagina) -> dict[int, str]:
+    """{índice da palavra: rótulo corrigido} — só o que a pessoa de fato mudou."""
+    itens = dados.get("palavras", [])
+    if not itens or not _lido_confere(itens, pagina):
         return {}
     return {i["i"]: i["certo"] for i in itens if i["certo"] != i["rotulo"]}
+
+
+def _itens_atuais(dados: dict, analise: Analise) -> list[dict]:
+    """As palavras do arquivo, prontas para mudar. Se o arquivo não existe ou é de outra
+    leitura, refaz a lista a partir da análise (o `certo` começa igual ao palpite), levando junto
+    as correções cujo texto continua igual — a mesma regra do `pre_rotular_reais.py`."""
+    antigos = {i["i"]: i for i in dados.get("palavras", [])}
+    if antigos and _lido_confere(list(antigos.values()), analise.pagina):
+        return list(antigos.values())
+    itens = [
+        {"i": i, "texto": p.texto, "caixa": list(p.caixa), "confianca": p.confianca,
+         "rotulo": r, "certeza": round(c, 3), "certo": r}
+        for i, (p, (r, c)) in enumerate(
+            zip(analise.pagina.palavras, analise.previsoes, strict=True))
+    ]
+    for item in itens:
+        antigo = antigos.get(item["i"])
+        if antigo and antigo["certo"] != antigo["rotulo"] and antigo["texto"] == item["texto"]:
+            item["certo"] = antigo["certo"]
+    return itens
+
+
+def _gravar(pastas: Pastas, analise: Analise, itens: list[dict], manual: dict) -> None:
+    conteudo = {"origem": analise.pagina.origem, "rotacao": analise.pagina.rotacao,
+                "palavras": itens}
+    if manual:
+        conteudo["manual"] = manual
+    pastas.marcacao.mkdir(parents=True, exist_ok=True)
+    arquivo_de_correcoes(pastas, analise.caminho).write_text(
+        json.dumps(conteudo, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def gravar_correcao(pastas: Pastas, analise: Analise, indices: list[int], rotulo: str) -> int:
     """Grava `rotulo` como o certo para as palavras `indices` e devolve quantas mudaram.
 
-    Cria o `.palavras.json` se não existir (o `certo` começa igual ao palpite). Se já existe e é
-    desta mesma leitura, só o `certo` das palavras indicadas muda: nada do que já foi corrigido
-    se perde. Se o arquivo é de outra leitura (as palavras não batem), é refeito, levando junto as
-    correções cujo texto continua igual — a mesma regra do `pre_rotular_reais.py`."""
+    Cria o `.palavras.json` se não existir. Nada do que já foi corrigido (nem o que foi digitado
+    à mão) se perde: só o `certo` das palavras indicadas muda."""
     if rotulo not in ROTULOS:
         raise ValueError(f"rótulo desconhecido: {rotulo}")
-    arquivo = arquivo_de_correcoes(pastas, analise.caminho)
-    antigos: dict[int, dict] = {}
-    if arquivo.exists():
-        lidos = json.loads(arquivo.read_text(encoding="utf-8"))["palavras"]
-        antigos = {i["i"]: i for i in lidos}
-    if antigos and _lido_confere(list(antigos.values()), analise.pagina):
-        itens = list(antigos.values())
-    else:
-        itens = [
-            {"i": i, "texto": p.texto, "caixa": list(p.caixa), "confianca": p.confianca,
-             "rotulo": r, "certeza": round(c, 3), "certo": r}
-            for i, (p, (r, c)) in enumerate(
-                zip(analise.pagina.palavras, analise.previsoes, strict=True))
-        ]
-        for item in itens:  # leva as correções antigas cujo texto ainda é o mesmo
-            antigo = antigos.get(item["i"])
-            if antigo and antigo["certo"] != antigo["rotulo"] and antigo["texto"] == item["texto"]:
-                item["certo"] = antigo["certo"]
+    dados = _ler_arquivo(pastas, analise.caminho)
+    itens = _itens_atuais(dados, analise)
     mudaram = 0
     for i in indices:
         if itens[i]["certo"] != rotulo:
             itens[i]["certo"] = rotulo
             mudaram += 1
-    pastas.marcacao.mkdir(parents=True, exist_ok=True)
-    arquivo.write_text(
-        json.dumps({"origem": analise.pagina.origem, "rotacao": analise.pagina.rotacao,
-                    "palavras": itens}, ensure_ascii=False, indent=1),
-        encoding="utf-8")
+    _gravar(pastas, analise, itens, dados.get("manual", {}))
     for item in itens:  # a tela passa a mostrar o corrigido
         if item["certo"] != item["rotulo"]:
             analise.corrigidas.add(item["i"])
@@ -183,10 +203,26 @@ def gravar_correcao(pastas: Pastas, analise: Analise, indices: list[int], rotulo
     return mudaram
 
 
+def gravar_manual(pastas: Pastas, analise: Analise, campo: str, valor: str) -> None:
+    """Guarda um valor digitado à mão (chave `manual` do `.palavras.json`). Valor vazio apaga.
+    Não entra no treino: serve só para a conferência deste certificado."""
+    if campo not in CAMPOS_MANUAIS:
+        raise ValueError(f"campo que não se digita à mão: {campo}")
+    dados = _ler_arquivo(pastas, analise.caminho)
+    manual = dict(dados.get("manual", {}))
+    valor = valor.strip()
+    if valor:
+        manual[campo] = valor
+    else:
+        manual.pop(campo, None)
+    _gravar(pastas, analise, _itens_atuais(dados, analise), manual)
+    analise.manual = manual
+
+
 # ---------------------------------------------------------------- modelo
 
 class Servico:
-    """Guarda o modelo em uso e faz o trabalho pesado. Cada método roda em segundo plano."""
+    """Guarda o modelo em uso e faz o trabalho pesado. Os métodos lentos rodam em segundo plano."""
 
     def __init__(self, pastas: Pastas | None = None):
         self.pastas = pastas or Pastas()
@@ -246,19 +282,34 @@ class Servico:
         progresso("Descobrindo o que é cada palavra")
         previsoes = ml.prever(self.modelo, pagina)
         rotulos = [r for r, _ in previsoes]
-        corrigidas = _correcoes_existentes(self.pastas, caminho, pagina)
+        dados = _ler_arquivo(self.pastas, caminho)
+        corrigidas = _correcoes_existentes(dados, pagina)
         for i, certo in corrigidas.items():
             rotulos[i] = certo
         analise = Analise(
             caminho=caminho, pagina=pagina, imagem=renderizar_folha(caminho, pagina.rotacao),
-            previsoes=previsoes, rotulos=rotulos, corrigidas=set(corrigidas))
+            previsoes=previsoes, rotulos=rotulos, corrigidas=set(corrigidas),
+            manual=dict(dados.get("manual", {})))
         progresso("Conferindo com o plano")
-        self._conferir(analise)
-        return analise
-
-    def _conferir(self, analise: Analise) -> None:
         analise.campos = ml.ler_campos(self.modelo, analise.pagina)
         analise.certificado = montar_certificado(self.modelo, analise.pagina)
+        self.reconferir(analise)
+        return analise
+
+    def reconferir(self, analise: Analise) -> None:
+        """Confere de novo com o plano, usando os valores digitados à mão no lugar do que o
+        modelo leu. É rápido (só o banco), por isso pode rodar direto na tela."""
+        analise.avisos = [a for a in analise.avisos if not a.startswith("O banco")]
+        analise.conferencia = None
+        if analise.certificado is None:
+            return
+        certificado = analise.certificado
+        if analise.manual.get("codigo"):
+            # sem os textos da folha: o `conferir` não procura outro código, vale o digitado
+            certificado = dataclasses.replace(certificado, codigo=analise.manual["codigo"],
+                                              textos=())
+        if analise.manual.get("faixa"):
+            certificado = dataclasses.replace(certificado, faixa=analise.manual["faixa"])
         if not self.pastas.banco.exists():
             analise.avisos.append("O banco dos planos não foi encontrado: a conferência "
                                   "com o plano não foi feita.")
@@ -266,29 +317,11 @@ class Servico:
         # O banco é aberto aqui, na mesma thread que o usa (o SQLite não deixa trocar de thread)
         planos = PlanosDQ05(self.pastas.banco)
         try:
-            analise.conferencia = conferir(analise.certificado, planos)
+            analise.conferencia = conferir(certificado, planos)
         except Exception as erro:  # a tela nunca cai por causa de um certificado estranho
             analise.avisos.append(f"Não consegui conferir com o plano: {erro}")
         finally:
             planos.fechar()
-        if analise.conferencia and analise.conferencia.codigo:
-            analise.faixa_cadastro = self._faixa_do_cadastro(analise.conferencia.codigo)
-
-    def _faixa_do_cadastro(self, codigo: str) -> str | None:
-        """A faixa do instrumento no cadastro (leitura só para mostrar: a conferência ainda NÃO
-        compara a faixa do certificado com a do plano)."""
-        con = sqlite3.connect(f"file:{self.pastas.banco.resolve().as_posix()}?mode=ro", uri=True)
-        try:
-            alvo = normalizar_codigo(codigo)
-            for cod, faixa in con.execute(
-                    "SELECT codigo, faixa FROM instrumentos WHERE excluido_em IS NULL"):
-                if normalizar_codigo(cod) == alvo:
-                    return faixa or None
-        except sqlite3.Error:
-            return None  # banco de outro formato: a faixa do cadastro é só informação
-        finally:
-            con.close()
-        return None
 
 
 # ---------------------------------------------------------------- texto para a tela
@@ -313,7 +346,7 @@ def descrever_tolerancia(inferior: float | None, superior: float | None) -> str:
 
 @dataclass
 class LinhaPonto:
-    """Um ponto conferido, já em texto para a tabela e para a dica."""
+    """Um ponto conferido, já em texto para a tabela, a dica e o quadrinho do clique."""
 
     nominal: str
     encontrado: str
@@ -325,16 +358,33 @@ class LinhaPonto:
     motivo: str
     caixa: tuple[float, float, float, float]
     avisos: list[str]
+    # certeza do modelo nas palavras deste ponto, por coluna ("nominal", "erro"…): a menor
+    certezas: dict[str, float] = field(default_factory=dict)
 
     def dica(self) -> str:
         parecer = self.resultado.value + (f" ({self.motivo})" if self.motivo else "")
         linhas = [f"Ponto {self.nominal}", f"Erro: {self.erro}",
                   f"U (incerteza): {self.incerteza}", f"Erro ± U: {self.erro_mais_u}",
-                  f"Tolerância do plano: {self.tolerancia}", f"Parecer: {parecer}"]
+                  f"Tolerância do plano: {self.tolerancia}", f"Parecer: {parecer}",
+                  "Clique para ver os detalhes"]
         return "\n".join(linhas + [f"Aviso: {a}" for a in self.avisos])
 
 
-def descrever_pontos(conferencia: Conferencia | None) -> list[LinhaPonto]:
+def _certezas_da_linha(analise: Analise, caixa: tuple[float, ...]) -> dict[str, float]:
+    """A menor certeza do modelo em cada coluna do ponto (palavras dentro da linha)."""
+    e, t, d, b = caixa
+    certezas: dict[str, float] = {}
+    for i, palavra in enumerate(analise.pagina.palavras):
+        cx, cy = palavra.centro
+        rotulo = analise.rotulos[i]
+        if rotulo.startswith("ponto.") and e - 0.005 <= cx <= d + 0.005 and t <= cy <= b:
+            coluna = rotulo.removeprefix("ponto.")
+            certezas[coluna] = min(certezas.get(coluna, 1.0), analise.certeza(i))
+    return certezas
+
+
+def descrever_pontos(conferencia: Conferencia | None,
+                     analise: Analise | None = None) -> list[LinhaPonto]:
     if conferencia is None:
         return []
     linhas = []
@@ -347,5 +397,6 @@ def descrever_pontos(conferencia: Conferencia | None) -> list[LinhaPonto]:
             nominal=numero(p.lido.nominal), encontrado=numero(p.lido.encontrado),
             erro=numero(p.erro), incerteza=numero(p.lido.incerteza), erro_mais_u=faixa,
             tolerancia=tol, resultado=av.resultado, motivo=av.motivo or "",
-            caixa=p.lido.caixa, avisos=list(p.avisos)))
+            caixa=p.lido.caixa, avisos=list(p.avisos),
+            certezas=_certezas_da_linha(analise, p.lido.caixa) if analise else {}))
     return linhas

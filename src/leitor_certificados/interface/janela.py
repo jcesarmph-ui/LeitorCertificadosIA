@@ -13,12 +13,14 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QBrush, QColor, QDragEnterEvent, QDropEvent, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
     QFileDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMenu,
     QProgressBar,
@@ -42,22 +44,26 @@ from .estilo import (
     VERMELHO_TEXTO,
 )
 from .folha import FolhaView
+from .legenda import Legenda, icone_do_rotulo
+from .quadro import QuadroPonto
 from .servico import (
+    CAMPOS_MANUAIS,
     ROTULOS,
     Analise,
     LinhaPonto,
     Servico,
     descrever_pontos,
     gravar_correcao,
+    gravar_manual,
     renderizar_folha,
 )
 from .tarefas import Tarefa
 
-COLUNAS = ["Nominal", "Encontrado", "Erro", "U", "Erro ± U", "Tolerância do plano", "Resultado"]
+COLUNAS = ["Nominal", "Encontrado", "Erro", "U", "Erro ± U", "Tolerância", "Resultado"]
 DICAS_COLUNAS = {
     "U": "Incerteza expandida de medição, informada no certificado",
     "Erro ± U": "A faixa que o erro pode ocupar: do erro − U até o erro + U",
-    "Tolerância do plano": "Limites de erro aceitos no plano de calibração do instrumento",
+    "Tolerância": "Tolerância do plano: limites de erro aceitos no plano de calibração",
 }
 
 
@@ -68,7 +74,10 @@ class Janela(QMainWindow):
         self.analise: Analise | None = None
         self.linhas: list[LinhaPonto] = []
         self.ocupado = False
-        self._tarefa: Tarefa | None = None
+        self._tarefas: set[Tarefa] = set()  # guardadas: sem isso o Python as apagaria no meio
+        self._vez = 0  # muda a cada trabalho novo ou cancelado: resultado de vez antiga é jogado
+        self._anterior: Analise | None = None  # para voltar se a análise for cancelada
+        self.quadro: QuadroPonto | None = None
         self._pendentes = 0  # correções feitas e ainda não aprendidas pelo modelo
         self.setWindowTitle(f"Leitor de Certificados — v{__version__}")
         self.setAcceptDrops(True)
@@ -125,8 +134,13 @@ class Janela(QMainWindow):
         self.barra.setFixedWidth(180)
         self.barra.setTextVisible(False)
         self.barra.hide()
+        self.botao_cancelar = QPushButton("Cancelar análise")
+        self.botao_cancelar.setToolTip("Para de esperar esta análise e volta ao que estava antes")
+        self.botao_cancelar.clicked.connect(self.cancelar_analise)
+        self.botao_cancelar.hide()
         botoes.addWidget(self.andamento, 1)
         botoes.addWidget(self.barra)
+        botoes.addWidget(self.botao_cancelar)
         coluna.addLayout(botoes)
 
         # --- faixa 3: folha à esquerda, painel à direita
@@ -163,10 +177,46 @@ class Janela(QMainWindow):
             botao.setToolTip(dica)
             botao.clicked.connect(acao)
             topo.addWidget(botao)
+        self.botao_destacar = QPushButton("Destacar pontos")
+        self.botao_destacar.setObjectName("zoom")
+        self.botao_destacar.setCheckable(True)
+        self.botao_destacar.setChecked(True)
+        self.botao_destacar.setToolTip(
+            "Ligado: as caixas que não são pontos conferidos ficam mais fracas, para os checks "
+            "aparecerem. Ctrl + roda do mouse dá zoom na folha.")
+        self.botao_destacar.toggled.connect(lambda ligado: self.folha.set_destacar(ligado))
+        topo.insertWidget(1, self.botao_destacar)
         lay.addLayout(topo)
+
+        # digitar à mão (só aparece no modo Corrigir): o que o modelo não conseguiu ler
+        self.faixa_manual = QWidget()
+        manual = QHBoxLayout(self.faixa_manual)
+        manual.setContentsMargins(0, 0, 0, 0)
+        rotulo_manual = QLabel("Digitar à mão:")
+        rotulo_manual.setToolTip("Para o que o modelo não conseguiu ler (ex.: código escrito a "
+                                 "caneta). A conferência roda de novo na hora com o valor.")
+        self.campo_manual = QComboBox()
+        for chave, nome in CAMPOS_MANUAIS.items():
+            self.campo_manual.addItem(nome, chave)
+        self.campo_manual.currentIndexChanged.connect(self._mostrar_valor_manual)
+        self.valor_manual = QLineEdit()
+        self.valor_manual.setPlaceholderText("Ex.: BAL-005 (vazio = usar o que o modelo leu)")
+        self.valor_manual.returnPressed.connect(self.usar_valor_manual)
+        botao_manual = QPushButton("Usar valor")
+        botao_manual.clicked.connect(self.usar_valor_manual)
+        manual.addWidget(rotulo_manual)
+        manual.addWidget(self.campo_manual)
+        manual.addWidget(self.valor_manual, 1)
+        manual.addWidget(botao_manual)
+        self.faixa_manual.hide()
+        lay.addWidget(self.faixa_manual)
+
         self.folha = FolhaView()
         self.folha.palavras_escolhidas.connect(self.escolher_rotulo)
+        self.folha.ponto_clicado.connect(self.abrir_quadro)
         lay.addWidget(self.folha, 1)
+        self.legenda = Legenda()
+        lay.addWidget(self.legenda)
         return caixa
 
     def _montar_painel(self) -> QWidget:
@@ -195,8 +245,9 @@ class Janela(QMainWindow):
             ("codigo", "Código achado", "O código do instrumento lido no certificado"),
             ("plano", "Instrumento / plano", "Nome do plano no cadastro do sistema de calibração"),
             ("faixa", "Faixa lida", "Faixa de utilização que o modelo leu no certificado"),
-            ("faixa_cadastro", "Faixa no cadastro",
-             "Só informação: a conferência ainda NÃO compara a faixa com o cadastro"),
+            ("faixa_plano", "Faixa do plano",
+             "Faixa do instrumento no cadastro. Se for diferente da lida, aparece um aviso "
+             "amarelo (não muda o parecer)"),
             ("tipo", "Tipo lido", "Tipo de instrumento que o modelo leu no certificado"),
         )):
             rotulo = QLabel(nome + ":")
@@ -222,7 +273,7 @@ class Janela(QMainWindow):
         self.tabela.verticalHeader().hide()
         cab = self.tabela.horizontalHeader()
         cab.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        cab.setSectionResizeMode(COLUNAS.index("Tolerância do plano"),
+        cab.setSectionResizeMode(COLUNAS.index("Tolerância"),
                                  QHeaderView.ResizeMode.Stretch)
         self.tabela.setStyleSheet("QTableWidget { font-size: 11pt; } "
                                   "QHeaderView::section { font-size: 11pt; }")
@@ -248,11 +299,15 @@ class Janela(QMainWindow):
         self.ocupado = False
         self.andamento.setText("")
         self.barra.hide()
+        self.botao_cancelar.hide()
         self._atualizar_botoes()
 
     def _atualizar_botoes(self) -> None:
         livre = not self.ocupado
         self.botao_abrir.setEnabled(livre)
+        # depois do primeiro certificado, o botão principal convida a analisar o próximo
+        self.botao_abrir.setText("Analisar outro" if self.analise is not None
+                                 else "Abrir certificado")
         self.botao_corrigir.setEnabled(livre and self.analise is not None)
         self.botao_aprender.setEnabled(livre)
         self.botao_aprender.setText(
@@ -262,18 +317,29 @@ class Janela(QMainWindow):
     def _rodar(self, funcao, ao_concluir, texto: str) -> None:
         """Roda `funcao(progresso)` em segundo plano; `ao_concluir(resultado)` volta na tela."""
         self._ocupar(texto)
+        self._vez += 1
+        vez = self._vez
         tarefa = Tarefa(funcao, self)
-        tarefa.progresso.connect(self.andamento.setText)
-        tarefa.concluida.connect(lambda r: self._terminou(ao_concluir, r))
-        tarefa.falhou.connect(self._falhou)
-        self._tarefa = tarefa  # guardada: sem isso o Python apagaria a thread no meio do trabalho
+        tarefa.progresso.connect(lambda t: self._andamento(vez, t))
+        tarefa.concluida.connect(lambda r: self._terminou(vez, ao_concluir, r))
+        tarefa.falhou.connect(lambda erro: self._falhou(vez, erro))
+        tarefa.finished.connect(lambda: self._tarefas.discard(tarefa))
+        self._tarefas.add(tarefa)
         tarefa.start()
 
-    def _terminou(self, ao_concluir, resultado) -> None:
+    def _andamento(self, vez: int, texto: str) -> None:
+        if vez == self._vez:
+            self.andamento.setText(texto)
+
+    def _terminou(self, vez: int, ao_concluir, resultado) -> None:
+        if vez != self._vez:
+            return  # trabalho cancelado: o resultado é jogado fora
         self._liberar()
         ao_concluir(resultado)
 
-    def _falhou(self, erro: str) -> None:
+    def _falhou(self, vez: int, erro: str) -> None:
+        if vez != self._vez:
+            return
         self._liberar()
         self.folha.parar_brilho()
         self.avisar(f"Algo deu errado: {erro}", "erro")
@@ -326,6 +392,7 @@ class Janela(QMainWindow):
         except Exception as erro:
             self.avisar(f"Não consegui abrir {Path(caminho).name}: {erro}", "erro")
             return
+        self._anterior = self.analise
         self.analise = None
         self.botao_corrigir.setChecked(False)
         self._limpar_painel()
@@ -335,15 +402,36 @@ class Janela(QMainWindow):
         self.avisar("Analisando…", "dica")
         self._rodar(lambda progresso: self.servico.analisar(caminho, progresso),
                     self.mostrar_analise, "Analisando o certificado")
+        self.botao_cancelar.show()
+
+    def cancelar_analise(self) -> None:
+        """Volta ao que estava antes. O OCR não dá para interromper no meio: a thread termina
+        sozinha em segundo plano e o resultado dela é jogado fora."""
+        if not self.ocupado:
+            return
+        self._vez += 1
+        self._liberar()
+        self.folha.parar_brilho()
+        anterior, self._anterior = self._anterior, None
+        if anterior is not None:
+            self.mostrar_analise(anterior)
+        else:
+            self.folha.mostrar_mensagem("Abra um certificado (PDF) ou arraste o arquivo para cá")
+            self.dica_folha.setText("")
+            self._limpar_painel()
+            self._atualizar_botoes()
+        self.avisar("Análise cancelada.", "aviso")
 
     def mostrar_analise(self, analise: Analise) -> None:
         self.analise = analise
-        self.linhas = descrever_pontos(analise.conferencia)
+        self._anterior = None
+        self.linhas = descrever_pontos(analise.conferencia, analise)
         self.folha.parar_brilho()
         self.folha.mostrar_analise(analise, self.linhas)
         self.dica_folha.setText(
             f"{analise.caminho.name} — {analise.pagina.origem}, "
-            f"{len(analise.pagina.palavras)} palavras. Passe o mouse num ponto para ver a conta.")
+            f"{len(analise.pagina.palavras)} palavras. Clique num ponto conferido para ver a "
+            "conta.")
         self._preencher_painel(analise)
         self._atualizar_botoes()
         self.avisar("Pronto. Se o modelo errou algo, ligue o botão Corrigir.", "dica")
@@ -356,6 +444,8 @@ class Janela(QMainWindow):
         self.motivo.hide()
         for valor in self.campos.values():
             valor.setText("—")
+            valor.setStyleSheet("")
+            valor.setToolTip("")
         self.tabela.setRowCount(0)
 
     def _preencher_painel(self, analise: Analise) -> None:
@@ -371,20 +461,33 @@ class Janela(QMainWindow):
         motivos = list(analise.avisos) + (list(conferencia.avisos) if conferencia else [])
         for p in (conferencia.pontos if conferencia else []):
             motivos += [f"ponto {p.lido.nominal:g}: {a}" for a in p.avisos]
-        if resultado == Resultado.PENDENTE or resultado == Resultado.REPROVADO:
-            self.motivo.setText("\n".join(f"• {m}" for m in motivos))
-        else:
-            self.motivo.setText("")
+        # avisos sempre aparecem (ex.: faixa diferente do plano avisa mesmo com "Aprovado")
+        self.motivo.setText("\n".join(f"• {m}" for m in motivos))
         self.motivo.setStyleSheet(f"color: {AMARELO};")
         self.motivo.setVisible(bool(self.motivo.text()))  # sem texto, não ocupa lugar
-        self.campos["codigo"].setText(
-            (conferencia.codigo if conferencia and conferencia.codigo else None)
-            or analise.campos.get("codigo") or "não encontrado")
+        if analise.manual.get("codigo"):
+            self.campos["codigo"].setText(f"{analise.manual['codigo']} (digitado)")
+        else:
+            self.campos["codigo"].setText(
+                (conferencia.codigo if conferencia and conferencia.codigo else None)
+                or analise.campos.get("codigo") or "não encontrado")
         self.campos["plano"].setText(
             (conferencia.plano_nome if conferencia and conferencia.plano_nome else None)
             or "sem plano no cadastro")
-        self.campos["faixa"].setText(analise.campos.get("faixa") or "não encontrada")
-        self.campos["faixa_cadastro"].setText(analise.faixa_cadastro or "—")
+        if analise.manual.get("faixa"):
+            self.campos["faixa"].setText(f"{analise.manual['faixa']} (digitada)")
+        else:
+            self.campos["faixa"].setText(
+                (conferencia.faixa_certificado if conferencia else None)
+                or analise.campos.get("faixa") or "não encontrada")
+        self.campos["faixa_plano"].setText(
+            (conferencia.faixa_plano if conferencia else None) or "—")
+        # aviso de faixa: os dois campos da faixa ficam amarelos, com o aviso na dica
+        aviso_faixa = next((a for a in (conferencia.avisos if conferencia else [])
+                            if "faixa" in a), None)
+        for chave in ("faixa", "faixa_plano"):
+            self.campos[chave].setStyleSheet(f"color: {AMARELO};" if aviso_faixa else "")
+            self.campos[chave].setToolTip(aviso_faixa or "")
         self.campos["tipo"].setText(analise.campos.get("tipo") or "não encontrado")
         self._preencher_tabela()
 
@@ -417,7 +520,9 @@ class Janela(QMainWindow):
     # ================================================================== corrigir
     def alternar_correcao(self, ligado: bool) -> None:
         self.folha.set_modo_corrigir(ligado)
+        self.faixa_manual.setVisible(ligado)
         if ligado:
+            self._mostrar_valor_manual()
             self.avisar("Modo Corrigir: clique numa palavra, ou arraste um retângulo sobre várias, "
                         "e escolha o que elas são. As palavras “outro” aparecem em cinza.",
                         "aviso")
@@ -430,7 +535,7 @@ class Janela(QMainWindow):
             return
         menu = QMenu(self)
         for rotulo, nome in ROTULOS.items():
-            acao = menu.addAction(nome)
+            acao = menu.addAction(icone_do_rotulo(rotulo), nome)  # a cor ao lado do nome
             acao.setData(rotulo)
         escolhida = menu.exec(posicao)
         if escolhida is None:
@@ -452,6 +557,41 @@ class Janela(QMainWindow):
             f"{len(indices)} palavra(s) marcada(s) como “{ROTULOS[rotulo]}”. "
             "Quando terminar, clique em Aprender com as correções.", "info")
 
+    def _mostrar_valor_manual(self) -> None:
+        campo = self.campo_manual.currentData()
+        valor = self.analise.manual.get(campo, "") if self.analise else ""
+        self.valor_manual.setText(valor)
+
+    def usar_valor_manual(self) -> None:
+        """Grava o valor digitado e confere de novo na hora (só o banco: é rápido)."""
+        if self.analise is None:
+            return
+        campo = self.campo_manual.currentData()
+        valor = self.valor_manual.text().strip()
+        try:
+            gravar_manual(self.servico.pastas, self.analise, campo, valor)
+            self.servico.reconferir(self.analise)
+        except Exception as erro:
+            self.avisar(f"Não consegui usar o valor digitado: {erro}", "erro")
+            return
+        self.mostrar_analise(self.analise)
+        nome = CAMPOS_MANUAIS[campo]
+        self.avisar(f"{nome}: usando “{valor}” (digitado)." if valor
+                    else f"{nome}: voltou a usar o que o modelo leu.", "info")
+
+    # ================================================================== quadrinho do ponto
+    def abrir_quadro(self, n: int, posicao: QPoint) -> None:
+        if not 0 <= n < len(self.linhas):
+            return
+        if self.quadro is not None:
+            self.quadro.close()
+        self.quadro = QuadroPonto(self.linhas[n], self)
+        self.quadro.destroyed.connect(self._quadro_fechado)
+        self.quadro.abrir_em(posicao)
+
+    def _quadro_fechado(self) -> None:
+        self.quadro = None
+
     # ================================================================== arrastar e soltar
     def dragEnterEvent(self, evento: QDragEnterEvent) -> None:
         urls = evento.mimeData().urls()
@@ -463,6 +603,7 @@ class Janela(QMainWindow):
 
     def closeEvent(self, evento) -> None:
         # espera o trabalho em segundo plano acabar, para não derrubar uma thread no meio
-        if self._tarefa is not None and self._tarefa.isRunning():
-            self._tarefa.wait(15000)
+        for tarefa in list(self._tarefas):
+            if tarefa.isRunning():
+                tarefa.wait(15000)
         super().closeEvent(evento)

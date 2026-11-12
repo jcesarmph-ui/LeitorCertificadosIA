@@ -73,6 +73,15 @@ QHeaderView::section {{
     background: {CAIXA}; color: #ffffff; border: 1px solid {BORDA_CAMPO}; padding: 4px;
     font-weight: bold;
 }}
+QLineEdit, QComboBox {{
+    background: {CAMPO}; color: {TEXTO}; border: 1px solid {BORDA_CAMPO}; border-radius: 3px;
+    padding: 4px 8px; selection-background-color: {SELECAO};
+}}
+QLineEdit:focus, QComboBox:focus {{ border: 1px solid {CONTORNO}; }}
+QComboBox QAbstractItemView {{
+    background: {CAMPO}; color: {TEXTO}; border: 1px solid {CONTORNO};
+    selection-background-color: {SELECAO};
+}}
 QGraphicsView {{ background: #1c1c1c; border: 1px solid {BORDA_CAMPO}; }}
 QScrollBar:vertical {{ background: {CAIXA}; width: 14px; }}
 QScrollBar:horizontal {{ background: {CAIXA}; height: 14px; }}
