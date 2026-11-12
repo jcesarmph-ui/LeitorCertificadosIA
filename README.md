@@ -41,7 +41,7 @@
 ## 📌 Visão Geral
 
 Este projeto nasceu do [**Sistema de Gestão de Calibração**](https://github.com/jcesarmph-ui/SistemaCalibracao),
-um aplicativo desktop em uso numa empresa. Lá, cada calibração é digitada à mão a partir do
+um aplicativo desktop em uso corporativo. Lá, cada calibração é digitada à mão a partir do
 certificado do laboratório. A pergunta deste projeto é: **dá para uma IA gratuita, rodando no
 próprio computador, ler o certificado e conferir sozinha?**
 
