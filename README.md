@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.4.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-0.5.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -35,6 +35,7 @@
   <a href="#-leitura-do-pdf">Leitura do PDF</a> •
   <a href="#-machine-learning">Machine learning</a> •
   <a href="#-conferência-com-o-plano">Conferência</a> •
+  <a href="#-aprendizado-com-o-uso">Aprendizado com o uso</a> •
   <a href="#️-tecnologias">Tecnologias</a> •
   <a href="#️-roteiro">Roteiro</a>
 </p>
@@ -229,6 +230,29 @@ consulta. **Na dúvida, o parecer fica "pendente"** — melhor pedir uma confer�
 > **aprendizado com o uso**: certificados reais entram, a pessoa corrige o que foi lido errado e o
 > modelo é retreinado — o acerto sobe com o tempo.
 
+## 🌱 Aprendizado com o uso
+
+O modelo não precisa conhecer todo tipo de certificado de antemão. A pessoa abre um certificado
+real, vê o que o programa leu (cada palavra com a **certeza** do modelo), **corrige** o que estiver
+errado e o modelo é **retreinado** com a correção. Cada certificado real corrigido conta como cinco
+fictícios no treino.
+
+**Medido com "deixa um de fora"**: treina sem um certificado real e testa nele. O que importa para
+comparar com o plano — código, faixa e os pontos (nominal, encontrado, erro e incerteza):
+
+| Certificados reais corrigidos no treino | Essenciais certos | "Falsos" (ruído por certificado) |
+|---|---|---|
+| nenhum (só fictícios) | 70,2 % | 75 |
+| 1 | 83,0 % | 39 |
+| 2 | 89,2 % | 32 |
+| 3 | 91,5 % | 30 |
+
+<sub>Média dos 4 certificados reais, cada um deixado de fora; só os números vão para o GitHub.</sub>
+
+> [!NOTE]
+> Medir também achou um defeito na leitura: o carimbo "ESTE CERTIFICADO FOI ANALISADO" enganava a
+> detecção de folha de cabeça para baixo. Depois de corrigir, esse escaneado foi de ~30 % para 96 %.
+
 ## 🛠️ Tecnologias
 
 | Tecnologia | Aplicação no projeto |
@@ -252,7 +276,8 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Etapa 2 — Leitura do PDF: texto direto e OCR (palavras com posição e confiança)
 - [x] Etapa 3 — Machine learning: encontrar os campos; acerto medido em treino × teste e em laboratório que o modelo nunca viu
 - [x] Etapa 4 — Conferência com o plano: erro ± U dentro da tolerância (parecer só quando há certeza)
-- [ ] Aprendizado contínuo — o modelo aprende com certificados reais corrigidos pelo usuário
+- [x] Aprendizado com o uso — o modelo aprende com certificados reais corrigidos (acerto nos essenciais: 70 % → 92 %)
+- [ ] Interface — abrir, ver os checks, corrigir e reaprender pela tela
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
 
 ---
