@@ -58,7 +58,9 @@ Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
 - **Objetivo do leitor (usuário, 2026-11-12)**: ver o que tem no certificado e **comparar com o
   plano** — **código**, **faixa** e principalmente **tolerância** (pontos nominal/erro/incerteza).
   Medir o que importa nisso ("essenciais"); fabricante/laboratório/técnico são secundários.
-  **Lacuna**: a conferência ainda não compara a **faixa** com o plano.
+  **Faixa** (decisão do usuário): `conferencia/faixa.py` compara mínimo e máximo e **só avisa em
+  amarelo** (diferente ou não comparável); não muda o parecer. Plano "Máx. X / mín. Y" e escalas
+  (durômetro) ficam como "não comparada".
 - **Decisão do usuário (2026-11-12)**: não perseguir laboratório novo; o modelo **aprende com o
   uso** (reais corrigidos → retreino). Branch `etapa-5-aprendizado-por-correcao`:
   `aprendizado/correcoes.py` (peso 5 nos reais), `scripts/corrigir_reais.py` (corrige por

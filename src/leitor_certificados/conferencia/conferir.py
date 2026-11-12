@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 from .avaliacao import Avaliacao, Resultado, avaliar_ponto, resultado_geral
 from .extracao import CertificadoLido, PontoLido
+from .faixa import comparar_faixas
 from .plano import Plano, PlanosDQ05, PontoDoPlano, normalizar_codigo
 
 # Dois valores nominais são "o mesmo ponto" se diferem menos que isto (relativo, com piso).
@@ -35,6 +36,8 @@ class Conferencia:
     resultado: Resultado
     pontos: list[PontoConferido] = field(default_factory=list)
     avisos: list[str] = field(default_factory=list)
+    faixa_certificado: str | None = None  # só mostrada/avisada: não muda o parecer
+    faixa_plano: str | None = None
 
 
 def _mesmo_nominal(a: float, b: float) -> bool:
@@ -101,12 +104,17 @@ def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
     if not codigo:
         return Conferencia(None, None, Resultado.PENDENTE,
                            avisos=["código do instrumento não encontrado no certificado"])
-    certificado = CertificadoLido(codigo, certificado.pontos, certificado.textos)
+    certificado = CertificadoLido(codigo, certificado.pontos, certificado.textos,
+                                  certificado.faixa)
     plano: Plano | None = planos.plano_do_instrumento(certificado.codigo)
     if plano is None:
         return Conferencia(certificado.codigo, None, Resultado.PENDENTE,
                            avisos=["instrumento sem plano no cadastro (código desconhecido)"])
-    conferencia = Conferencia(certificado.codigo, plano.nome, Resultado.PENDENTE)
+    conferencia = Conferencia(certificado.codigo, plano.nome, Resultado.PENDENTE,
+                              faixa_certificado=certificado.faixa, faixa_plano=plano.faixa)
+    aviso_faixa = comparar_faixas(certificado.faixa, plano.faixa).aviso
+    if aviso_faixa:  # decisão do usuário: faixa diferente só avisa; o parecer vem da tolerância
+        conferencia.avisos.append(aviso_faixa)
     resultados: list[Resultado] = []
     achados: set[int] = set()
     for lido in certificado.pontos:

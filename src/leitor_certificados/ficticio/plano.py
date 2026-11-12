@@ -22,7 +22,7 @@ _FATORES = (0.5, 0.7, 0.85, 1.25, 1.5, 2.0, 3.0)
 _ESQUEMA = """
 CREATE TABLE planos (id INTEGER PRIMARY KEY, nome TEXT NOT NULL, excluido_em TEXT);
 CREATE TABLE instrumentos (id INTEGER PRIMARY KEY, codigo TEXT NOT NULL, plano_id INTEGER,
-                           excluido_em TEXT);
+                           faixa TEXT, excluido_em TEXT);
 CREATE TABLE pontos_plano (
     id INTEGER PRIMARY KEY, plano_id INTEGER NOT NULL, ordem INTEGER, tipo TEXT NOT NULL,
     valor_nominal REAL, tolerancia_inferior REAL, tolerancia_superior REAL, incerteza REAL,
@@ -43,8 +43,9 @@ def criar_banco_de_planos(caminho: Path, certificados: list[dict],
         maior = max(abs(p["erro"]) + p["incerteza"] for p in pontos)
         tolerancia = float(f"{rng.choice(_FATORES) * max(maior, 1e-6):.3g}")
         con.execute("INSERT INTO planos (id, nome) VALUES (?, ?)", (n, f"Plano {cert['tipo']}"))
-        con.execute("INSERT INTO instrumentos (id, codigo, plano_id) VALUES (?, ?, ?)",
-                    (n, cert["codigo"], n))
+        faixa = f"{cert['faixa_min']:g}-{cert['faixa_max']:g}"  # como o cadastro real ("0-500")
+        con.execute("INSERT INTO instrumentos (id, codigo, plano_id, faixa) VALUES (?, ?, ?, ?)",
+                    (n, cert["codigo"], n, faixa))
         resultados = []
         for ordem, p in enumerate(pontos):
             con.execute(

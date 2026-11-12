@@ -218,6 +218,8 @@ da caixa do gabarito com o rótulo certo.</sub>
 Com os campos lidos, o programa acha o instrumento no plano de calibração, calcula o **erro ± U** de
 cada ponto e dá o parecer. A regra é a mesma do sistema de calibração; o plano é lido só para
 consulta. **Na dúvida, o parecer fica "pendente"** — melhor pedir uma conferência do que errar.
+A **faixa** lida também é comparada com a do cadastro (mínimo e máximo): se for diferente, ou se
+não der para comparar, aparece um aviso amarelo — o parecer continua vindo da tolerância.
 
 | Prova (150 certificados fictícios) | Pareceres certos | Pendentes | Decisão errada |
 |---|---|---|---|
