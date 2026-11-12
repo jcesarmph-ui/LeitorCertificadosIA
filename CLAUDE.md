@@ -55,12 +55,22 @@ Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
   Laftec traz colunas **"Erro Máximo"** e **"Critério de aceitação ±"** (o modelo as chama de
   incerteza) e há texto solto marcado por insegurança.
 - **Etapa 4 fechada (PR #5, 0.4.0, ADR 0006)**; 2ª rodada de medida registrada no README.
+- **Objetivo do leitor (usuário, 2026-11-12)**: ver o que tem no certificado e **comparar com o
+  plano** — **código**, **faixa** e principalmente **tolerância** (pontos nominal/erro/incerteza).
+  Medir o que importa nisso ("essenciais"); fabricante/laboratório/técnico são secundários.
+  **Lacuna**: a conferência ainda não compara a **faixa** com o plano.
 - **Decisão do usuário (2026-11-12)**: não perseguir laboratório novo; o modelo **aprende com o
-  uso** (reais corrigidos → retreino). Em andamento na branch `etapa-5-aprendizado-por-correcao`:
-  `aprendizado/correcoes.py` (lê `dados/reais_marcacao/*.palavras.json`, treina com peso 5 nos
-  reais), `scripts/corrigir_reais.py` (corrige por número/faixa) e fotos com a certeza do modelo.
-  Falta: corrigir os 4 reais, `scripts/medir_aprendizado.py` (deixa um de fora, antes × depois),
-  ADR 0007, README, versão 0.5.0.
+  uso** (reais corrigidos → retreino). Branch `etapa-5-aprendizado-por-correcao`:
+  `aprendizado/correcoes.py` (peso 5 nos reais), `scripts/corrigir_reais.py` (corrige por
+  número/faixa), `scripts/foto_revisao.py` (foto do que mudou), `scripts/medir_aprendizado.py`
+  (deixa um real de fora). Propostas de correção dos 4 reais em `dados/correcoes/propor_*.py`
+  (fora do Git; o usuário revisa). **Achado**: o carimbo "ESTE CERTIFICADO FOI ANALISADO" enganava
+  a detecção de folha invertida (`leitura/ocr.py`, corrigido: só "CERTIFICADO DE" é título).
+  Medida (essenciais: código, faixa, nominal, encontrado, erro, incerteza; média dos 4 reais
+  deixados de fora): **só fictícios 70,2 % → +1 real 83,0 % → +2 89,2 % → +3 91,5 %**; "falsos"
+  (palavra "outro" marcada como campo) 75 → 30. Cuidado ao contar: Laftec digital e escaneado são do
+  mesmo laboratório (um ajuda o outro). Falta: usuário revisar scan1 (refeito, 110 mudanças), ADR
+  0007, README, versão 0.5.0, PR.
 - **Próximos passos**: (1) corrigir os reais e medir o ganho; (2) gerador estilo Laftec + rótulos
   `ponto.erro_maximo`/`ponto.criterio`; (3) limiar de certeza; (4) tela estilo Lens com checks
   (memória `tela-estilo-lens-com-checks`); (5) teste com os reais (etapa final, só os números).

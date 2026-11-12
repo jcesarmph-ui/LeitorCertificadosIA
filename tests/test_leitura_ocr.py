@@ -90,3 +90,18 @@ def test_folha_de_cabeca_para_baixo_e_virada_sozinha(lote, tmp_path):
         lido = pagina.texto_na_caixa(campo["caixa"], folga=0.004)
         certos += _sem_espacos(lido) == _sem_espacos(campo["texto"])
     assert certos / total >= 0.85, f"{certos} de {total}"
+
+
+def test_titulo_ignora_o_carimbo_com_a_palavra_certificado():
+    """Numa folha invertida o carimbo "ESTE CERTIFICADO FOI ANALISADO" fica no alto e enganava a
+    regra; só "CERTIFICADO DE CALIBRAÇÃO" conta como título."""
+    from leitor_certificados.leitura.ocr import _titulo_no_alto
+    from leitor_certificados.leitura.palavra import Palavra
+
+    carimbo_no_alto = [
+        Palavra("ESTE", (0.1, 0.1, 0.2, 0.12)), Palavra("CERTIFICADO", (0.2, 0.1, 0.4, 0.12)),
+        Palavra("FOI", (0.4, 0.1, 0.5, 0.12)),
+        Palavra("CERTIFICADO", (0.3, 0.9, 0.5, 0.92)), Palavra("DE", (0.5, 0.9, 0.55, 0.92)),
+        Palavra("CALIBRAÇÃO", (0.55, 0.9, 0.8, 0.92)),
+    ]
+    assert _titulo_no_alto(carimbo_no_alto) == -1  # o título de verdade está embaixo

@@ -40,7 +40,13 @@ CONFIANCA_PARA_TESTAR_GIRO = 0.93
 
 def _titulo_no_alto(palavras: list[Palavra]) -> int:
     """1 se "certificado" aparece na metade de cima, -1 se só na de baixo, 0 se não aparece."""
-    ys = [p.centro[1] for p in palavras if p.texto.strip(" :.").lower() == "certificado"]
+    # Só conta o título de verdade ("CERTIFICADO DE CALIBRAÇÃO"): o carimbo "ESTE CERTIFICADO FOI
+    # ANALISADO", que também tem a palavra, enganava a regra numa folha invertida.
+    ys = [
+        p.centro[1] for i, p in enumerate(palavras[:-1])
+        if p.texto.strip(" :.").lower() == "certificado"
+        and palavras[i + 1].texto.strip(" :.").lower() == "de"
+    ]
     if not ys:
         return 0
     return 1 if min(ys) < 0.5 else -1
