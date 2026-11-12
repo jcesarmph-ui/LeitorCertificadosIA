@@ -54,9 +54,13 @@ Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
   `scripts/pre_rotular_reais.py` → `dados/reais_marcacao/` (PNG + JSON, fora do Git). Achados: o
   Laftec traz colunas **"Erro Máximo"** e **"Critério de aceitação ±"** (o modelo as chama de
   incerteza) e há texto solto marcado por insegurança.
-- **Próximos passos (o usuário disse "você faz tudo")**: (1) refazer a medida da etapa 4 e fechar o
-  PR; (2) gerador de fictícios estilo Laftec (colunas Erro Máximo/Critério/veff, "Parâmetro") e
-  rótulos novos `ponto.erro_maximo`/`ponto.criterio`; (3) limiar de certeza (palavra incerta →
-  "outro"); (4) gabarito dos reais (corrigir o JSON da pré-marcação) e medir/treinar com eles
-  (modelos reais só em `modelos/`, fora do Git); (5) tela estilo Google Lens com checks (memória
-  `tela-estilo-lens-com-checks`); (6) etapa 5.
+- **Etapa 4 fechada (PR #5, 0.4.0, ADR 0006)**; 2ª rodada de medida registrada no README.
+- **Decisão do usuário (2026-11-12)**: não perseguir laboratório novo; o modelo **aprende com o
+  uso** (reais corrigidos → retreino). Em andamento na branch `etapa-5-aprendizado-por-correcao`:
+  `aprendizado/correcoes.py` (lê `dados/reais_marcacao/*.palavras.json`, treina com peso 5 nos
+  reais), `scripts/corrigir_reais.py` (corrige por número/faixa) e fotos com a certeza do modelo.
+  Falta: corrigir os 4 reais, `scripts/medir_aprendizado.py` (deixa um de fora, antes × depois),
+  ADR 0007, README, versão 0.5.0.
+- **Próximos passos**: (1) corrigir os reais e medir o ganho; (2) gerador estilo Laftec + rótulos
+  `ponto.erro_maximo`/`ponto.criterio`; (3) limiar de certeza; (4) tela estilo Lens com checks
+  (memória `tela-estilo-lens-com-checks`); (5) teste com os reais (etapa final, só os números).

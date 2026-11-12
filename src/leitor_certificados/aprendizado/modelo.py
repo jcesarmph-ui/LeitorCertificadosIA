@@ -25,17 +25,27 @@ from .rotulos import OUTRO, rotular
 
 def treinar(paginas: list[Pagina], campos_por_pagina: list[list[dict]],
             folga: float = 0.0) -> Pipeline:
-    """Treina com páginas lidas + o gabarito de cada uma."""
+    """Treina com páginas lidas + o gabarito de cada uma (caixas)."""
+    rotulos = [rotular(p, c, folga) for p, c in zip(paginas, campos_por_pagina, strict=True)]
+    return treinar_com_rotulos(paginas, rotulos)
+
+
+def treinar_com_rotulos(paginas: list[Pagina], rotulos_por_pagina: list[list[str]],
+                        pesos: list[float] | None = None) -> Pipeline:
+    """Treina com um rótulo certo por palavra. `pesos` (um por página) diz o quanto cada página
+    conta: certificado real corrigido à mão vale mais que um fictício (aprendizado com o uso)."""
     pistas: list[dict] = []
     respostas: list[str] = []
-    for pagina, campos in zip(paginas, campos_por_pagina, strict=True):
+    peso_de_cada: list[float] = []
+    for n, (pagina, rotulos) in enumerate(zip(paginas, rotulos_por_pagina, strict=True)):
         pistas += atributos_da_pagina(pagina)
-        respostas += rotular(pagina, campos, folga)
+        respostas += rotulos
+        peso_de_cada += [pesos[n] if pesos else 1.0] * len(rotulos)
     modelo = Pipeline([
         ("pistas", DictVectorizer()),
         ("classificador", LogisticRegression(C=20, max_iter=2000)),
     ])
-    modelo.fit(pistas, respostas)
+    modelo.fit(pistas, respostas, classificador__sample_weight=peso_de_cada)
     return modelo
 
 

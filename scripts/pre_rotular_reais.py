@@ -61,8 +61,18 @@ def main() -> None:
              "rotulo": r, "certeza": round(c, 3), "certo": r}
             for i, (p, (r, c)) in enumerate(zip(pagina.palavras, previsoes, strict=True))
         ]
-        (SAIDA / f"{pdf.stem}.palavras.json").write_text(
-            json.dumps({"origem": pagina.origem, "palavras": itens}, ensure_ascii=False, indent=1),
+        destino = SAIDA / f"{pdf.stem}.palavras.json"
+        if destino.exists():  # nunca perder correção feita à mão
+            lidos = json.loads(destino.read_text(encoding="utf-8"))["palavras"]
+            antigos = {i["i"]: i for i in lidos}
+            for it in itens:
+                antigo = antigos.get(it["i"])
+                corrigido = antigo and antigo["certo"] != antigo["rotulo"]
+                if corrigido and antigo["texto"] == it["texto"]:
+                    it["certo"] = antigo["certo"]
+        destino.write_text(
+            json.dumps({"origem": pagina.origem, "rotacao": pagina.rotacao, "palavras": itens},
+                       ensure_ascii=False, indent=1),
             encoding="utf-8")
         doc = pdfium.PdfDocument(str(pdf))
         folha = doc[0].render(scale=2.2).to_pil().convert("RGB")
@@ -74,10 +84,16 @@ def main() -> None:
                 continue
             e, t, r, b = it["caixa"]
             cor = CORES.get(it["rotulo"], COR_PADRAO)
+            # quanto mais certo o modelo está, mais forte a cor; em dúvida, fica apagada
+            forca = int(30 + 150 * it["certeza"])
             d.rectangle([e * L, t * A, r * L, b * A], outline=cor + (255,), width=2,
-                        fill=cor + (40,))
-            d.text((e * L, t * A - 17), f"{it['i']}", font=fonte, fill=cor + (255,))
-        folha.save(SAIDA / f"{pdf.stem}.png")
+                        fill=cor + (forca // 3,))
+            d.text((e * L, t * A - 17), f"{it['i']} · {round(100 * it['certeza'])}%",
+                   font=fonte, fill=cor + (255,))
+        try:
+            folha.save(SAIDA / f"{pdf.stem}.png")
+        except OSError:  # foto aberta em outro programa: o JSON já foi gravado
+            print(f"AVISO: feche a foto de {pdf.name[:18]} e rode de novo para atualizá-la.")
         marcadas = sum(it["rotulo"] != "outro" for it in itens)
         print(f"{pdf.name[:18]}: {pagina.origem}, {len(itens)} palavras, {marcadas} marcadas")
 
