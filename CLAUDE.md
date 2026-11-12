@@ -18,7 +18,8 @@ deste projeto.
 - **Paleta de cores própria deste programa** (pedido do usuário, 2026-11-12): a interface
   inteira pode fugir do tema escuro padrão do `CLAUDE.md` geral — vale **só aqui**; não
   "consertar" de volta para o padrão nem mudar o `CLAUDE.md` geral. A paleta fica em
-  `src/leitor_certificados/interface/paletas.py` (escolha do usuário em andamento).
+  `interface/estilo.py` (`TEMAS`, `TEMA_ATUAL`) e `interface/paletas.py`. **Escolha do usuário
+  (2026-11-12): tema "claro_azulado"** e caixas da folha todas azuis (paleta "E").
 
 ## Roteiro (cada etapa = branch + PR; versão 0.MENOR = etapa)
 0. Fundação — pasta, `.venv`, Git, repositório público, README, ADRs.

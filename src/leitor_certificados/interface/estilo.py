@@ -65,7 +65,7 @@ TEMAS: dict[str, dict[str, str]] = {
         "erro_texto": "#ef5350", "folha_fundo": "#1c1c1c", "rolagem": "#4a4a4a"},
 }
 
-TEMA_ATUAL = "cinza_claro"  # provisório, até o usuário escolher
+TEMA_ATUAL = "claro_azulado"  # escolha do usuário em 2026-11-12
 
 
 def cor(nome: str) -> str:
