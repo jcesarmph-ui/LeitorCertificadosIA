@@ -38,7 +38,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..conferencia.avaliacao import Resultado
-from .estilo import AMARELO, DICA, VERDE, VERMELHO
+from .estilo import AMARELO, VERDE, VERMELHO, cor
 from .paletas import cor_rgb, paleta
 from .servico import ROTULOS, Analise, LinhaPonto
 
@@ -50,6 +50,14 @@ def cor_do_rotulo(rotulo: str) -> QColor:
 def cor_do_resultado(resultado: Resultado) -> str:
     """Verde = aprovado, vermelho = reprovado, amarelo = qualquer coisa sem avaliação (aviso)."""
     return {Resultado.APROVADO: VERDE, Resultado.REPROVADO: VERMELHO}.get(resultado, AMARELO)
+
+
+def tipo_do_rotulo(rotulo: str) -> str:
+    """O tipo de valor em MAIÚSCULAS para a dica do mouse: "INCERTEZA (U)", "ERRO", "K"…"""
+    if rotulo == "outro":
+        return "NÃO É DADO"
+    nome = ROTULOS.get(rotulo, rotulo).removeprefix("Ponto: ")
+    return nome.replace("fator k", "k").upper()
 
 
 def imagem_para_qt(imagem: Image.Image) -> QImage:
@@ -118,7 +126,7 @@ class FolhaView(QGraphicsView):
         self._imagem = None
         self.resetTransform()
         item = self._cena.addSimpleText(texto, QFont("Segoe UI", 14))
-        item.setBrush(QBrush(QColor(DICA)))
+        item.setBrush(QBrush(QColor(cor("dica"))))
         self._cena.setSceneRect(item.boundingRect().adjusted(-60, -60, 60, 60))
 
     def mostrar_imagem(self, imagem: Image.Image) -> None:
@@ -202,7 +210,9 @@ class FolhaView(QGraphicsView):
                 item.setBrush(QBrush(preenchimento))
                 situacao = ("corrigido por você" if corrigida
                             else f"certeza do modelo: {round(100 * certeza)} %")
-            item.setToolTip(f"“{palavra.texto}”\n{ROTULOS.get(rotulo, rotulo)}\n{situacao}"
+            # dica do mouse: primeiro o TIPO do valor (com todas as caixas da mesma cor, é
+            # assim que se sabe se o número é o erro, a incerteza, o k…)
+            item.setToolTip(f"{tipo_do_rotulo(rotulo)}\n“{palavra.texto}”\n{situacao}"
                             .rstrip())
             if item.selecionada:
                 # contorno preto tracejado + azul claro: aparece no papel branco e no escuro
@@ -227,11 +237,12 @@ class FolhaView(QGraphicsView):
             faixa.setPen(QPen(cor, 3))
             faixa.setZValue(0.5)  # atrás das caixas das palavras, na frente da folha
             self._cena.addItem(faixa)
-            zona = QGraphicsRectItem(faixa.rect())  # invisível: só a dica do mouse
+            # área invisível do clique no ponto; sem dica própria, para a dica de cada número
+            # (o tipo: erro, incerteza…) aparecer ao passar o mouse
+            zona = QGraphicsRectItem(faixa.rect())
             zona.setPen(QPen(Qt.PenStyle.NoPen))
             zona.setBrush(QBrush(Qt.BrushStyle.NoBrush))
             zona.setZValue(2)
-            zona.setToolTip(linha.dica())
             self._cena.addItem(zona)
             self._zonas.append(zona)
             centro_y = area.center().y()

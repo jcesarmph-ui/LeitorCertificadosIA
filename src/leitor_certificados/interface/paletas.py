@@ -90,7 +90,12 @@ PALETAS: dict[str, Paleta] = {
                 ]), padrao=(120, 120, 120)),
 }
 
-PALETA_ATUAL = "A"  # provisória, até o usuário escolher
+# E — tudo azul (escolha do usuário em 2026-11-12): a cor não separa os campos; o tipo de
+# cada valor aparece na dica do mouse. Sem legenda (seria uma cor só).
+PALETAS["E"] = Paleta("azul", "Todas as caixas azuis; o tipo aparece na dica do mouse", {},
+                      padrao=(25, 118, 210))
+
+PALETA_ATUAL = "E"
 
 
 def paleta() -> Paleta:

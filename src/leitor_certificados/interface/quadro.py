@@ -8,7 +8,7 @@ from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QLabel, QVBoxLayout
 
 from ..conferencia.avaliacao import Resultado
-from .estilo import AMARELO, CAMPO, CONTORNO, DICA, FAIXA_DENTRO, FAIXA_FORA, TEXTO
+from .estilo import AMARELO, FAIXA_DENTRO, FAIXA_FORA, cor
 from .servico import LinhaPonto
 
 # como cada coluna aparece na linha da certeza
@@ -22,13 +22,14 @@ class QuadroPonto(QFrame):
         self.setObjectName("quadroPonto")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setStyleSheet(
-            f"QFrame#quadroPonto {{ background: {CAMPO}; border: 2px solid {CONTORNO}; "
-            f"border-radius: 6px; }} QLabel {{ color: {TEXTO}; font-size: 12pt; }}")
+            f"QFrame#quadroPonto {{ background: {cor('campo')}; "
+            f"border: 2px solid {cor('contorno')}; border-radius: 6px; }} "
+            f"QLabel {{ color: {cor('texto')}; font-size: 12pt; }}")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(14, 10, 14, 12)
         lay.setSpacing(6)
         titulo = QLabel(f"Ponto {linha.nominal}")
-        titulo.setStyleSheet("font-size: 15pt; font-weight: bold; color: #ffffff;")
+        titulo.setStyleSheet(f"font-size: 15pt; font-weight: bold; color: {cor('titulo')};")
         lay.addWidget(titulo)
         if linha.certezas:
             partes = [f"{NOMES_COLUNAS.get(c, c)} {round(100 * v)} %"
@@ -36,7 +37,7 @@ class QuadroPonto(QFrame):
             certeza = QLabel("Certeza do modelo: " + " · ".join(partes))
         else:
             certeza = QLabel("Certeza do modelo: —")
-        certeza.setStyleSheet(f"color: {DICA}; font-style: italic; font-size: 11pt;")
+        certeza.setStyleSheet(f"color: {cor('dica')}; font-style: italic; font-size: 11pt;")
         certeza.setToolTip("O quanto o modelo tem certeza de que cada valor é o que ele achou")
         lay.addWidget(certeza)
         grade = QGridLayout()
@@ -69,7 +70,7 @@ class QuadroPonto(QFrame):
         for aviso in linha.avisos:
             texto = QLabel(f"• {aviso}")
             texto.setWordWrap(True)
-            texto.setStyleSheet(f"color: {AMARELO};")
+            texto.setStyleSheet(f"color: {cor('aviso_texto')};")
             lay.addWidget(texto)
 
     def abrir_em(self, posicao: QPoint) -> None:

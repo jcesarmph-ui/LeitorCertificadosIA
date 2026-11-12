@@ -23,6 +23,7 @@ from leitor_certificados.conferencia.avaliacao import Resultado  # noqa: E402
 from leitor_certificados.ficticio.gerar import gerar_um  # noqa: E402
 from leitor_certificados.ficticio.plano import criar_banco_de_planos  # noqa: E402
 from leitor_certificados.interface.estilo import aplicar_estilo  # noqa: E402
+from leitor_certificados.interface.folha import tipo_do_rotulo  # noqa: E402
 from leitor_certificados.interface.janela import Janela  # noqa: E402
 from leitor_certificados.interface.legenda import icone_do_rotulo  # noqa: E402
 from leitor_certificados.interface.paletas import PALETA_ATUAL, PALETAS  # noqa: E402
@@ -360,11 +361,25 @@ def test_clicar_num_ponto_conferido_abre_o_quadrinho_e_esc_fecha(app, mundo):
     janela.close()
 
 
-def test_legenda_e_lista_de_rotulos_com_cor(app):
-    janela = Janela(Servico(Pastas()))
-    assert len(janela.legenda.nomes) == 21 and "Revisar (certeza baixa)" in janela.legenda.nomes
+def test_sem_legenda_e_a_dica_do_mouse_diz_o_tipo_do_valor(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    assert not hasattr(janela, "legenda")  # tudo azul: a legenda saiu
     assert all(not icone_do_rotulo(r).isNull() for r in ROTULOS)
+    dicas = {c.toolTip().splitlines()[0] for c in janela.folha._caixas
+             if janela.analise.rotulos[c.indice].startswith("ponto.")}
+    assert {"VALOR NOMINAL", "ERRO", "INCERTEZA (U)"} <= dicas
+    assert tipo_do_rotulo("ponto.k") == "K" and tipo_do_rotulo("ponto.erro") == "ERRO"
+    # a área do ponto não tem dica própria (senão esconderia a dica de cada número)
+    assert all(not z.toolTip() for z in janela.folha._zonas)
     janela.close()
+
+
+def test_temas_tem_as_cores_que_o_estilo_usa():
+    from leitor_certificados.interface import estilo
+    for chave in estilo.TEMAS:
+        assert "background" in estilo.montar_estilo(chave)
+    assert estilo.TEMA_ATUAL in estilo.TEMAS and estilo.TEMA_ATUAL != "preto"
 
 
 def test_digitar_codigo_na_tela_mostra_digitado(app, mundo):

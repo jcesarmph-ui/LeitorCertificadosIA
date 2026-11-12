@@ -36,15 +36,13 @@ from .. import __version__
 from ..conferencia.avaliacao import Resultado
 from .estilo import (
     AMARELO,
-    CAMPO,
-    DICA,
     FAIXA_DENTRO,
     FAIXA_FORA,
     VERDE,
-    VERMELHO_TEXTO,
+    cor,
 )
 from .folha import FolhaView
-from .legenda import Legenda, icone_do_rotulo
+from .legenda import icone_do_rotulo
 from .quadro import QuadroPonto
 from .servico import (
     CAMPOS_MANUAIS,
@@ -215,8 +213,6 @@ class Janela(QMainWindow):
         self.folha.palavras_escolhidas.connect(self.escolher_rotulo)
         self.folha.ponto_clicado.connect(self.abrir_quadro)
         lay.addWidget(self.folha, 1)
-        self.legenda = Legenda()
-        lay.addWidget(self.legenda)
         return caixa
 
     def _montar_painel(self) -> QWidget:
@@ -284,9 +280,10 @@ class Janela(QMainWindow):
     # ================================================================== avisos e andamento
     def avisar(self, texto: str, tipo: str = "info") -> None:
         """Mensagem na área de avisos. Amarelo = aviso, vermelho = erro, cinza = dica."""
-        cor = {"aviso": AMARELO, "erro": VERMELHO_TEXTO, "dica": DICA}.get(tipo, "#f0f0f0")
+        tinta = {"aviso": cor("aviso_texto"), "erro": cor("erro_texto"),
+                 "dica": cor("dica")}.get(tipo, cor("texto"))
         estilo = "font-style: italic;" if tipo == "dica" else ""
-        self.avisos.setStyleSheet(f"color: {cor}; {estilo}")
+        self.avisos.setStyleSheet(f"color: {tinta}; {estilo}")
         self.avisos.setText(texto)
 
     def _ocupar(self, texto: str) -> None:
@@ -439,7 +436,7 @@ class Janela(QMainWindow):
     # ================================================================== painel da direita
     def _limpar_painel(self) -> None:
         self.parecer.setText("—")
-        self.parecer.setStyleSheet(f"background: {CAMPO}; color: {DICA};")
+        self.parecer.setStyleSheet(f"background: {cor('campo')}; color: {cor('dica')};")
         self.motivo.setText("")
         self.motivo.hide()
         for valor in self.campos.values():
@@ -463,7 +460,7 @@ class Janela(QMainWindow):
             motivos += [f"ponto {p.lido.nominal:g}: {a}" for a in p.avisos]
         # avisos sempre aparecem (ex.: faixa diferente do plano avisa mesmo com "Aprovado")
         self.motivo.setText("\n".join(f"• {m}" for m in motivos))
-        self.motivo.setStyleSheet(f"color: {AMARELO};")
+        self.motivo.setStyleSheet(f"color: {cor('aviso_texto')};")
         self.motivo.setVisible(bool(self.motivo.text()))  # sem texto, não ocupa lugar
         if analise.manual.get("codigo"):
             self.campos["codigo"].setText(f"{analise.manual['codigo']} (digitado)")
@@ -486,7 +483,8 @@ class Janela(QMainWindow):
         aviso_faixa = next((a for a in (conferencia.avisos if conferencia else [])
                             if "faixa" in a), None)
         for chave in ("faixa", "faixa_plano"):
-            self.campos[chave].setStyleSheet(f"color: {AMARELO};" if aviso_faixa else "")
+            self.campos[chave].setStyleSheet(
+                f"color: {cor('aviso_texto')}; font-weight: bold;" if aviso_faixa else "")
             self.campos[chave].setToolTip(aviso_faixa or "")
         self.campos["tipo"].setText(analise.campos.get("tipo") or "não encontrado")
         self._preencher_tabela()
@@ -512,7 +510,7 @@ class Janela(QMainWindow):
         if resultado == Resultado.APROVADO:
             celula.setForeground(QBrush(QColor(VERDE)))
         elif resultado == Resultado.REPROVADO:
-            celula.setForeground(QBrush(QColor(VERMELHO_TEXTO)))
+            celula.setForeground(QBrush(QColor(cor("erro_texto"))))
         else:  # "não avaliado" e parecidos: aviso amarelo com letra preta
             celula.setBackground(QBrush(QColor(AMARELO)))
             celula.setForeground(QBrush(QColor("#000000")))
