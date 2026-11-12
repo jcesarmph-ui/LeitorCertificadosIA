@@ -23,9 +23,13 @@ PESO_REAL = 5.0  # um certificado real corrigido conta como 5 fictícios
 
 
 def carregar_marcacao(arquivo: Path | str) -> tuple[Pagina, list[str]]:
-    """Lê um `.palavras.json` e devolve a página e o rótulo `certo` de cada palavra."""
+    """Lê um `.palavras.json` e devolve a página e o rótulo `certo` de cada palavra.
+
+    Se a pessoa corrigiu o texto que o OCR leu errado (`texto_certo`, duplo clique na tela), o
+    treino usa o texto corrigido: o modelo aprende com o que está realmente escrito."""
     dados = json.loads(Path(arquivo).read_text(encoding="utf-8"))
-    palavras = [Palavra(i["texto"], tuple(i["caixa"]), i["confianca"]) for i in dados["palavras"]]
+    palavras = [Palavra(i.get("texto_certo") or i["texto"], tuple(i["caixa"]), i["confianca"])
+                for i in dados["palavras"]]
     pagina = Pagina(dados["origem"], palavras, dados.get("rotacao", 0))
     return pagina, [i["certo"] for i in dados["palavras"]]
 

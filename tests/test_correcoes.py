@@ -56,3 +56,13 @@ def test_modelo_aprende_a_correcao(tmp_path):
     modelo = treinar_com_correcoes([], [], reais)
     pagina, certo = reais[0]
     assert [r for r, _ in prever(modelo, pagina)] == certo
+
+
+def test_texto_corrigido_a_mao_entra_no_treino(tmp_path):
+    arquivo, _ = _gravar(tmp_path)
+    dados = json.loads(arquivo.read_text(encoding="utf-8"))
+    dados["palavras"][1]["texto_certo"] = "2,800"  # o OCR leu "2,500"
+    arquivo.write_text(json.dumps(dados), encoding="utf-8")
+    pagina, _ = carregar_marcacao(arquivo)
+    assert pagina.palavras[1].texto == "2,800"
+    assert pagina.palavras[2].texto == "5,100"  # sem correção: fica o que o OCR leu
