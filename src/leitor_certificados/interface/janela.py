@@ -198,8 +198,10 @@ class Janela(QMainWindow):
         lay.addLayout(topo)
 
         # digitar à mão (só aparece no modo Corrigir): o que o modelo não conseguiu ler
+        # Duas linhas (em cima: qual campo; embaixo: o valor e o botão). Numa linha só, a
+        # coluna da folha é estreita e o campo do valor ficava espremido, sem dar para ler.
         self.faixa_manual = QWidget()
-        manual = QHBoxLayout(self.faixa_manual)
+        manual = QGridLayout(self.faixa_manual)
         manual.setContentsMargins(0, 0, 0, 0)
         rotulo_manual = QLabel("Digitar à mão:")
         rotulo_manual.setToolTip("Para o que o modelo não conseguiu ler (ex.: código escrito a "
@@ -209,14 +211,15 @@ class Janela(QMainWindow):
             self.campo_manual.addItem(nome, chave)
         self.campo_manual.currentIndexChanged.connect(self._mostrar_valor_manual)
         self.valor_manual = QLineEdit()
-        self.valor_manual.setPlaceholderText("Ex.: BAL-005 (vazio = usar o que o modelo leu)")
+        self.valor_manual.setPlaceholderText("Vazio = usar o que o modelo leu")
         self.valor_manual.returnPressed.connect(self.usar_valor_manual)
         botao_manual = QPushButton("Usar valor")
         botao_manual.clicked.connect(self.usar_valor_manual)
-        manual.addWidget(rotulo_manual)
-        manual.addWidget(self.campo_manual)
-        manual.addWidget(self.valor_manual, 1)
-        manual.addWidget(botao_manual)
+        manual.addWidget(rotulo_manual, 0, 0)
+        manual.addWidget(self.campo_manual, 0, 1, 1, 2)
+        manual.addWidget(self.valor_manual, 1, 0, 1, 2)
+        manual.addWidget(botao_manual, 1, 2)
+        manual.setColumnStretch(1, 1)
         self.faixa_manual.hide()
         lay.addWidget(self.faixa_manual)
 
