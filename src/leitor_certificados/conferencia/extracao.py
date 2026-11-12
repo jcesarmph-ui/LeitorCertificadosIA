@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from sklearn.pipeline import Pipeline
 
-from ..aprendizado.modelo import prever
+from ..aprendizado.modelo import LIMIAR_CERTEZA, com_limiar, prever
 from ..leitura import Pagina, Palavra
 
 _NUMERO = re.compile(r"^[+\-−]?\d+(?:[.,]\d+)?$")
@@ -59,9 +59,11 @@ def _linhas(palavras: list[Palavra]) -> list[list[Palavra]]:
     return linhas
 
 
-def montar_certificado(modelo: Pipeline, pagina: Pagina) -> CertificadoLido:
-    """Usa o modelo para achar o código do instrumento e os pontos da tabela."""
-    previsoes = prever(modelo, pagina)
+def montar_certificado(modelo: Pipeline, pagina: Pagina,
+                       limiar: float = LIMIAR_CERTEZA) -> CertificadoLido:
+    """Usa o modelo para achar o código do instrumento e os pontos da tabela. Palavras com
+    certeza abaixo do `limiar` não entram (ficam como "outro")."""
+    previsoes = com_limiar(prever(modelo, pagina), limiar)
     codigo_palavras = [
         p for p, (rotulo, _) in zip(pagina.palavras, previsoes, strict=True) if rotulo == "codigo"
     ]

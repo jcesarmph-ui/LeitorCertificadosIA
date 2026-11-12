@@ -76,6 +76,8 @@ def main() -> None:
             encoding="utf-8")
         doc = pdfium.PdfDocument(str(pdf))
         folha = doc[0].render(scale=2.2).to_pil().convert("RGB")
+        if pagina.rotacao == 180:  # as caixas estão no quadro da folha já virada em pé
+            folha = folha.rotate(180)
         doc.close()
         d = ImageDraw.Draw(folha, "RGBA")
         L, A = folha.size

@@ -74,3 +74,12 @@ def test_ler_campos_junta_as_palavras_de_cada_campo(lote):
     esperado = next(c["texto"] for c in campos if c["campo"] == "numero_certificado")
     assert "".join(lidos["numero_certificado"].split()) == "".join(esperado.split())
     assert lidos["ponto.erro"].count("|") >= 3  # uma linha de valores por ponto da tabela
+
+
+def test_limiar_de_certeza_tira_palavra_incerta_dos_campos():
+    from leitor_certificados.aprendizado.modelo import com_limiar
+
+    previsoes = [("ponto.erro", 0.95), ("codigo", 0.30), (OUTRO, 0.20), ("faixa", 0.50)]
+    assert com_limiar(previsoes, 0.5) == [
+        ("ponto.erro", 0.95), (OUTRO, 0.30), (OUTRO, 0.20), ("faixa", 0.50)]
+    assert com_limiar(previsoes, 0.0) == previsoes  # limiar 0 = sem limiar

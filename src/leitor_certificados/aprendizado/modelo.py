@@ -60,6 +60,20 @@ def prever(modelo: Pipeline, pagina: Pagina) -> list[tuple[str, float]]:
             for m, linha in zip(melhores, probabilidades, strict=True)]
 
 
+# Limiar de certeza (medido em 2026-11-12, scripts/medir_aprendizado.py e ADR 0007): abaixo disto
+# a palavra NÃO entra como campo na conferência (vira "outro"). Com 0,5 o ruído cai (75 -> 46
+# palavras falsas por certificado só com fictícios; 30 -> 25 com reais corrigidos) sem perder
+# acerto nos campos essenciais do modelo que já aprendeu; acima disso apaga valores certos.
+LIMIAR_CERTEZA = 0.5
+
+
+def com_limiar(previsoes: list[tuple[str, float]],
+               limiar: float = LIMIAR_CERTEZA) -> list[tuple[str, float]]:
+    """Palavra incerta (certeza < limiar) vira "outro"; a certeza fica guardada para a tela
+    mostrar "revisar"."""
+    return [(r if r == OUTRO or c >= limiar else OUTRO, c) for r, c in previsoes]
+
+
 def ler_campos(modelo: Pipeline, pagina: Pagina) -> dict[str, str]:
     """Junta as palavras de cada rótulo (na ordem de leitura). Os pontos da tabela ficam em
     `ponto.nominal`, `ponto.encontrado`… com um valor por linha, separados por " | "."""

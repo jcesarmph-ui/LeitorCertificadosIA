@@ -119,6 +119,7 @@ def test_faixa_le_os_formatos_do_certificado_e_do_cadastro():
     assert ler_intervalo("0 - 360°") == (0, 360)
     assert ler_intervalo("0,02 a 1,00") == (0.02, 1.0)
     assert ler_intervalo("0-25 /") == (0, 25)
+    assert ler_intervalo("25 to 50 mm") == (25, 50)  # certificado em inglês
     assert ler_intervalo("0 a 25  mm / esp 2,0 mm máx.") == (0, 25)
     assert ler_intervalo("5000 / 3000") is None  # não é intervalo: só mostrada
     assert ler_intervalo("7,5 bar") is None

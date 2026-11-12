@@ -29,6 +29,8 @@ def main() -> None:
         pdf = PASTA_REAIS / (arq.name.removesuffix(".palavras.json") + ".pdf")
         doc = pdfium.PdfDocument(str(pdf))
         folha = doc[0].render(scale=2.2).to_pil().convert("RGB")
+        if dados.get("rotacao") == 180:  # as caixas estão no quadro da folha já virada em pé
+            folha = folha.rotate(180)
         doc.close()
         d = ImageDraw.Draw(folha, "RGBA")
         L, A = folha.size
@@ -46,8 +48,11 @@ def main() -> None:
                 d.text((e * L, t * A - 16), f"{it['i']}: {it['rotulo'][:10]}→{it['certo'][:10]}",
                        font=fonte, fill=(0, 0, 0, 255))
         saida = SAIDA / (arq.name.removesuffix(".palavras.json") + ".revisao.png")
-        folha.save(saida)
-        print(saida.name)
+        try:
+            folha.save(saida)
+            print(saida.name)
+        except OSError:  # foto aberta em outro programa
+            print(f"AVISO: feche {saida.name} e rode de novo para atualizá-la.")
 
 
 if __name__ == "__main__":

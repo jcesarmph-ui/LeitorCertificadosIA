@@ -3,7 +3,8 @@
 
 A faixa é texto livre nos dois lados ("0 mm | 500 mm" no certificado; "0-500", "0 a 25 mm",
 "0 - 360°", "5000 / 3000", "7,5 bar" no plano). Só é um intervalo quando há dois números ligados
-por "a", "-", "–" ou "|"; o resto ("5000 / 3000", um número só) não é comparado, só mostrado.
+por "a", "até", "to", "-", "–" ou "|"; o resto ("5000 / 3000", um número só) não é comparado,
+só mostrado.
 """
 
 from __future__ import annotations
@@ -14,7 +15,8 @@ from enum import Enum
 
 _NUMERO = r"\d+(?:[.,]\d+)?"
 _INTERVALO = re.compile(
-    rf"(?<![\w.,])({_NUMERO})\s*[a-zA-Zµ°%]*\s*(?:a|à|até|-|–|\|)\s*({_NUMERO})", re.IGNORECASE)
+    rf"(?<![\w.,])({_NUMERO})\s*[a-zA-Zµ°%]*\s*(?:a|à|até|to|-|–|\|)\s*({_NUMERO})",
+    re.IGNORECASE)
 
 
 class Situacao(Enum):
