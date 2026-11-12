@@ -4,4 +4,4 @@ Versão em um lugar só (o pyproject.toml lê daqui). Em desenvolvimento: 0.MENO
 MENOR = etapa do roteiro (0 = fundação).
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.3.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-0.4.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -34,6 +34,7 @@
   <a href="#-certificados-fictícios">Certificados fictícios</a> •
   <a href="#-leitura-do-pdf">Leitura do PDF</a> •
   <a href="#-machine-learning">Machine learning</a> •
+  <a href="#-conferência-com-o-plano">Conferência</a> •
   <a href="#️-tecnologias">Tecnologias</a> •
   <a href="#️-roteiro">Roteiro</a>
 </p>
@@ -211,6 +212,23 @@ da caixa do gabarito com o rótulo certo.</sub>
 > que ainda erra é estrutura que nenhum laboratório de treino tinha — a cura é **mais variedade**:
 > cada tipo novo de certificado entra no treino e o modelo é medido de novo.
 
+## ✅ Conferência com o plano
+
+Com os campos lidos, o programa acha o instrumento no plano de calibração, calcula o **erro ± U** de
+cada ponto e dá o parecer. A regra é a mesma do sistema de calibração; o plano é lido só para
+consulta. **Na dúvida, o parecer fica "pendente"** — melhor pedir uma conferência do que errar.
+
+| Prova (150 certificados fictícios) | Pareceres certos | Pendentes | Decisão errada |
+|---|---|---|---|
+| Digital, certificados novos | 30 de 30 | 0 | 0 |
+| Escaneado por OCR | 23 de 30 | 6 | 1 |
+| 🔎 Laboratório nunca visto | de 0 % a 98 % | maioria nos piores casos | 0 |
+
+> [!NOTE]
+> O modelo não precisa ser especialista em todo tipo de certificado de antemão. A ideia é o
+> **aprendizado com o uso**: certificados reais entram, a pessoa corrige o que foi lido errado e o
+> modelo é retreinado — o acerto sobe com o tempo.
+
 ## 🛠️ Tecnologias
 
 | Tecnologia | Aplicação no projeto |
@@ -233,7 +251,8 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Etapa 1 — Gerador de certificados fictícios (5 laboratórios, digital e "escaneado") com gabarito anotado
 - [x] Etapa 2 — Leitura do PDF: texto direto e OCR (palavras com posição e confiança)
 - [x] Etapa 3 — Machine learning: encontrar os campos; acerto medido em treino × teste e em laboratório que o modelo nunca viu
-- [ ] Etapa 4 — Conferência com o plano: erro ± U dentro da tolerância
+- [x] Etapa 4 — Conferência com o plano: erro ± U dentro da tolerância (parecer só quando há certeza)
+- [ ] Aprendizado contínuo — o modelo aprende com certificados reais corrigidos pelo usuário
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
 
 ---
