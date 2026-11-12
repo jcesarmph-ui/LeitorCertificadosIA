@@ -80,15 +80,15 @@ Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
   0007, README, versão 0.5.0, PR.
 - **Interface (PySide6, 2026-11-12)**: `interface/` (feita por um agente; commit 8299af8),
   `python -m leitor_certificados.interface`. Limiar de certeza 0,5 (`modelo.LIMIAR_CERTEZA`) na
-  conferência. 2ª rodada de ajustes pedida pelo usuário (em andamento): escolher paleta (4 fotos;
-  caixas sem verde/vermelho/amarelo, que têm significado), quadrinho ao clicar num ponto
-  conferido (certeza, encontrado ± U, tolerância), legenda de cores, Ctrl+roda = zoom, check
-  mais aparente, brilhos estilo Google Lens + varredura raio X, digitar valor à mão (código a
-  caneta; chave `manual` no `.palavras.json`), cancelar análise, "Analisar outro".
+  conferência. 2ª rodada de ajustes **feita** (paleta já escolhida: claro azulado; quadrinho do
+  ponto, Ctrl+roda = zoom, checks destacados, brilhos + raio X, digitar à mão, cancelar,
+  "Analisar outro", clique corrige rótulo e duplo clique corrige texto). **Fechada em
+  2026-11-12: versão 0.6.0, ADR 0008, README com "📸 Telas"** (fotos fictícias geradas por
+  `dados/fotos/foto_portfolio.py`, fora do Git; precisa `QT_QPA_FONTDIR=C:/Windows/Fonts`).
 - **Pedido para DEPOIS (usuário, 2026-11-12)**: **salvar e registrar cada análise** para
   transparência, governança e rastreabilidade (quem, quando, qual certificado, o que o modelo
   leu, o que foi corrigido/digitado, parecer, versão do programa e do modelo). Perguntar o
   formato antes de fazer.
-- **Próximos passos**: (1) corrigir os reais e medir o ganho; (2) gerador estilo Laftec + rótulos
-  `ponto.erro_maximo`/`ponto.criterio`; (3) limiar de certeza; (4) tela estilo Lens com checks
-  (memória `tela-estilo-lens-com-checks`); (5) teste com os reais (etapa final, só os números).
+- **Próximos passos** (feitos: corrigir os reais e medir, limiar de certeza, tela estilo Lens):
+  (1) gerador estilo Laftec + rótulos `ponto.erro_maximo`/`ponto.criterio`; (2) registro de cada
+  análise (perguntar o formato); (3) teste com os reais (etapa final, só os números).
