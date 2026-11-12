@@ -15,6 +15,10 @@ deste projeto.
 - O usuário quer **aprender**: explicar cada passo (o porquê), uma etapa por vez.
 - Testes com certificados fictícios gerados pelo próprio projeto.
 - README só mostruário (sem "como rodar"), no estilo dos outros repositórios.
+- **Paleta de cores própria deste programa** (pedido do usuário, 2026-11-12): a interface
+  inteira pode fugir do tema escuro padrão do `CLAUDE.md` geral — vale **só aqui**; não
+  "consertar" de volta para o padrão nem mudar o `CLAUDE.md` geral. A paleta fica em
+  `src/leitor_certificados/interface/paletas.py` (escolha do usuário em andamento).
 
 ## Roteiro (cada etapa = branch + PR; versão 0.MENOR = etapa)
 0. Fundação — pasta, `.venv`, Git, repositório público, README, ADRs.
