@@ -26,6 +26,7 @@ from PySide6.QtGui import (
     QWheelEvent,
 )
 from PySide6.QtWidgets import (
+    QApplication,
     QGraphicsDropShadowEffect,
     QGraphicsEllipseItem,
     QGraphicsItem,
@@ -34,6 +35,7 @@ from PySide6.QtWidgets import (
     QGraphicsScene,
     QGraphicsSimpleTextItem,
     QGraphicsView,
+    QLineEdit,
     QRubberBand,
 )
 
@@ -75,11 +77,49 @@ class CaixaPalavra(QGraphicsRectItem):
         self.selecionada = False
 
 
+class EditorTexto(QLineEdit):
+    """A caixa de texto que abre em cima da palavra (duplo clique) para corrigir o que o OCR leu.
+    Enter confirma; Esc ou clicar fora cancela."""
+
+    confirmado = Signal(str)
+    cancelado = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._terminado = False
+        self.returnPressed.connect(lambda: self._terminar(True))
+
+    def _terminar(self, ok: bool) -> None:
+        if self._terminado:
+            return
+        self._terminado = True
+        if ok:
+            self.confirmado.emit(self.text())
+        else:
+            self.cancelado.emit()
+
+    def keyPressEvent(self, evento) -> None:
+        if evento.key() == Qt.Key.Key_Escape:
+            self._terminar(False)
+            return
+        super().keyPressEvent(evento)
+
+    def focusOutEvent(self, evento) -> None:
+        super().focusOutEvent(evento)
+        self._terminar(False)
+
+
 class FolhaView(QGraphicsView):
     # índices das palavras escolhidas + onde o mouse soltou (para abrir a lista ali)
     palavras_escolhidas = Signal(list, QPoint)
-    # número da linha de ponto conferido clicada + onde foi o clique (para abrir o quadrinho)
-    ponto_clicado = Signal(int, QPoint)
+    # número da linha de ponto conferido clicada + onde foi o clique + a palavra clicada (ou -1)
+    ponto_clicado = Signal(int, QPoint, int)
+    # um clique numa palavra fora dos pontos conferidos (abre a caixinha "corrigir?")
+    palavra_clicada = Signal(int, QPoint)
+    # a folha mudou de tamanho (a janela recalcula a largura certa para a página)
+    redimensionada = Signal()
+    # duplo clique + Enter na caixa de texto: (índice da palavra, texto que está escrito)
+    texto_corrigido = Signal(int, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -99,7 +139,17 @@ class FolhaView(QGraphicsView):
         self._destacar = True  # esmaece o que não é ponto conferido
         self._corrigir = False
         self._origem: QPoint | None = None
-        self._clique_ponto: tuple[int, QPoint] | None = None
+        self._clique: QPoint | None = None  # onde o botão desceu (fora do modo Corrigir)
+        self._ignorar_soltura = False  # a soltura que vem depois de um duplo clique
+        # o clique simples espera o tempo do duplo clique do Windows antes de abrir algo,
+        # para não atrapalhar o duplo clique
+        self._espera = QTimer(self)
+        self._espera.setSingleShot(True)
+        self._espera.timeout.connect(self._clique_confirmado)
+        self._pendente: tuple[QPoint, QPoint] | None = None
+        self._editor: EditorTexto | None = None
+        self._etiquetas: list[QGraphicsItem] = []  # "✎ texto corrigido" em cima das palavras
+        self._ajustado = False  # True = a folha inteira está cabendo (refaz ao redimensionar)
         self._faixa = QRubberBand(QRubberBand.Shape.Rectangle, self.viewport())
         # animação de "analisando"
         self._relogio = QTimer(self)
@@ -116,6 +166,9 @@ class FolhaView(QGraphicsView):
     # ------------------------------------------------------------------ conteúdo
     def _limpar(self) -> None:
         self.parar_brilho()
+        self.fechar_editor()
+        self._espera.stop()
+        self._etiquetas = []
         self._cena.clear()
         self._caixas, self._zonas, self._linhas = [], [], []
         self._nos_pontos = set()
@@ -124,6 +177,7 @@ class FolhaView(QGraphicsView):
     def mostrar_mensagem(self, texto: str) -> None:
         self._limpar()
         self._imagem = None
+        self._ajustado = False
         self.resetTransform()
         item = self._cena.addSimpleText(texto, QFont("Segoe UI", 14))
         item.setBrush(QBrush(QColor(cor("dica"))))
@@ -184,6 +238,7 @@ class FolhaView(QGraphicsView):
             corrigida = i in analise.corrigidas
             certeza = analise.certeza(i)
             palavra = analise.pagina.palavras[i]
+            editada = i in analise.textos_certos
             fraca = esmaecer and i not in self._nos_pontos
             if rotulo == "outro":
                 # em modo corrigir as palavras "outro" aparecem apagadas, para poder clicar nelas
@@ -212,12 +267,44 @@ class FolhaView(QGraphicsView):
                             else f"certeza do modelo: {round(100 * certeza)} %")
             # dica do mouse: primeiro o TIPO do valor (com todas as caixas da mesma cor, é
             # assim que se sabe se o número é o erro, a incerteza, o k…)
-            item.setToolTip(f"{tipo_do_rotulo(rotulo)}\n“{palavra.texto}”\n{situacao}"
-                            .rstrip())
+            texto = (f"lido: “{palavra.texto}” → corrigido: “{analise.textos_certos[i]}”"
+                     if editada else f"“{palavra.texto}”")
+            item.setToolTip(f"{tipo_do_rotulo(rotulo)}\n{texto}\n{situacao}".rstrip())
+            if editada:  # texto corrigido à mão: contorno laranja-queimado, bem visível
+                item.setPen(QPen(QColor(200, 90, 20), 3))
             if item.selecionada:
                 # contorno preto tracejado + azul claro: aparece no papel branco e no escuro
                 item.setPen(QPen(QColor("#000000"), 3, Qt.PenStyle.DashLine))
                 item.setBrush(QBrush(QColor(100, 181, 246, 110)))
+        self._desenhar_etiquetas()
+
+    def _desenhar_etiquetas(self) -> None:
+        """Em cima de cada palavra com texto corrigido, uma etiqueta "✎ texto certo"."""
+        for etiqueta in self._etiquetas:
+            if etiqueta.scene() is not None:
+                self._cena.removeItem(etiqueta)
+        self._etiquetas = []
+        analise = self._analise
+        if analise is None:
+            return
+        for i, certo in analise.textos_certos.items():
+            caixa = self._caixas[i].rect()
+            texto = QGraphicsSimpleTextItem(f"✎ {certo}")
+            texto.setFont(QFont("Segoe UI", max(int(caixa.height() * 0.45), 7),
+                                QFont.Weight.Bold))
+            texto.setBrush(QBrush(QColor("#ffffff")))
+            medida = texto.boundingRect()
+            fundo = QGraphicsRectItem(QRectF(caixa.left(), caixa.top() - medida.height() - 3,
+                                             medida.width() + 8, medida.height() + 2))
+            fundo.setBrush(QBrush(QColor(200, 90, 20)))
+            fundo.setPen(QPen(Qt.PenStyle.NoPen))
+            fundo.setZValue(4)
+            lido = analise.pagina.palavras[i].texto
+            fundo.setToolTip(f"Texto corrigido à mão (o OCR leu “{lido}”)")
+            texto.setParentItem(fundo)
+            texto.setPos(caixa.left() + 4, caixa.top() - medida.height() - 2)
+            self._cena.addItem(fundo)
+            self._etiquetas.append(fundo)
 
     def _desenhar_checks(self, linhas: list[LinhaPonto], largura: int, altura: int) -> None:
         """Para cada ponto conferido: faixa translúcida da cor do resultado atrás da linha
@@ -382,16 +469,34 @@ class FolhaView(QGraphicsView):
 
     # ------------------------------------------------------------------ zoom
     def zoom(self, fator: float) -> None:
+        self._ajustado = False  # zoom do usuário: não reajusta sozinho ao redimensionar
         self.scale(fator, fator)
 
     def ajustar(self) -> None:
-        """Cabe a largura da folha na janela (a rolagem cuida da altura)."""
+        """A folha INTEIRA na tela (largura e altura): é o jeito padrão de ver a página."""
         retangulo = self._cena.sceneRect()
-        if retangulo.width() <= 0:
+        if retangulo.width() <= 0 or self._imagem is None:
             return
         self.resetTransform()
-        escala = max(self.viewport().width() - 4, 100) / retangulo.width()
+        largura = max(self.viewport().width() - 4, 50)
+        altura = max(self.viewport().height() - 4, 50)
+        escala = min(largura / retangulo.width(), altura / retangulo.height())
         self.scale(escala, escala)
+        self.centerOn(retangulo.center())
+        self._ajustado = True
+
+    def razao_da_folha(self) -> float:
+        """Altura ÷ largura da página aberta (A4 = 1,414 enquanto não há página)."""
+        if self._imagem is not None:
+            largura, altura = self._imagem.size
+            return altura / largura
+        return 297 / 210
+
+    def resizeEvent(self, evento) -> None:
+        super().resizeEvent(evento)
+        if self._ajustado:
+            self.ajustar()
+        self.redimensionada.emit()
 
     def wheelEvent(self, evento: QWheelEvent) -> None:
         """Ctrl + roda = zoom centrado no ponteiro; a roda sozinha só rola."""
@@ -401,6 +506,7 @@ class FolhaView(QGraphicsView):
                 self.zoom(1.15 ** passos)  # AnchorUnderMouse mantém o ponto sob o ponteiro
             evento.accept()
             return
+        self.fechar_editor()
         super().wheelEvent(evento)
 
     # ------------------------------------------------------------------ cliques
@@ -416,6 +522,14 @@ class FolhaView(QGraphicsView):
         local = self.mapFromScene(self._zonas[n].rect().center())
         return self.viewport().mapToGlobal(local)
 
+    def centro_da_palavra(self, indice: int) -> QPoint:
+        """Onde fica, no viewport, o meio da palavra (para testes e fotos)."""
+        return self.mapFromScene(self._caixas[indice].rect().center())
+
+    def palavra_em(self, ponto_viewport: QPoint) -> int | None:
+        achadas = self._palavras_em(QRect(ponto_viewport, QSize(1, 1)))
+        return achadas[0] if achadas else None
+
     # ------------------------------------------------------------------ modo corrigir
     def set_modo_corrigir(self, ligado: bool) -> None:
         self._corrigir = ligado
@@ -423,8 +537,6 @@ class FolhaView(QGraphicsView):
                          else QGraphicsView.DragMode.ScrollHandDrag)
         self.viewport().setCursor(Qt.CursorShape.CrossCursor if ligado
                                   else Qt.CursorShape.OpenHandCursor)
-        for zona in self._zonas:  # a dica do ponto atrapalharia a dica da palavra
-            zona.setVisible(not ligado)
         if not ligado:
             self.limpar_selecao()
         self.atualizar_rotulos()
@@ -435,15 +547,15 @@ class FolhaView(QGraphicsView):
         self.atualizar_rotulos()
 
     def mousePressEvent(self, evento: QMouseEvent) -> None:
-        if self._corrigir and evento.button() == Qt.MouseButton.LeftButton and self._caixas:
-            self.limpar_selecao()
-            self._origem = evento.position().toPoint()
-            self._faixa.setGeometry(QRect(self._origem, QSize()))
-            self._faixa.show()
-            return
-        if not self._corrigir and evento.button() == Qt.MouseButton.LeftButton:
-            n = self.linha_em(self.mapToScene(evento.position().toPoint()))
-            self._clique_ponto = None if n is None else (n, evento.position().toPoint())
+        if evento.button() == Qt.MouseButton.LeftButton and self._caixas:
+            self.fechar_editor()
+            if self._corrigir:  # modo Corrigir: começa o retângulo de seleção
+                self.limpar_selecao()
+                self._origem = evento.position().toPoint()
+                self._faixa.setGeometry(QRect(self._origem, QSize()))
+                self._faixa.show()
+                return
+            self._clique = evento.position().toPoint()
         super().mousePressEvent(evento)
 
     def mouseMoveEvent(self, evento: QMouseEvent) -> None:
@@ -453,26 +565,110 @@ class FolhaView(QGraphicsView):
         super().mouseMoveEvent(evento)
 
     def mouseReleaseEvent(self, evento: QMouseEvent) -> None:
-        if self._clique_ponto is not None:
-            n, onde = self._clique_ponto
-            self._clique_ponto = None
+        if self._ignorar_soltura:  # a soltura do duplo clique: o editor já abriu
+            self._ignorar_soltura = False
+            self._origem = None
+            self._faixa.hide()
+            if not self._corrigir:
+                super().mouseReleaseEvent(evento)
+            return
+        agora = evento.position().toPoint()
+        if self._clique is not None:
+            onde, self._clique = self._clique, None
             super().mouseReleaseEvent(evento)
             # só conta como clique se o mouse quase não andou (senão foi arrastar a folha)
-            if (evento.position().toPoint() - onde).manhattanLength() < 6:
-                self.ponto_clicado.emit(n, evento.globalPosition().toPoint())
+            if (agora - onde).manhattanLength() < 6:
+                self._agendar(onde, evento.globalPosition().toPoint())
             return
         if self._origem is None:
             super().mouseReleaseEvent(evento)
             return
-        retangulo = QRect(self._origem, evento.position().toPoint()).normalized()
+        retangulo = QRect(self._origem, agora).normalized()
         self._origem = None
         self._faixa.hide()
+        if retangulo.width() < 5 and retangulo.height() < 5:  # clique solto: espera o duplo
+            self._agendar(retangulo.center(), evento.globalPosition().toPoint())
+            return
         indices = self._palavras_em(retangulo)
-        for item in self._caixas:
-            item.selecionada = item.indice in indices
-        self.atualizar_rotulos()
+        self.selecionar(indices)
         if indices:
             self.palavras_escolhidas.emit(indices, evento.globalPosition().toPoint())
+
+    def _agendar(self, local: QPoint, tela: QPoint) -> None:
+        self._pendente = (local, tela)
+        self._espera.start(QApplication.doubleClickInterval())
+
+    def _clique_confirmado(self) -> None:
+        """Passou o tempo do duplo clique e não veio o segundo: é um clique simples."""
+        if self._pendente is None:
+            return
+        local, tela = self._pendente
+        self._pendente = None
+        indice = self.palavra_em(local)
+        if self._corrigir:
+            if indice is not None:
+                self.selecionar([indice])
+                self.palavras_escolhidas.emit([indice], tela)
+            return
+        n = self.linha_em(self.mapToScene(local))
+        if n is not None:
+            self.ponto_clicado.emit(n, tela, -1 if indice is None else indice)
+        elif indice is not None:
+            self.selecionar([indice])
+            self.palavra_clicada.emit(indice, tela)
+
+    def mouseDoubleClickEvent(self, evento: QMouseEvent) -> None:
+        """Duplo clique numa palavra: abre a caixa de texto para corrigir o que o OCR leu."""
+        if evento.button() != Qt.MouseButton.LeftButton or not self._caixas:
+            super().mouseDoubleClickEvent(evento)
+            return
+        self._espera.stop()
+        self._pendente = None
+        self._ignorar_soltura = True
+        indice = self.palavra_em(evento.position().toPoint())
+        if indice is not None:
+            self.abrir_editor(indice)
+
+    # ------------------------------------------------------------------ editar o texto
+    def abrir_editor(self, indice: int) -> None:
+        if self._analise is None:
+            return
+        self.fechar_editor()
+        self.selecionar([indice])
+        local = self.mapFromScene(self._caixas[indice].rect()).boundingRect()
+        editor = EditorTexto(self.viewport())
+        editor.setObjectName("editorTexto")
+        editor.setStyleSheet(
+            f"QLineEdit#editorTexto {{ background: {cor('campo')}; color: {cor('texto')}; "
+            "border: 2px solid #1976d2; border-radius: 3px; font-size: 13pt; padding: 2px 6px; }")
+        editor.setText(self._analise.texto(indice))
+        editor.selectAll()
+        editor.setToolTip("Escreva o que realmente está escrito. Enter confirma; Esc cancela.")
+        largura = max(local.width() + 60, 160)
+        altura = max(local.height() + 10, 32)
+        editor.setGeometry(local.x() - 6, local.center().y() - altura // 2, largura, altura)
+        editor.confirmado.connect(lambda texto: self._confirmar_edicao(indice, texto))
+        editor.cancelado.connect(self._cancelar_edicao)
+        self._editor = editor
+        editor.show()
+        editor.setFocus()
+
+    def editor(self) -> EditorTexto | None:
+        return self._editor
+
+    def _confirmar_edicao(self, indice: int, texto: str) -> None:
+        self.fechar_editor()
+        self.texto_corrigido.emit(indice, texto)
+
+    def _cancelar_edicao(self) -> None:
+        self.fechar_editor()
+        self.limpar_selecao()
+
+    def fechar_editor(self) -> None:
+        editor, self._editor = self._editor, None
+        if editor is not None:
+            editor.hide()
+            editor.deleteLater()
 
     def _palavras_em(self, retangulo: QRect) -> list[int]:
         """Clique solto = a palavra embaixo dele; arrastar = as palavras cujo centro caiu dentro."""

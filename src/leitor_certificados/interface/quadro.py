@@ -1,11 +1,24 @@
-"""O quadrinho que abre ao clicar num ponto conferido na folha: a conta inteira do ponto e a
-certeza do modelo em cada valor. Fecha ao clicar fora (é uma janela "popup") ou com Esc."""
+"""O quadrinho que abre ao clicar na folha. Fecha ao clicar fora (é uma janela "popup") ou com Esc.
+
+- clique numa linha de ponto conferido: a conta inteira do ponto e a certeza do modelo em cada
+  valor; se o clique foi numa palavra, embaixo vêm os botões para corrigir aquela palavra;
+- clique numa palavra fora dos pontos: só a palavra e os botões "Corrigir rótulo" e
+  "Corrigir texto" (o quadrinho pergunta antes; a lista de rótulos só abre se a pessoa quiser).
+"""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QKeyEvent
-from PySide6.QtWidgets import QApplication, QFrame, QGridLayout, QLabel, QVBoxLayout
+from PySide6.QtWidgets import (
+    QApplication,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from ..conferencia.avaliacao import Resultado
 from .estilo import AMARELO, FAIXA_DENTRO, FAIXA_FORA, cor
@@ -17,7 +30,12 @@ NOMES_COLUNAS = {"nominal": "nominal", "encontrado": "encontrado", "erro": "erro
 
 
 class QuadroPonto(QFrame):
-    def __init__(self, linha: LinhaPonto, parent=None):
+    corrigir_rotulo = Signal(int)  # índice da palavra
+    corrigir_texto = Signal(int)
+
+    def __init__(self, linha: LinhaPonto | None, parent=None,
+                 palavra: tuple[int, str, str] | None = None):
+        """`palavra` = (índice, texto, TIPO) da palavra clicada, ou None."""
         super().__init__(parent, Qt.WindowType.Popup)
         self.setObjectName("quadroPonto")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -28,6 +46,12 @@ class QuadroPonto(QFrame):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(14, 10, 14, 12)
         lay.setSpacing(6)
+        if linha is not None:
+            self._montar_ponto(lay, linha)
+        if palavra is not None:
+            self._montar_palavra(lay, palavra, separar=linha is not None)
+
+    def _montar_ponto(self, lay: QVBoxLayout, linha: LinhaPonto) -> None:
         titulo = QLabel(f"Ponto {linha.nominal}")
         titulo.setStyleSheet(f"font-size: 15pt; font-weight: bold; color: {cor('titulo')};")
         lay.addWidget(titulo)
@@ -72,6 +96,36 @@ class QuadroPonto(QFrame):
             texto.setWordWrap(True)
             texto.setStyleSheet(f"color: {cor('aviso_texto')};")
             lay.addWidget(texto)
+
+    def _montar_palavra(self, lay: QVBoxLayout, palavra: tuple[int, str, str],
+                        separar: bool) -> None:
+        indice, texto, tipo = palavra
+        if separar:
+            linha = QFrame()
+            linha.setFrameShape(QFrame.Shape.HLine)
+            linha.setStyleSheet(f"color: {cor('borda_campo')};")
+            lay.addWidget(linha)
+        nome = QLabel(f"“{texto}” — {tipo}")
+        nome.setStyleSheet("font-weight: bold;")
+        lay.addWidget(nome)
+        pergunta = QLabel("O modelo errou esta palavra?")
+        pergunta.setStyleSheet(f"color: {cor('dica')}; font-style: italic; font-size: 11pt;")
+        lay.addWidget(pergunta)
+        botoes = QHBoxLayout()
+        self.botao_rotulo = QPushButton("Corrigir rótulo")
+        self.botao_rotulo.setToolTip("Escolher o que esta palavra é (erro, incerteza, código…)")
+        self.botao_texto = QPushButton("Corrigir texto")
+        self.botao_texto.setToolTip("Escrever o que realmente está escrito (o OCR leu errado). "
+                                    "Atalho: duplo clique na palavra.")
+        self.botao_rotulo.clicked.connect(lambda: self._escolheu(self.corrigir_rotulo, indice))
+        self.botao_texto.clicked.connect(lambda: self._escolheu(self.corrigir_texto, indice))
+        botoes.addWidget(self.botao_rotulo)
+        botoes.addWidget(self.botao_texto)
+        lay.addLayout(botoes)
+
+    def _escolheu(self, sinal, indice: int) -> None:
+        sinal.emit(indice)
+        self.close()
 
     def abrir_em(self, posicao: QPoint) -> None:
         """Mostra perto do clique, sem sair da tela."""

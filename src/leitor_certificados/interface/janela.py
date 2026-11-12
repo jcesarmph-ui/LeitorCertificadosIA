@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QDragEnterEvent, QDropEvent, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
@@ -41,7 +42,7 @@ from .estilo import (
     VERDE,
     cor,
 )
-from .folha import FolhaView
+from .folha import FolhaView, tipo_do_rotulo
 from .legenda import icone_do_rotulo
 from .quadro import QuadroPonto
 from .servico import (
@@ -53,6 +54,7 @@ from .servico import (
     descrever_pontos,
     gravar_correcao,
     gravar_manual,
+    gravar_texto,
     renderizar_folha,
 )
 from .tarefas import Tarefa
@@ -142,14 +144,16 @@ class Janela(QMainWindow):
         coluna.addLayout(botoes)
 
         # --- faixa 3: folha à esquerda, painel à direita
-        divisor = QSplitter(Qt.Orientation.Horizontal)
-        divisor.setChildrenCollapsible(False)
-        divisor.addWidget(self._montar_folha())
-        divisor.addWidget(self._montar_painel())
-        divisor.setStretchFactor(0, 1)
-        divisor.setStretchFactor(1, 1)
-        divisor.setSizes([800, 800])
-        coluna.addWidget(divisor, 1)
+        # a largura da folha é calculada para a página A4 caber inteira na altura
+        # (`ajustar_divisao`); o resto da largura fica para os painéis da direita
+        self.divisor = QSplitter(Qt.Orientation.Horizontal)
+        self.divisor.setChildrenCollapsible(False)
+        self.caixa_folha = self._montar_folha()
+        self.divisor.addWidget(self.caixa_folha)
+        self.divisor.addWidget(self._montar_painel())
+        self.divisor.setStretchFactor(0, 0)
+        self.divisor.setStretchFactor(1, 1)
+        coluna.addWidget(self.divisor, 1)
 
         # --- faixa 4: área de avisos (nada de pop-up: erros e avisos aparecem aqui)
         self.avisos = QLabel("")
@@ -158,6 +162,10 @@ class Janela(QMainWindow):
         self.avisos.setMinimumHeight(28)
         coluna.addWidget(self.avisos)
         self._atualizar_botoes()
+        # Mede a tela já agora: sem isso o showMaximized() pode se perder e a janela abrir
+        # pequena (o mesmo problema e a mesma solução dos outros programas do usuário).
+        self.ensurePolished()
+        raiz.layout().activate()
 
     def _montar_folha(self) -> QGroupBox:
         caixa = QGroupBox("Folha")
@@ -165,10 +173,13 @@ class Janela(QMainWindow):
         topo = QHBoxLayout()
         self.dica_folha = QLabel("")
         self.dica_folha.setObjectName("dica")
+        self.dica_folha.setWordWrap(True)
+        # o nome do arquivo nunca alarga a folha: a largura vem da página A4
+        self.dica_folha.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         topo.addWidget(self.dica_folha, 1)
         for texto, dica, acao in (("−", "Diminuir a folha", lambda: self.folha.zoom(1 / 1.25)),
                                   ("+", "Aumentar a folha", lambda: self.folha.zoom(1.25)),
-                                  ("Ajustar", "Cabe a largura da folha na tela",
+                                  ("Ajustar", "A folha inteira na tela",
                                    lambda: self.folha.ajustar())):
             botao = QPushButton(texto)
             botao.setObjectName("zoom")
@@ -212,6 +223,11 @@ class Janela(QMainWindow):
         self.folha = FolhaView()
         self.folha.palavras_escolhidas.connect(self.escolher_rotulo)
         self.folha.ponto_clicado.connect(self.abrir_quadro)
+        self.folha.palavra_clicada.connect(lambda i, onde: self.abrir_quadro(-1, onde, i))
+        self.folha.texto_corrigido.connect(self.corrigir_texto)
+        # a altura da folha só fica certa depois que o Qt mede tudo: recalcula a largura a cada
+        # mudança (para quando a largura já está certa, então não fica num vaivém)
+        self.folha.redimensionada.connect(lambda: QTimer.singleShot(0, self.ajustar_divisao))
         lay.addWidget(self.folha, 1)
         return caixa
 
@@ -394,6 +410,7 @@ class Janela(QMainWindow):
         self.botao_corrigir.setChecked(False)
         self._limpar_painel()
         self.folha.mostrar_imagem(previa)
+        self.ajustar_divisao()
         self.folha.iniciar_brilho()
         self.dica_folha.setText(Path(caminho).name)
         self.avisar("Analisando…", "dica")
@@ -427,11 +444,13 @@ class Janela(QMainWindow):
         self.folha.mostrar_analise(analise, self.linhas)
         self.dica_folha.setText(
             f"{analise.caminho.name} — {analise.pagina.origem}, "
-            f"{len(analise.pagina.palavras)} palavras. Clique num ponto conferido para ver a "
-            "conta.")
+            f"{len(analise.pagina.palavras)} palavras.")
+        self.dica_folha.setToolTip(str(analise.caminho))
         self._preencher_painel(analise)
         self._atualizar_botoes()
-        self.avisar("Pronto. Se o modelo errou algo, ligue o botão Corrigir.", "dica")
+        self.ajustar_divisao()
+        self.avisar("Pronto. Clique num ponto para ver a conta; clique numa palavra para "
+                    "corrigir o rótulo; duplo clique corrige o texto.", "dica")
 
     # ================================================================== painel da direita
     def _limpar_painel(self) -> None:
@@ -519,6 +538,7 @@ class Janela(QMainWindow):
     def alternar_correcao(self, ligado: bool) -> None:
         self.folha.set_modo_corrigir(ligado)
         self.faixa_manual.setVisible(ligado)
+        QTimer.singleShot(0, self.ajustar_divisao)  # a folha ficou mais baixa/alta
         if ligado:
             self._mostrar_valor_manual()
             self.avisar("Modo Corrigir: clique numa palavra, ou arraste um retângulo sobre várias, "
@@ -578,14 +598,74 @@ class Janela(QMainWindow):
                     else f"{nome}: voltou a usar o que o modelo leu.", "info")
 
     # ================================================================== quadrinho do ponto
-    def abrir_quadro(self, n: int, posicao: QPoint) -> None:
-        if not 0 <= n < len(self.linhas):
+    def abrir_quadro(self, n: int, posicao: QPoint, indice: int = -1) -> None:
+        """O quadrinho do clique: a conta do ponto `n` (se for um ponto conferido) e/ou a
+        pergunta "corrigir?" para a palavra `indice` (se o clique foi numa palavra)."""
+        linha = self.linhas[n] if 0 <= n < len(self.linhas) else None
+        palavra = None
+        if self.analise is not None and 0 <= indice < len(self.analise.rotulos):
+            palavra = (indice, self.analise.texto(indice),
+                       tipo_do_rotulo(self.analise.rotulos[indice]))
+        if linha is None and palavra is None:
             return
         if self.quadro is not None:
             self.quadro.close()
-        self.quadro = QuadroPonto(self.linhas[n], self)
+        self.quadro = QuadroPonto(linha, self, palavra)
         self.quadro.destroyed.connect(self._quadro_fechado)
+        self.quadro.destroyed.connect(self._selecao_do_quadro_acabou)
+        # o quadrinho fecha antes; a lista de rótulos / a caixa de texto abrem logo depois
+        self.quadro.corrigir_rotulo.connect(
+            lambda i: QTimer.singleShot(0, lambda: self._lista_de_rotulos(i, posicao)))
+        self.quadro.corrigir_texto.connect(
+            lambda i: QTimer.singleShot(0, lambda: self.folha.abrir_editor(i)))
         self.quadro.abrir_em(posicao)
+
+    def _lista_de_rotulos(self, indice: int, posicao: QPoint) -> None:
+        self.folha.selecionar([indice])
+        self.escolher_rotulo([indice], posicao)
+
+    def _selecao_do_quadro_acabou(self) -> None:
+        if self.folha.editor() is None:
+            self.folha.limpar_selecao()
+
+    # ================================================================== corrigir o texto
+    def corrigir_texto(self, indice: int, texto: str) -> None:
+        """O OCR leu errado: grava o texto certo e confere de novo na hora."""
+        if self.analise is None:
+            return
+        lido = self.analise.pagina.palavras[indice].texto
+        try:
+            ficou = gravar_texto(self.servico.pastas, self.analise, indice, texto)
+            self.servico.recalcular(self.analise)
+        except Exception as erro:
+            self.avisar(f"Não consegui corrigir o texto: {erro}", "erro")
+            return
+        self.mostrar_analise(self.analise)
+        self.avisar(f"Texto corrigido: lido “{lido}” → “{texto.strip()}”. A conferência foi "
+                    "refeita." if ficou else f"Voltou ao texto lido: “{lido}”.", "info")
+
+    # ================================================================== tamanho da folha
+    def ajustar_divisao(self) -> None:
+        """Largura do painel da folha = a exata para a página caber inteira na altura
+        disponível (A4: altura ÷ 1,414), sem sobra dos lados; o resto vai para a direita."""
+        total = self.divisor.width()
+        altura = self.folha.viewport().height()
+        if total <= 0 or altura <= 0:
+            return
+        sobra = self.caixa_folha.width() - self.folha.viewport().width()  # margens e rolagem
+        largura = int(altura / self.folha.razao_da_folha()) + sobra + 6
+        largura = max(self.caixa_folha.minimumSizeHint().width(), min(largura, total - 480))
+        resto = total - largura - self.divisor.handleWidth()
+        if abs(self.divisor.sizes()[0] - largura) > 2:
+            self.divisor.setSizes([largura, resto])
+
+    def resizeEvent(self, evento) -> None:
+        super().resizeEvent(evento)
+        QTimer.singleShot(0, self.ajustar_divisao)  # depois que o Qt mediu a tela nova
+
+    def showEvent(self, evento) -> None:
+        super().showEvent(evento)
+        QTimer.singleShot(0, self.ajustar_divisao)
 
     def _quadro_fechado(self) -> None:
         self.quadro = None

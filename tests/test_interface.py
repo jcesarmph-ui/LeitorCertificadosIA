@@ -346,18 +346,124 @@ def test_clicar_num_ponto_conferido_abre_o_quadrinho_e_esc_fecha(app, mundo):
     local = folha.mapFromScene(folha._zonas[0].rect().center())
     QTest.mouseClick(folha.viewport(), Qt.MouseButton.LeftButton,
                      Qt.KeyboardModifier.NoModifier, local)
-    app.processEvents()
+    assert janela.quadro is None  # espera o tempo do duplo clique antes de abrir
+    girar(app, QApplication.doubleClickInterval() / 1000 + 0.2)
     assert janela.quadro is not None and janela.quadro.isVisible()
     textos = " ".join(w.text() for w in janela.quadro.findChildren(QLabel))
     assert "Certeza do modelo" in textos and "Tolerância do plano" in textos
     QTest.keyClick(janela.quadro, Qt.Key.Key_Escape)
     app.processEvents()
     assert janela.quadro is None or not janela.quadro.isVisible()
-    # clicar fora de um ponto conferido não abre nada
+    # clicar fora de um ponto conferido e fora das palavras não abre nada
     QTest.mouseClick(folha.viewport(), Qt.MouseButton.LeftButton,
                      Qt.KeyboardModifier.NoModifier, QPoint(3, 3))
-    app.processEvents()
+    girar(app, QApplication.doubleClickInterval() / 1000 + 0.2)
     assert janela.quadro is None or not janela.quadro.isVisible()
+    janela.close()
+
+
+def girar(app, segundos: float) -> None:
+    fim = time.time() + segundos
+    while time.time() < fim:
+        app.processEvents()
+        time.sleep(0.01)
+
+
+def _palavra_fora_dos_pontos(janela):
+    return next(i for i, r in enumerate(janela.analise.rotulos)
+                if r != "outro" and i not in janela.folha._nos_pontos)
+
+
+def test_um_clique_numa_palavra_pergunta_e_so_depois_abre_os_rotulos(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    folha = janela.folha
+    indice = _palavra_fora_dos_pontos(janela)
+    folha.centerOn(folha._caixas[indice].rect().center())
+    app.processEvents()
+    QTest.mouseClick(folha.viewport(), Qt.MouseButton.LeftButton,
+                     Qt.KeyboardModifier.NoModifier, folha.centro_da_palavra(indice))
+    girar(app, QApplication.doubleClickInterval() / 1000 + 0.2)
+    quadro = janela.quadro
+    assert quadro is not None and quadro.isVisible()  # sem ligar o modo Corrigir
+    assert quadro.botao_rotulo.text() == "Corrigir rótulo"
+    abertos = []
+    janela.escolher_rotulo = lambda indices, onde: abertos.append(indices)  # não abrir o menu
+    quadro.botao_rotulo.click()
+    girar(app, 0.1)
+    assert abertos == [[indice]]
+    janela.close()
+
+
+def test_palavra_de_um_ponto_mostra_a_conta_e_os_botoes(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    indice = next(iter(janela.folha._nos_pontos))
+    janela.abrir_quadro(0, QPoint(200, 200), indice)
+    textos = " ".join(w.text() for w in janela.quadro.findChildren(QLabel))
+    assert "Tolerância do plano" in textos and janela.quadro.botao_texto.isVisible()
+    janela.quadro.close()
+    janela.close()
+
+
+def test_duplo_clique_corrige_o_texto_e_confere_de_novo(app, mundo):
+    servico, pastas, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    folha = janela.folha
+    indice = _palavra_fora_dos_pontos(janela)
+    lido = janela.analise.pagina.palavras[indice].texto
+    folha.centerOn(folha._caixas[indice].rect().center())
+    app.processEvents()
+    QTest.mouseDClick(folha.viewport(), Qt.MouseButton.LeftButton,
+                      Qt.KeyboardModifier.NoModifier, folha.centro_da_palavra(indice))
+    girar(app, QApplication.doubleClickInterval() / 1000 + 0.2)
+    editor = folha.editor()
+    assert editor is not None and editor.text() == lido
+    assert janela.quadro is None  # o duplo clique não abre a caixinha do clique simples
+    editor.setText("XYZ-123")
+    QTest.keyClick(editor, Qt.Key.Key_Return)
+    app.processEvents()
+    assert folha.editor() is None
+    assert janela.analise.textos_certos == {indice: "XYZ-123"}
+    assert "corrigido: “XYZ-123”" in folha._caixas[indice].toolTip()
+    itens = json.loads(arquivo_de_correcoes(pastas, certificado).read_text(encoding="utf-8"))
+    assert itens["palavras"][indice]["texto_certo"] == "XYZ-123"
+    assert itens["palavras"][indice]["texto"] == lido  # o que o OCR leu continua guardado
+    assert "XYZ-123" in janela.analise.certificado.textos  # a conferência usou o texto novo
+    # reabrir reaplica; Esc no editor cancela sem mudar nada
+    reaberta = servico.analisar(certificado)
+    assert reaberta.textos_certos == {indice: "XYZ-123"}
+    folha.abrir_editor(indice)
+    QTest.keyClick(folha.editor(), Qt.Key.Key_Escape)
+    assert folha.editor() is None and janela.analise.textos_certos == {indice: "XYZ-123"}
+    # escrever de novo o texto lido apaga a correção
+    janela.corrigir_texto(indice, lido)
+    assert janela.analise.textos_certos == {}
+    janela.close()
+
+
+def test_folha_inteira_e_painel_no_tamanho_da_a4(app, mundo):
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    janela.resize(1700, 950)
+    janela.show()
+    girar(app, 0.2)
+    folha = janela.folha
+    caixa = janela.caixa_folha
+    # sem fontes (modo offscreen dos testes) os botões ficam largos e a caixa pode estar no
+    # mínimo; fora disso, a folha já tem o formato A4 antes de abrir um certificado
+    no_minimo = caixa.width() <= caixa.minimumSizeHint().width() + 2
+    razao = folha.viewport().height() / folha.viewport().width()
+    assert no_minimo or razao == pytest.approx(297 / 210, rel=0.03)
+    janela.abrir(certificado)
+    esperar(app, janela)
+    girar(app, 0.2)
+    pagina = folha.mapFromScene(folha.sceneRect()).boundingRect()
+    visivel = folha.viewport().rect()
+    assert visivel.contains(pagina.adjusted(2, 2, -2, -2))  # a folha inteira aparece
+    assert pagina.height() >= visivel.height() - 12  # ocupando a altura toda
+    assert no_minimo or pagina.width() >= visivel.width() - 16  # e sem sobra dos lados
+    assert janela.divisor.sizes()[1] > janela.divisor.sizes()[0]  # a direita fica mais larga
     janela.close()
 
 

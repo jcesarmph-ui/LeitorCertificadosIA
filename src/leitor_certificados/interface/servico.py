@@ -90,7 +90,22 @@ class Analise:
     conferencia: Conferencia | None = None
     campos: dict[str, str] = field(default_factory=dict)  # o que o modelo leu (faixa, tipo…)
     manual: dict[str, str] = field(default_factory=dict)  # valores digitados à mão
+    # texto corrigido à mão (o OCR leu errado): {índice da palavra: o que está escrito}
+    textos_certos: dict[int, str] = field(default_factory=dict)
     avisos: list[str] = field(default_factory=list)  # problemas da análise (banco ausente…)
+
+    def texto(self, i: int) -> str:
+        """O texto que vale para a palavra: o corrigido, se houver; senão o que foi lido."""
+        return self.textos_certos.get(i, self.pagina.palavras[i].texto)
+
+    def pagina_corrigida(self) -> Pagina:
+        """A página com os textos corrigidos no lugar dos lidos (para conferir de novo)."""
+        if not self.textos_certos:
+            return self.pagina
+        palavras = [dataclasses.replace(p, texto=self.textos_certos[i])
+                    if i in self.textos_certos else p
+                    for i, p in enumerate(self.pagina.palavras)]
+        return Pagina(self.pagina.origem, palavras, self.pagina.rotacao)
 
     def certeza(self, i: int) -> float:
         return 1.0 if i in self.corrigidas else self.previsoes[i][1]
@@ -163,9 +178,39 @@ def _itens_atuais(dados: dict, analise: Analise) -> list[dict]:
     ]
     for item in itens:
         antigo = antigos.get(item["i"])
-        if antigo and antigo["certo"] != antigo["rotulo"] and antigo["texto"] == item["texto"]:
-            item["certo"] = antigo["certo"]
+        if antigo and antigo["texto"] == item["texto"]:
+            if antigo["certo"] != antigo["rotulo"]:
+                item["certo"] = antigo["certo"]
+            if antigo.get("texto_certo"):
+                item["texto_certo"] = antigo["texto_certo"]
+        if item["i"] in analise.textos_certos:
+            item["texto_certo"] = analise.textos_certos[item["i"]]
     return itens
+
+
+def _textos_existentes(dados: dict, pagina: Pagina) -> dict[int, str]:
+    """{índice: texto corrigido à mão} — só se o arquivo é desta mesma leitura."""
+    itens = dados.get("palavras", [])
+    if not itens or not _lido_confere(itens, pagina):
+        return {}
+    return {i["i"]: i["texto_certo"] for i in itens if i.get("texto_certo")}
+
+
+def gravar_texto(pastas: Pastas, analise: Analise, indice: int, texto: str) -> bool:
+    """Grava o texto que realmente está escrito na palavra `indice` (o OCR leu errado), na chave
+    `texto_certo` do `.palavras.json`; o `texto` continua sendo o que o OCR leu. Texto vazio ou
+    igual ao lido apaga a correção. Devolve True se ficou uma correção gravada."""
+    dados = _ler_arquivo(pastas, analise.caminho)
+    itens = _itens_atuais(dados, analise)
+    texto = texto.strip()
+    if texto and texto != itens[indice]["texto"]:
+        itens[indice]["texto_certo"] = texto
+        analise.textos_certos[indice] = texto
+    else:
+        itens[indice].pop("texto_certo", None)
+        analise.textos_certos.pop(indice, None)
+    _gravar(pastas, analise, itens, dados.get("manual", {}))
+    return indice in analise.textos_certos
 
 
 def _gravar(pastas: Pastas, analise: Analise, itens: list[dict], manual: dict) -> None:
@@ -279,22 +324,30 @@ class Servico:
         caminho = Path(caminho)
         progresso("Lendo o certificado (o OCR pode levar alguns segundos)")
         pagina = ler_pdf(caminho)[0]  # só a primeira página nesta versão
-        progresso("Descobrindo o que é cada palavra")
-        previsoes = ml.prever(self.modelo, pagina)
-        rotulos = [r for r, _ in previsoes]
         dados = _ler_arquivo(self.pastas, caminho)
-        corrigidas = _correcoes_existentes(dados, pagina)
-        for i, certo in corrigidas.items():
-            rotulos[i] = certo
         analise = Analise(
             caminho=caminho, pagina=pagina, imagem=renderizar_folha(caminho, pagina.rotacao),
-            previsoes=previsoes, rotulos=rotulos, corrigidas=set(corrigidas),
-            manual=dict(dados.get("manual", {})))
+            previsoes=[], rotulos=[], manual=dict(dados.get("manual", {})),
+            textos_certos=_textos_existentes(dados, pagina))
+        progresso("Descobrindo o que é cada palavra")
+        # o modelo olha a página com os textos já corrigidos à mão (se houver)
+        analise.previsoes = ml.prever(self.modelo, analise.pagina_corrigida())
+        analise.rotulos = [r for r, _ in analise.previsoes]
+        corrigidas = _correcoes_existentes(dados, pagina)
+        for i, certo in corrigidas.items():
+            analise.rotulos[i] = certo
+        analise.corrigidas = set(corrigidas)
         progresso("Conferindo com o plano")
-        analise.campos = ml.ler_campos(self.modelo, analise.pagina)
-        analise.certificado = montar_certificado(self.modelo, analise.pagina)
-        self.reconferir(analise)
+        self.recalcular(analise)
         return analise
+
+    def recalcular(self, analise: Analise) -> None:
+        """Lê de novo os campos e os pontos (com os textos corrigidos à mão) e confere. Rápido:
+        não refaz o OCR, por isso pode rodar direto na tela depois de uma correção de texto."""
+        pagina = analise.pagina_corrigida()
+        analise.campos = ml.ler_campos(self.modelo, pagina)
+        analise.certificado = montar_certificado(self.modelo, pagina)
+        self.reconferir(analise)
 
     def reconferir(self, analise: Analise) -> None:
         """Confere de novo com o plano, usando os valores digitados à mão no lugar do que o
