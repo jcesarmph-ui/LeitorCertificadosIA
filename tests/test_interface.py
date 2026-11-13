@@ -554,3 +554,32 @@ def test_zoom_tem_limite_para_diminuir_e_para_aumentar(app, mundo):
     pequena = alturas[len(alturas) // 10] * maxima
     assert pequena <= folha.ALTURA_LETRA_MAXIMA + 0.5 or maxima == pytest.approx(minima * 2)
     janela.close()
+
+
+def test_painel_instrumento_compara_cadastro_e_certificado(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    assert janela.campos_cadastro["codigo"].text() not in ("", "—")
+    assert janela.marcas["codigo"].text() == "✓"  # o código achou o plano: sempre bate
+    marcas = {janela.marcas[c].text() for c in janela.marcas}
+    assert marcas <= {"✓", "não bate", ""}
+    janela.close()
+
+
+def test_shift_ctrl_roda_rola_a_folha_para_os_lados(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    folha = janela.folha
+    for _ in range(6):
+        folha.zoom(1.25)  # com zoom, a folha fica mais larga que o quadro
+    barra = folha.horizontalScrollBar()
+    barra.setValue(barra.maximum() // 2)
+    antes, escala = barra.value(), folha.transform().m11()
+    meio = QPointF(folha.viewport().width() / 2, folha.viewport().height() / 2)
+    teclas = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+    evento = QWheelEvent(meio, folha.viewport().mapToGlobal(meio), QPoint(0, 0), QPoint(0, -120),
+                         Qt.MouseButton.NoButton, teclas, Qt.ScrollPhase.NoScrollPhase, False)
+    app.sendEvent(folha.viewport(), evento)
+    assert barra.value() > antes  # rolou para a direita
+    assert folha.transform().m11() == pytest.approx(escala)  # e não mudou o zoom
+    janela.close()

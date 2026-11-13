@@ -542,8 +542,18 @@ class FolhaView(QGraphicsView):
         self.redimensionada.emit()
 
     def wheelEvent(self, evento: QWheelEvent) -> None:
-        """Ctrl + roda = zoom centrado no ponteiro; a roda sozinha só rola."""
-        if evento.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        """Ctrl + roda = zoom centrado no ponteiro; Shift + Ctrl + roda = rola para os lados;
+        a roda sozinha só rola para cima e para baixo."""
+        teclas = evento.modifiers()
+        ctrl, shift = Qt.KeyboardModifier.ControlModifier, Qt.KeyboardModifier.ShiftModifier
+        if teclas & ctrl and teclas & shift:
+            # o Windows às vezes entrega a roda com Shift como movimento "x": vale qualquer um
+            delta = evento.angleDelta().y() or evento.angleDelta().x()
+            barra = self.horizontalScrollBar()
+            barra.setValue(barra.value() - int(delta / 120 * barra.singleStep() * 3))
+            evento.accept()
+            return
+        if teclas & ctrl:
             passos = evento.angleDelta().y() / 120
             if passos:
                 self.zoom(1.15 ** passos)  # AnchorUnderMouse mantém o ponto sob o ponteiro

@@ -14,7 +14,6 @@ from dataclasses import dataclass, field
 from .avaliacao import Avaliacao, Resultado, avaliar_ponto, resultado_geral
 from .criterio import SituacaoCriterio, aviso_de_criterio, comparar_criterio
 from .extracao import CertificadoLido, PontoLido
-from .faixa import comparar_faixas
 from .plano import Plano, PlanosDQ05, PontoDoPlano, normalizar_codigo
 
 # Dois valores nominais são "o mesmo ponto" se diferem menos que isto (relativo, com piso).
@@ -42,6 +41,7 @@ class Conferencia:
     avisos: list[str] = field(default_factory=list)
     faixa_certificado: str | None = None  # só mostrada/avisada: não muda o parecer
     faixa_plano: str | None = None
+    cadastro: dict[str, str | None] = field(default_factory=dict)  # do instrumento (comparador)
 
 
 def _mesmo_nominal(a: float, b: float) -> bool:
@@ -125,10 +125,10 @@ def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
         return Conferencia(certificado.codigo, None, Resultado.PENDENTE,
                            avisos=["instrumento sem plano no cadastro (código desconhecido)"])
     conferencia = Conferencia(certificado.codigo, plano.nome, Resultado.PENDENTE,
-                              faixa_certificado=certificado.faixa, faixa_plano=plano.faixa)
-    aviso_faixa = comparar_faixas(certificado.faixa, plano.faixa).aviso
-    if aviso_faixa:  # decisão do usuário: faixa diferente só avisa; o parecer vem da tolerância
-        conferencia.avisos.append(aviso_faixa)
+                              faixa_certificado=certificado.faixa, faixa_plano=plano.faixa,
+                              cadastro=plano.cadastro)
+    # a faixa (e o resto do cadastro) é comparada no comparador do painel Instrumento
+    # (conferencia/cadastro.py): só avisa ali, nunca muda o parecer
     resultados: list[Resultado] = []
     achados: set[int] = set()
     for lido in certificado.pontos:

@@ -250,3 +250,36 @@ def test_dois_nominais_na_linha_vale_o_que_esta_no_plano(tmp_path):
         planos.fechar()
     assert resultado.pontos[0].lido.nominal == 30.0
     assert not any("não está" in a for a in resultado.avisos), resultado.avisos
+
+
+# --- comparador cadastro × certificado do painel Instrumento (pedido do usuário, 2026-11-13) ---
+
+def test_comparador_do_cadastro_so_informa():
+    from leitor_certificados.conferencia.cadastro import Bate, comparar_campo, comparar_com_cadastro
+
+    assert comparar_campo("codigo", "PAQ-016", "paq 016") == Bate.SIM
+    assert comparar_campo("tipo", "Paquímetro", "Paquímetro Digital") == Bate.SIM  # um contém
+    assert comparar_campo("tipo", "Paquímetro", "PAQUIMETRO") == Bate.SIM  # sem acento/maiúscula
+    assert comparar_campo("tipo", "Válvula de segurança", "bar") == Bate.NAO
+    assert comparar_campo("fabricante", "Digimess", "Digimes") == Bate.NAO  # uma letra: avisa
+    assert comparar_campo("faixa", "0-500", "0 mm | 500 mm") == Bate.SIM
+    assert comparar_campo("faixa", "7,5 bar", "8 kgf/cm²") == Bate.NAO
+    assert comparar_campo("resolucao", "0,01", "0.01 mm") == Bate.SIM
+    assert comparar_campo("resolucao", "0,01", "0,02 mm") == Bate.NAO
+    assert comparar_campo("fabricante", "-", "Digimess") == Bate.SEM_DADO  # cadastro sem dado
+    assert comparar_campo("fabricante", "Digimess", None) == Bate.SEM_DADO
+    itens = comparar_com_cadastro({"codigo": "PAQ-016"}, {"codigo": "PAQ-016"})
+    assert [i.chave for i in itens] == ["codigo", "tipo", "fabricante", "faixa", "resolucao"]
+
+
+def test_plano_traz_o_cadastro_do_instrumento(mundo):
+    _, _, gabaritos, banco, _ = mundo
+    cert = gabaritos[0]["certificado"]
+    planos = PlanosDQ05(banco)
+    try:
+        plano = planos.plano_do_instrumento(cert["codigo"])
+    finally:
+        planos.fechar()
+    assert plano.cadastro["tipo"] == cert["tipo"]
+    assert plano.cadastro["fabricante"] == cert["fabricante"]
+    assert plano.cadastro["codigo"] == cert["codigo"]
