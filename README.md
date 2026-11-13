@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.1.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-0.2.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -32,6 +32,7 @@
   <a href="#-como-vai-funcionar">Como vai funcionar</a> •
   <a href="#-dados-fictícios">Dados fictícios</a> •
   <a href="#-certificados-fictícios">Certificados fictícios</a> •
+  <a href="#-leitura-do-pdf">Leitura do PDF</a> •
   <a href="#️-tecnologias">Tecnologias</a> •
   <a href="#️-roteiro">Roteiro</a>
 </p>
@@ -155,6 +156,32 @@ corrigido:
 
 </details>
 
+## 👁️ Leitura do PDF
+
+A segunda etapa transforma qualquer PDF numa **lista de palavras com posição** (a mesma medida do
+gabarito), igual nos dois casos — assim o machine learning da próxima etapa não precisa saber de
+onde a palavra veio. O programa escolhe o caminho **página por página**:
+
+| Caminho | Como lê | Acerto* | Tempo por certificado |
+|---|---|---|---|
+| 📄 **Digital** | Texto e posição direto de dentro do PDF | **100 %** (1525 de 1525) | 0,01 s |
+| 🖼️ **Escaneado** | **OCR** local (RapidOCR): acha as linhas na imagem e lê as letras | **98,1 %** (1496 de 1525) | cerca de 5 s |
+
+<sub>*Respostas do gabarito lidas sem nenhum erro, em 30 certificados fictícios.</sub>
+
+No OCR cada palavra guarda a **confiança** (verde = certeza alta, amarelo = dúvida, vermelho = pouca
+certeza). Os erros que sobram são quase todos números pequenos da tabela (a vírgula lida como
+apóstrofo) e o nome do laboratório grudado no endereço:
+
+<p align="center">
+  <img src="docs/figuras/leitura_ocr.png" alt="Certificado fictício escaneado com o que o OCR leu, colorido pela confiança" width="70%"/>
+</p>
+
+> [!NOTE]
+> Os fictícios são mais limpos que os escaneados de verdade: num teste com um escaneado real, a
+> confiança média do OCR ficou bem abaixo da dos fictícios. Por isso o gerador imita um scanner
+> mais ruim (150 dpi, mais ruído) e a etapa 5 vai mostrar o acerto real, sem esconder a diferença.
+
 ## 🛠️ Tecnologias
 
 | Tecnologia | Aplicação no projeto |
@@ -164,7 +191,7 @@ corrigido:
 | reportlab | Escreve os PDFs digitais dos certificados fictícios. |
 | pypdfium2 | Transforma o PDF em imagem (para o "escaneado") e lê o texto do PDF. |
 | Pillow | Imita o scanner: giro, ruído, desfoque e compressão JPEG. |
-| OCR local | Leitura dos certificados escaneados (definido na etapa de leitura). |
+| RapidOCR (ONNX) | OCR local e gratuito: lê os certificados escaneados, palavra por palavra, com a confiança de cada uma. |
 | pytest + ruff | Testes automáticos com certificados fictícios e padronização do código. |
 | Git + GitHub | Uma branch e um pull request por etapa; decisões registradas em ADRs. |
 | Claude Code | Desenvolvimento assistido por IA, com o autor definindo e aprovando cada etapa. |
@@ -175,7 +202,7 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 
 - [x] Etapa 0 — Fundação (estrutura, versão, testes, decisões de arquitetura)
 - [x] Etapa 1 — Gerador de certificados fictícios (5 laboratórios, digital e "escaneado") com gabarito anotado
-- [ ] Etapa 2 — Leitura do PDF: texto direto e OCR
+- [x] Etapa 2 — Leitura do PDF: texto direto e OCR (palavras com posição e confiança)
 - [ ] Etapa 3 — Machine learning: encontrar os campos; acerto medido em treino × teste
 - [ ] Etapa 4 — Conferência com o plano: erro ± U dentro da tolerância
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)

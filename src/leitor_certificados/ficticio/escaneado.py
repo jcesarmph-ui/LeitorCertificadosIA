@@ -3,7 +3,8 @@
 Por que: muitos certificados chegam escaneados. Neles não existe texto dentro do PDF — só uma
 foto da folha —, e a leitura precisa de OCR (etapa 2). Para treinar e medir isso sem usar
 certificados reais, imitamos o que um scanner faz:
-- cinza e resolução de scanner (150 ou 200 dpi);
+- cinza e resolução de scanner (150 dpi na maioria das vezes, como o scanner real do autor;
+  às vezes 200);
 - folha um pouco **torta** (até 1,5°) e **deslocada**;
 - **ruído** (sujeira do papel), leve **desfoque** e contraste diferente;
 - compressão **JPEG**, que deixa "borrões" em volta das letras.
@@ -43,7 +44,7 @@ def escanear(pdf_digital: Path, destino: Path, rng: random.Random,
              campos: list[dict]) -> tuple[list[dict], dict]:
     """Grava o PDF escaneado em `destino`; devolve os campos com as caixas novas e o que foi
     feito na imagem (para o gabarito)."""
-    dpi = rng.choice((150, 200))
+    dpi = rng.choice((150, 150, 150, 200))
     documento = pdfium.PdfDocument(str(pdf_digital))
     try:
         imagem = documento[0].render(scale=dpi / 72, grayscale=True).to_pil().convert("L")
@@ -58,12 +59,12 @@ def escanear(pdf_digital: Path, destino: Path, rng: random.Random,
 
     # Ruído com a mesma semente (randbytes), para o arquivo sair igual toda vez
     ruido = Image.frombytes("L", imagem.size, rng.randbytes(largura * altura))
-    imagem = Image.blend(imagem, ruido, rng.uniform(0.04, 0.10))
-    imagem = imagem.filter(ImageFilter.GaussianBlur(rng.uniform(0.3, 0.8)))
+    imagem = Image.blend(imagem, ruido, rng.uniform(0.04, 0.14))
+    imagem = imagem.filter(ImageFilter.GaussianBlur(rng.uniform(0.3, 1.1)))
     imagem = ImageEnhance.Contrast(imagem).enhance(rng.uniform(0.8, 1.2))
     imagem = ImageEnhance.Brightness(imagem).enhance(rng.uniform(0.95, 1.05))
 
-    qualidade = rng.randint(45, 80)
+    qualidade = rng.randint(35, 80)
     memoria = io.BytesIO()
     imagem.save(memoria, "JPEG", quality=qualidade)
     memoria.seek(0)
