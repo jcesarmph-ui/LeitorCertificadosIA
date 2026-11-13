@@ -21,6 +21,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# A tela do programa (etapa 5): só quem vai abrir a interface precisa dela
+interface = [
+    "PySide6>=6.6",     # etapa 5: a interface gráfica (janela, folha com caixas, botões)
+]
 # Ferramentas só de desenvolvimento
 dev = [
     "pytest>=8.0",      # testes automáticos

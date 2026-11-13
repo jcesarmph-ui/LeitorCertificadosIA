@@ -106,3 +106,33 @@ def test_instrumento_desconhecido_fica_pendente_com_aviso(mundo):
         assert resultado.resultado == Resultado.PENDENTE and resultado.avisos
     finally:
         planos.fechar()
+
+
+# --- faixa: só avisa (decisão do usuário, 2026-11-12), olhando mínimo e máximo -----------------
+
+def test_faixa_le_os_formatos_do_certificado_e_do_cadastro():
+    from leitor_certificados.conferencia.faixa import ler_intervalo
+
+    assert ler_intervalo("0 mm | 500 mm") == (0, 500)
+    assert ler_intervalo("0-500") == (0, 500)
+    assert ler_intervalo("0 a 25 mm") == (0, 25)
+    assert ler_intervalo("0 - 360°") == (0, 360)
+    assert ler_intervalo("0,02 a 1,00") == (0.02, 1.0)
+    assert ler_intervalo("0-25 /") == (0, 25)
+    assert ler_intervalo("25 to 50 mm") == (25, 50)  # certificado em inglês
+    assert ler_intervalo("0 a 25  mm / esp 2,0 mm máx.") == (0, 25)
+    assert ler_intervalo("5000 / 3000") is None  # não é intervalo: só mostrada
+    assert ler_intervalo("7,5 bar") is None
+    assert ler_intervalo(None) is None
+
+
+def test_faixa_igual_nao_avisa_e_diferente_avisa_sem_mudar_o_parecer():
+    from leitor_certificados.conferencia.faixa import Situacao, comparar_faixas
+
+    assert comparar_faixas("0 mm | 500 mm", "0-500").situacao == Situacao.IGUAL
+    assert comparar_faixas("0 mm | 500 mm", "0-500").aviso is None
+    diferente = comparar_faixas("0 mm | 300 mm", "0-500")
+    assert diferente.situacao == Situacao.DIFERENTE and "diferente" in diferente.aviso
+    assert comparar_faixas("0 mm | 500 mm", None).aviso is None  # plano sem faixa: nada a conferir
+    assert "não encontrada" in comparar_faixas(None, "0-500").aviso
+    assert "não comparada" in comparar_faixas("0 a 25", "5000 / 3000").aviso

@@ -30,6 +30,7 @@ class Plano:
     codigo: str
     nome: str
     pontos: list[PontoDoPlano] = field(default_factory=list)
+    faixa: str | None = None  # texto livre do cadastro do instrumento ("0-500", "0 a 25 mm")
 
 
 def normalizar_codigo(codigo: str) -> str:
@@ -46,11 +47,17 @@ class PlanosDQ05:
         self._con = sqlite3.connect(f"file:{caminho.as_posix()}?mode=ro", uri=True)
         self._con.row_factory = sqlite3.Row
         self._plano_por_codigo: dict[str, int] = {}
+        self._faixa_por_codigo: dict[str, str | None] = {}
+        tem_faixa = any(c["name"] == "faixa"
+                        for c in self._con.execute("PRAGMA table_info(instrumentos)"))
+        coluna_faixa = "faixa" if tem_faixa else "NULL AS faixa"
         for linha in self._con.execute(
-            "SELECT codigo, plano_id FROM instrumentos "
+            f"SELECT codigo, plano_id, {coluna_faixa} FROM instrumentos "
             "WHERE excluido_em IS NULL AND plano_id IS NOT NULL"
         ):
-            self._plano_por_codigo[normalizar_codigo(linha["codigo"])] = linha["plano_id"]
+            chave = normalizar_codigo(linha["codigo"])
+            self._plano_por_codigo[chave] = linha["plano_id"]
+            self._faixa_por_codigo[chave] = linha["faixa"]
 
     def fechar(self) -> None:
         self._con.close()
@@ -85,4 +92,5 @@ class PlanosDQ05:
                 (plano_id,),
             )
         ]
-        return Plano(codigo=codigo, nome=cabecalho["nome"], pontos=pontos)
+        return Plano(codigo=codigo, nome=cabecalho["nome"], pontos=pontos,
+                     faixa=self._faixa_por_codigo.get(normalizar_codigo(codigo)))

@@ -15,6 +15,11 @@ deste projeto.
 - O usuário quer **aprender**: explicar cada passo (o porquê), uma etapa por vez.
 - Testes com certificados fictícios gerados pelo próprio projeto.
 - README só mostruário (sem "como rodar"), no estilo dos outros repositórios.
+- **Paleta de cores própria deste programa** (pedido do usuário, 2026-11-12): a interface
+  inteira pode fugir do tema escuro padrão do `CLAUDE.md` geral — vale **só aqui**; não
+  "consertar" de volta para o padrão nem mudar o `CLAUDE.md` geral. A paleta fica em
+  `interface/estilo.py` (`TEMAS`, `TEMA_ATUAL`) e `interface/paletas.py`. **Escolha do usuário
+  (2026-11-12): tema "claro_azulado"** e caixas da folha todas azuis (paleta "E").
 
 ## Roteiro (cada etapa = branch + PR; versão 0.MENOR = etapa)
 0. Fundação — pasta, `.venv`, Git, repositório público, README, ADRs.
@@ -54,9 +59,36 @@ Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
   `scripts/pre_rotular_reais.py` → `dados/reais_marcacao/` (PNG + JSON, fora do Git). Achados: o
   Laftec traz colunas **"Erro Máximo"** e **"Critério de aceitação ±"** (o modelo as chama de
   incerteza) e há texto solto marcado por insegurança.
-- **Próximos passos (o usuário disse "você faz tudo")**: (1) refazer a medida da etapa 4 e fechar o
-  PR; (2) gerador de fictícios estilo Laftec (colunas Erro Máximo/Critério/veff, "Parâmetro") e
-  rótulos novos `ponto.erro_maximo`/`ponto.criterio`; (3) limiar de certeza (palavra incerta →
-  "outro"); (4) gabarito dos reais (corrigir o JSON da pré-marcação) e medir/treinar com eles
-  (modelos reais só em `modelos/`, fora do Git); (5) tela estilo Google Lens com checks (memória
-  `tela-estilo-lens-com-checks`); (6) etapa 5.
+- **Etapa 4 fechada (PR #5, 0.4.0, ADR 0006)**; 2ª rodada de medida registrada no README.
+- **Objetivo do leitor (usuário, 2026-11-12)**: ver o que tem no certificado e **comparar com o
+  plano** — **código**, **faixa** e principalmente **tolerância** (pontos nominal/erro/incerteza).
+  Medir o que importa nisso ("essenciais"); fabricante/laboratório/técnico são secundários.
+  **Faixa** (decisão do usuário): `conferencia/faixa.py` compara mínimo e máximo e **só avisa em
+  amarelo** (diferente ou não comparável); não muda o parecer. Plano "Máx. X / mín. Y" e escalas
+  (durômetro) ficam como "não comparada".
+- **Decisão do usuário (2026-11-12)**: não perseguir laboratório novo; o modelo **aprende com o
+  uso** (reais corrigidos → retreino). Branch `etapa-5-aprendizado-por-correcao`:
+  `aprendizado/correcoes.py` (peso 5 nos reais), `scripts/corrigir_reais.py` (corrige por
+  número/faixa), `scripts/foto_revisao.py` (foto do que mudou), `scripts/medir_aprendizado.py`
+  (deixa um real de fora). Propostas de correção dos 4 reais em `dados/correcoes/propor_*.py`
+  (fora do Git; o usuário revisa). **Achado**: o carimbo "ESTE CERTIFICADO FOI ANALISADO" enganava
+  a detecção de folha invertida (`leitura/ocr.py`, corrigido: só "CERTIFICADO DE" é título).
+  Medida (essenciais: código, faixa, nominal, encontrado, erro, incerteza; média dos 4 reais
+  deixados de fora): **só fictícios 70,2 % → +1 real 83,0 % → +2 89,2 % → +3 91,5 %**; "falsos"
+  (palavra "outro" marcada como campo) 75 → 30. Cuidado ao contar: Laftec digital e escaneado são do
+  mesmo laboratório (um ajuda o outro). Falta: usuário revisar scan1 (refeito, 110 mudanças), ADR
+  0007, README, versão 0.5.0, PR.
+- **Interface (PySide6, 2026-11-12)**: `interface/` (feita por um agente; commit 8299af8),
+  `python -m leitor_certificados.interface`. Limiar de certeza 0,5 (`modelo.LIMIAR_CERTEZA`) na
+  conferência. 2ª rodada de ajustes **feita** (paleta já escolhida: claro azulado; quadrinho do
+  ponto, Ctrl+roda = zoom, checks destacados, brilhos + raio X, digitar à mão, cancelar,
+  "Analisar outro", clique corrige rótulo e duplo clique corrige texto). **Fechada em
+  2026-11-12: versão 0.6.0, ADR 0008, README com "📸 Telas"** (fotos fictícias geradas por
+  `dados/fotos/foto_portfolio.py`, fora do Git; precisa `QT_QPA_FONTDIR=C:/Windows/Fonts`).
+- **Pedido para DEPOIS (usuário, 2026-11-12)**: **salvar e registrar cada análise** para
+  transparência, governança e rastreabilidade (quem, quando, qual certificado, o que o modelo
+  leu, o que foi corrigido/digitado, parecer, versão do programa e do modelo). Perguntar o
+  formato antes de fazer.
+- **Próximos passos** (feitos: corrigir os reais e medir, limiar de certeza, tela estilo Lens):
+  (1) gerador estilo Laftec + rótulos `ponto.erro_maximo`/`ponto.criterio`; (2) registro de cada
+  análise (perguntar o formato); (3) teste com os reais (etapa final, só os números).

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from sklearn.pipeline import Pipeline
 
-from ..aprendizado.modelo import prever
+from ..aprendizado.modelo import LIMIAR_CERTEZA, com_limiar, prever
 from ..leitura import Pagina, Palavra
 
 _NUMERO = re.compile(r"^[+\-−]?\d+(?:[.,]\d+)?$")
@@ -44,6 +44,7 @@ class CertificadoLido:
     codigo: str | None
     pontos: list[PontoLido]
     textos: tuple[str, ...] = ()  # as palavras da folha na ordem de leitura (procurar o código)
+    faixa: str | None = None  # a faixa lida, ex.: "0 mm | 500 mm"
 
 
 def _linhas(palavras: list[Palavra]) -> list[list[Palavra]]:
@@ -58,14 +59,22 @@ def _linhas(palavras: list[Palavra]) -> list[list[Palavra]]:
     return linhas
 
 
-def montar_certificado(modelo: Pipeline, pagina: Pagina) -> CertificadoLido:
-    """Usa o modelo para achar o código do instrumento e os pontos da tabela."""
-    previsoes = prever(modelo, pagina)
+def montar_certificado(modelo: Pipeline, pagina: Pagina,
+                       limiar: float = LIMIAR_CERTEZA) -> CertificadoLido:
+    """Usa o modelo para achar o código do instrumento e os pontos da tabela. Palavras com
+    certeza abaixo do `limiar` não entram (ficam como "outro")."""
+    previsoes = com_limiar(prever(modelo, pagina), limiar)
     codigo_palavras = [
         p for p, (rotulo, _) in zip(pagina.palavras, previsoes, strict=True) if rotulo == "codigo"
     ]
     codigo_palavras.sort(key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
     codigo = " ".join(p.texto for p in codigo_palavras) or None
+
+    faixa_palavras = [
+        p for p, (rotulo, _) in zip(pagina.palavras, previsoes, strict=True) if rotulo == "faixa"
+    ]
+    faixa_palavras.sort(key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
+    faixa = " ".join(p.texto for p in faixa_palavras) or None
 
     da_tabela: list[tuple[Palavra, str]] = [
         (p, rotulo.removeprefix("ponto."))
@@ -103,4 +112,4 @@ def montar_certificado(modelo: Pipeline, pagina: Pagina) -> CertificadoLido:
             numeros=numeros,
         ))
     ordem = sorted(pagina.palavras, key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
-    return CertificadoLido(codigo, pontos, tuple(p.texto for p in ordem))
+    return CertificadoLido(codigo, pontos, tuple(p.texto for p in ordem), faixa)

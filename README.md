@@ -5,6 +5,7 @@
   <img src="https://img.shields.io/badge/scikit--learn-F7931E?style=for-the-badge&logo=scikitlearn&logoColor=white" alt="scikit-learn"/>
   <img src="https://img.shields.io/badge/Machine_Learning-8A2BE2?style=for-the-badge&logo=databricks&logoColor=white" alt="Machine Learning"/>
   <img src="https://img.shields.io/badge/OCR-555555?style=for-the-badge&logo=googledocs&logoColor=white" alt="OCR"/>
+  <img src="https://img.shields.io/badge/PySide6_(Qt)-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="PySide6"/>
   <img src="https://img.shields.io/badge/pytest-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white" alt="pytest"/>
 </p>
 <p align="center">
@@ -17,7 +18,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.4.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-0.6.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -29,12 +30,14 @@
 
 <p align="center">
   <a href="#-visão-geral">Visão Geral</a> •
+  <a href="#-telas">Telas</a> •
   <a href="#-como-vai-funcionar">Como vai funcionar</a> •
   <a href="#-dados-fictícios">Dados fictícios</a> •
   <a href="#-certificados-fictícios">Certificados fictícios</a> •
   <a href="#-leitura-do-pdf">Leitura do PDF</a> •
   <a href="#-machine-learning">Machine learning</a> •
   <a href="#-conferência-com-o-plano">Conferência</a> •
+  <a href="#-aprendizado-com-o-uso">Aprendizado com o uso</a> •
   <a href="#️-tecnologias">Tecnologias</a> •
   <a href="#️-roteiro">Roteiro</a>
 </p>
@@ -78,6 +81,24 @@ mindmap
       Incerteza U
       Parecer sugerido
 ```
+
+## 📸 Telas
+
+> [!NOTE]
+> Todas as fotos usam **certificados, planos e um modelo 100 % fictícios**, criados do zero só
+> para as fotos. Nenhum dado real aparece aqui.
+
+<p align="center">
+  <img src="docs/telas/01_aprovado.png" alt="Certificado conferido: aprovado" width="100%"/>
+  <br/><i>Certificado nunca visto pelo modelo: cada ponto da tabela ganha um check, e o painel mostra o código achado, a faixa (lida × plano) e a conta erro ± U × tolerância.</i>
+</p>
+
+| | |
+|---|---|
+| ![Analisando](docs/telas/02_analisando.png) | ![Conta do ponto](docs/telas/03_conta_do_ponto.png) |
+| *Analisando um escaneado: uma faixa de "raio X" percorre a folha enquanto o OCR lê; dá para cancelar.* | *Clique num ponto: a conta completa e a certeza do modelo em cada número.* |
+| ![Reprovado](docs/telas/04_reprovado_escaneado.png) | ![Corrigir](docs/telas/05_corrigir.png) |
+| *Escaneado com pontos fora da tolerância: ✗ vermelho na folha e na tabela.* | *Modo Corrigir: clicar numa palavra corrige o rótulo ou o texto; o que não dá para ler (ex.: código a caneta) pode ser digitado à mão.* |
 
 ## 🧠 Como vai funcionar
 
@@ -217,6 +238,8 @@ da caixa do gabarito com o rótulo certo.</sub>
 Com os campos lidos, o programa acha o instrumento no plano de calibração, calcula o **erro ± U** de
 cada ponto e dá o parecer. A regra é a mesma do sistema de calibração; o plano é lido só para
 consulta. **Na dúvida, o parecer fica "pendente"** — melhor pedir uma conferência do que errar.
+A **faixa** lida também é comparada com a do cadastro (mínimo e máximo): se for diferente, ou se
+não der para comparar, aparece um aviso amarelo — o parecer continua vindo da tolerância.
 
 | Prova (150 certificados fictícios) | Pareceres certos | Pendentes | Decisão errada |
 |---|---|---|---|
@@ -229,6 +252,29 @@ consulta. **Na dúvida, o parecer fica "pendente"** — melhor pedir uma confer�
 > **aprendizado com o uso**: certificados reais entram, a pessoa corrige o que foi lido errado e o
 > modelo é retreinado — o acerto sobe com o tempo.
 
+## 🌱 Aprendizado com o uso
+
+O modelo não precisa conhecer todo tipo de certificado de antemão. A pessoa abre um certificado
+real, vê o que o programa leu (cada palavra com a **certeza** do modelo), **corrige** o que estiver
+errado e o modelo é **retreinado** com a correção. Cada certificado real corrigido conta como cinco
+fictícios no treino.
+
+**Medido com "deixa um de fora"**: treina sem um certificado real e testa nele. O que importa para
+comparar com o plano — código, faixa e os pontos (nominal, encontrado, erro e incerteza):
+
+| Certificados reais corrigidos no treino | Essenciais certos | "Falsos" (ruído por certificado) |
+|---|---|---|
+| nenhum (só fictícios) | 70,2 % | 75 |
+| 1 | 83,0 % | 39 |
+| 2 | 89,2 % | 32 |
+| 3 | 91,5 % | 30 |
+
+<sub>Média dos 4 certificados reais, cada um deixado de fora; só os números vão para o GitHub.</sub>
+
+> [!NOTE]
+> Medir também achou um defeito na leitura: o carimbo "ESTE CERTIFICADO FOI ANALISADO" enganava a
+> detecção de folha de cabeça para baixo. Depois de corrigir, esse escaneado foi de ~30 % para 96 %.
+
 ## 🛠️ Tecnologias
 
 | Tecnologia | Aplicação no projeto |
@@ -239,6 +285,7 @@ consulta. **Na dúvida, o parecer fica "pendente"** — melhor pedir uma confer�
 | pypdfium2 | Transforma o PDF em imagem (para o "escaneado") e lê o texto do PDF. |
 | Pillow | Imita o scanner: giro, ruído, desfoque e compressão JPEG. |
 | RapidOCR (ONNX) | OCR local e gratuito: lê os certificados escaneados, palavra por palavra, com a confiança de cada uma. |
+| PySide6 (Qt) | Interface desktop: a folha com os checks, o parecer, a correção pela tela e o retreino com um clique. |
 | pytest + ruff | Testes automáticos com certificados fictícios e padronização do código. |
 | Git + GitHub | Uma branch e um pull request por etapa; decisões registradas em ADRs. |
 | Claude Code | Desenvolvimento assistido por IA, com o autor definindo e aprovando cada etapa. |
@@ -252,7 +299,8 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Etapa 2 — Leitura do PDF: texto direto e OCR (palavras com posição e confiança)
 - [x] Etapa 3 — Machine learning: encontrar os campos; acerto medido em treino × teste e em laboratório que o modelo nunca viu
 - [x] Etapa 4 — Conferência com o plano: erro ± U dentro da tolerância (parecer só quando há certeza)
-- [ ] Aprendizado contínuo — o modelo aprende com certificados reais corrigidos pelo usuário
+- [x] Aprendizado com o uso — o modelo aprende com certificados reais corrigidos (acerto nos essenciais: 70 % → 92 %)
+- [x] Interface — abrir, ver os checks, corrigir e reaprender pela tela
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
 
 ---
