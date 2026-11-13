@@ -31,10 +31,22 @@ def _motor():
     return RapidOCR(params={"Global.log_level": "error"})
 
 
-def ler_pagina_ocr(pagina: pdfium.PdfPage) -> Pagina:
-    import numpy as np
+# Duas pistas de que a folha pode ter entrado de cabeça para baixo no scanner:
+# 1. a confiança média do OCR ficou abaixo disto;
+# 2. o título "CERTIFICADO" aparece só na metade de baixo da folha.
+# Com qualquer uma, o OCR tenta também a folha virada 180° e fica com a melhor leitura.
+CONFIANCA_PARA_TESTAR_GIRO = 0.93
 
-    imagem = np.array(pagina.render(scale=DPI_OCR / 72).to_pil().convert("RGB"))
+
+def _titulo_no_alto(palavras: list[Palavra]) -> int:
+    """1 se "certificado" aparece na metade de cima, -1 se só na de baixo, 0 se não aparece."""
+    ys = [p.centro[1] for p in palavras if p.texto.strip(" :.").lower() == "certificado"]
+    if not ys:
+        return 0
+    return 1 if min(ys) < 0.5 else -1
+
+
+def _ler_imagem(imagem) -> list[Palavra]:
     altura, largura = imagem.shape[:2]
     resultado = _motor()(imagem, return_word_box=True)
     palavras: list[Palavra] = []
@@ -51,7 +63,30 @@ def ler_pagina_ocr(pagina: pdfium.PdfPage) -> Pagina:
                 round(min(max(ys), altura) / altura, 4),
             )
             palavras.extend(_separar_rotulo(Palavra(texto, caixa, round(float(confianca), 4))))
-    return Pagina("ocr", palavras)
+    return palavras
+
+
+def _pontuacao(palavras: list[Palavra]) -> tuple[float, float]:
+    """(confiança média, soma das confianças) das palavras com 3 letras ou mais. A soma premia a
+    orientação em que o OCR achou mais palavras de verdade; a média decide se vale testar o giro."""
+    confiancas = [p.confianca for p in palavras if len(p.texto) >= 3]
+    if not confiancas:
+        return 0.0, 0.0
+    return sum(confiancas) / len(confiancas), sum(confiancas)
+
+
+def ler_pagina_ocr(pagina: pdfium.PdfPage) -> Pagina:
+    import numpy as np
+
+    imagem = np.array(pagina.render(scale=DPI_OCR / 72).to_pil().convert("RGB"))
+    normal = _ler_imagem(imagem)
+    media, soma = _pontuacao(normal)
+    titulo = _titulo_no_alto(normal)
+    if media >= CONFIANCA_PARA_TESTAR_GIRO and titulo >= 0:
+        return Pagina("ocr", normal)
+    virada = _ler_imagem(np.ascontiguousarray(imagem[::-1, ::-1]))
+    melhor_virada = (_titulo_no_alto(virada), _pontuacao(virada)[1]) > (titulo, soma)
+    return Pagina("ocr", virada, rotacao=180) if melhor_virada else Pagina("ocr", normal)
 
 
 def _limpar(texto: str) -> str:
