@@ -102,7 +102,7 @@ Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
   **propõe mudar a periodicidade** (para mais ou para menos), para cortar custo desnecessário.
   Perguntar antes se fica neste projeto ou no SistemaCalibracao;
   (6) mais adiante: integrar com o DQ05 (botão "LER CERTIFICADO COM IA"; ver memória).
-- Feito na etapa 7 (2026-11-13, ainda sem PR): zoom com limites, Shift+Ctrl+roda, Erro ± U igual
+- **Etapa 7 fechada (2026-11-13, versão 0.7.0, ADR 0009, PR #7)**; README com a medida nova e fotos refeitas. Feito na etapa 7: zoom com limites, Shift+Ctrl+roda, Erro ± U igual
   ao DQ05 (`erro_com_incerteza`), clique no ponto destacado/na hora, nominais repetidos do plano
   casados na ordem, dois números com o mesmo rótulo (vale o de mais certeza; nominal: o do
   plano), painel Instrumento = comparador cadastro × certificado (só avisa).
