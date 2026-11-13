@@ -212,3 +212,18 @@ def test_gabarito_anota_erro_maximo_e_criterio(tmp_path):
         assert "critério de aceitação adotado pelo cliente: ±" in tudo
     finally:
         documento.close()
+
+
+def test_gabarito_de_gerador_antigo_e_refeito(tmp_path):
+    from leitor_certificados.ficticio.gerar import VERSAO_GERADOR, gabarito_atual
+
+    caminho = gerar_um(tmp_path, 1)
+    dados = json.loads(caminho.read_text(encoding="utf-8"))
+    assert dados["versao_gerador"] == VERSAO_GERADOR
+    del dados["versao_gerador"]  # como um gabarito feito antes da versão 0.7.0
+    dados["certificado"]["numero"] = "VELHO"
+    caminho.write_text(json.dumps(dados), encoding="utf-8")
+    refeito = json.loads(gabarito_atual(tmp_path, 1).read_text(encoding="utf-8"))
+    assert refeito["versao_gerador"] == VERSAO_GERADOR
+    assert refeito["certificado"]["numero"] != "VELHO"
+    assert gabarito_atual(tmp_path, 1).stat().st_mtime == caminho.stat().st_mtime  # atual: fica

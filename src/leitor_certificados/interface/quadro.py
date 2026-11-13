@@ -71,8 +71,9 @@ class QuadroPonto(QFrame):
             ("Encontrado", linha.encontrado, "Valor que o instrumento indicou"),
             ("Erro", linha.erro, "Encontrado − nominal"),
             ("U", linha.incerteza, "Incerteza expandida informada no certificado"),
-            ("Erro − U a erro + U", linha.erro_mais_u,
-             "A faixa que o erro pode ocupar, contando a incerteza"),
+            ("Erro ± U", linha.erro_mais_u,
+             "O erro somado à incerteza, do lado mais perto da tolerância "
+             "(igual ao programa de calibração); \"± U\" quando o erro é zero"),
             ("Tolerância do plano", linha.tolerancia, "Limites aceitos no plano de calibração"),
             *((("Critério do certificado",
                 linha.criterio + (" (diferente do plano)" if linha.criterio_diferente else ""),

@@ -469,18 +469,56 @@ class FolhaView(QGraphicsView):
 
     # ------------------------------------------------------------------ zoom
     def zoom(self, fator: float) -> None:
+        """Aumenta/diminui com limites (pedido do usuário, 2026-11-13):
+        - diminuir para quando a folha inteira cabe no quadro (o tamanho de "Ajustar");
+        - aumentar para quando as menores letras já se leem bem (`escala_maxima`)."""
+        minima = self.escala_ajuste()
+        if minima is None:
+            return
+        atual = self.transform().m11()
+        nova = min(max(atual * fator, minima), self.escala_maxima())
+        if nova <= minima * 1.0001:
+            self.ajustar()  # chegou ao mínimo: folha inteira e centralizada
+            return
         self._ajustado = False  # zoom do usuário: não reajusta sozinho ao redimensionar
-        self.scale(fator, fator)
+        self.scale(nova / atual, nova / atual)
+
+    def escala_ajuste(self) -> float | None:
+        """A escala em que a folha inteira cabe no quadro (o menor zoom permitido)."""
+        retangulo = self._cena.sceneRect()
+        if retangulo.width() <= 0 or self._imagem is None:
+            return None
+        largura = max(self.viewport().width() - 4, 50)
+        altura = max(self.viewport().height() - 4, 50)
+        return min(largura / retangulo.width(), altura / retangulo.height())
+
+    # Zoom máximo: as menores letras da folha ficam com esta altura na tela (em pixels).
+    ALTURA_LETRA_MAXIMA = 20
+    ZOOM_MAXIMO_SEM_PALAVRAS = 4.0  # antes da análise: até 4× o tamanho da folha inteira
+
+    def escala_maxima(self) -> float:
+        """Até onde aumentar: o suficiente para as menores letras ficarem bem legíveis.
+
+        Usa a altura das palavras pequenas da folha (as 10 % menores, para um risco solto do OCR
+        não contar). Fica entre 2× e 8× o tamanho da folha inteira."""
+        minima = self.escala_ajuste() or 1.0
+        alturas = sorted(
+            (p.caixa[3] - p.caixa[1]) * self._imagem.size[1]
+            for p in (self._analise.pagina.palavras if self._analise else [])
+            if p.caixa[3] > p.caixa[1]
+        ) if self._imagem is not None else []
+        if not alturas:
+            return minima * self.ZOOM_MAXIMO_SEM_PALAVRAS
+        pequena = alturas[len(alturas) // 10]
+        return min(max(self.ALTURA_LETRA_MAXIMA / pequena, minima * 2), minima * 8)
 
     def ajustar(self) -> None:
         """A folha INTEIRA na tela (largura e altura): é o jeito padrão de ver a página."""
-        retangulo = self._cena.sceneRect()
-        if retangulo.width() <= 0 or self._imagem is None:
+        escala = self.escala_ajuste()
+        if escala is None:
             return
+        retangulo = self._cena.sceneRect()
         self.resetTransform()
-        largura = max(self.viewport().width() - 4, 50)
-        altura = max(self.viewport().height() - 4, 50)
-        escala = min(largura / retangulo.width(), altura / retangulo.height())
         self.scale(escala, escala)
         self.centerOn(retangulo.center())
         self._ajustado = True

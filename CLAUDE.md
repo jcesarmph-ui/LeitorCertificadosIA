@@ -91,5 +91,11 @@ Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
   formato antes de fazer.
 - **2026-11-13: PRs #3 a #6 juntados no `main` (merge normal, em ordem) e tag `v0.6.0`.** Próxima etapa começa de um branch novo a partir do `main`.
 - **Próximos passos** (feitos: corrigir os reais e medir, limiar de certeza, tela estilo Lens):
-  (1) gerador estilo Laftec + rótulos `ponto.erro_maximo`/`ponto.criterio`; (2) registro de cada
-  análise (perguntar o formato); (3) teste com os reais (etapa final, só os números).
+  (1) gerador estilo Laftec + rótulos `ponto.erro_maximo`/`ponto.criterio` (**em andamento,
+  branch `etapa-7-colunas-laftec`, 0.7.0**; decisão do usuário 2026-11-13: critério ± do
+  certificado diferente da tolerância do plano **só avisa em amarelo**, como a faixa);
+  (2) **validade dos padrões** (pedido 2026-11-13): ler a tabela de padrões do certificado
+  (código, validade) e conferir que cada um estava **dentro da validade no dia da calibração**;
+  (3) registro de cada análise (perguntar o formato); (4) teste com os reais (só os números).
+- Achado (2026-11-13): o escaneado Laftec usa um modelo de folha **sem** "Erro Máximo" e
+  "Critério"; só o digital tem. As correções dos reais já estavam certas (não remarcar).

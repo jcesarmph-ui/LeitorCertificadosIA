@@ -19,6 +19,10 @@ from .dados import sortear_certificado
 from .desenho import desenhar
 from .escaneado import escanear
 
+# Muda quando o gerador passa a desenhar certificados diferentes (ex.: laboratório novo). Quem usa
+# um lote já gerado compara com isto para refazer os gabaritos velhos (ver `gabarito_atual`).
+VERSAO_GERADOR = 2  # 2 = laboratório com Erro Máximo e Critério de aceitação (ADR 0009)
+
 
 def gerar_um(pasta: Path, numero: int, semente: int = 2026) -> Path:
     """Gera os três arquivos de um certificado e devolve o caminho do gabarito."""
@@ -32,6 +36,7 @@ def gerar_um(pasta: Path, numero: int, semente: int = 2026) -> Path:
     campos_escaneado, ajustes = escanear(digital, escaneado, rng, campos)
     gabarito = {
         "ficticio": True,
+        "versao_gerador": VERSAO_GERADOR,
         "semente": f"{semente}-{numero}",
         "certificado": cert.para_dict(),
         "nome_laboratorio": cert.lab.nome,
@@ -41,6 +46,16 @@ def gerar_um(pasta: Path, numero: int, semente: int = 2026) -> Path:
     destino = pasta / f"{ident}.json"
     destino.write_text(json.dumps(gabarito, ensure_ascii=False, indent=2), encoding="utf-8")
     return destino
+
+
+def gabarito_atual(pasta: Path, numero: int, semente: int = 2026) -> Path:
+    """O gabarito do certificado `numero`, gerando de novo se falta ou é de um gerador antigo."""
+    gabarito = pasta / f"cert_{numero:04d}.json"
+    if gabarito.exists():
+        dados = json.loads(gabarito.read_text(encoding="utf-8"))
+        if dados.get("versao_gerador") == VERSAO_GERADOR:
+            return gabarito
+    return gerar_um(pasta, numero, semente)
 
 
 def gerar_lote(pasta: Path, quantidade: int, semente: int = 2026) -> list[Path]:

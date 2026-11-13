@@ -63,7 +63,8 @@ COLUNAS = ["Nominal", "Encontrado", "Erro", "U", "Erro ± U", "Tolerância", "Cr
            "Resultado"]
 DICAS_COLUNAS = {
     "U": "Incerteza expandida de medição, informada no certificado",
-    "Erro ± U": "A faixa que o erro pode ocupar: do erro − U até o erro + U",
+    "Erro ± U": "O erro somado à incerteza, do lado mais perto da tolerância (igual ao "
+                "programa de calibração). Ex.: erro −1 e U 1 → −2. \"± U\" só quando o erro é 0",
     "Tolerância": "Tolerância do plano: limites de erro aceitos no plano de calibração",
     "Critério": "Critério de aceitação ± informado no certificado. Se for diferente da "
                 "tolerância do plano, fica amarelo (não muda o parecer)",

@@ -182,3 +182,21 @@ def test_criterio_diferente_avisa_uma_vez_sem_mudar_o_parecer(tmp_path):
                       "do plano (± 0,05)"]  # um aviso só para os três pontos
     assert all(p.criterio == SituacaoCriterio.DIFERENTE for p in diferente.pontos)
     assert all(p.criterio == SituacaoCriterio.IGUAL for p in igual.pontos)
+
+
+# --- "Erro ± U" igual ao programa de calibração (pedido do usuário, 2026-11-13) -----------------
+
+def test_erro_com_incerteza_fica_do_lado_mais_perto_da_tolerancia():
+    from leitor_certificados.conferencia.avaliacao import erro_com_incerteza
+
+    tol = {"tolerancia_inferior": -5.0, "tolerancia_superior": 5.0}
+    assert erro_com_incerteza(-1.0, 1.0, **tol).valor == -2.0  # e não 0
+    assert erro_com_incerteza(1.0, 1.0, **tol).valor == 2.0
+    zero = erro_com_incerteza(0.0, 1.0, **tol)
+    assert zero.dos_dois_lados and zero.valor == 1.0  # "± 1"
+    # tolerância assimétrica: o lado que chega mais perto do limite
+    assert erro_com_incerteza(0.0, 1.0, tolerancia_inferior=-2.0,
+                              tolerancia_superior=5.0).valor == -1.0
+    assert erro_com_incerteza(0.5, 0.2, **tol, sem_incerteza=True).valor == 0.5
+    assert erro_com_incerteza(0.5, None, **tol) is None  # U ausente nunca vale zero
+    assert erro_com_incerteza(None, 0.1, **tol) is None

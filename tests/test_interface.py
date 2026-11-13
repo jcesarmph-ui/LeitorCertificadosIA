@@ -529,3 +529,23 @@ def test_coluna_criterio_so_aparece_quando_o_certificado_tem_e_fica_amarela(app)
     assert "Critério do certificado" in textos and "diferente do plano" in textos
     quadro.close()
     janela.close()
+
+
+def test_zoom_tem_limite_para_diminuir_e_para_aumentar(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    folha = janela.folha
+    minima, maxima = folha.escala_ajuste(), folha.escala_maxima()
+    assert minima * 2 <= maxima <= minima * 8
+    for _ in range(10):  # diminuir muito: para na folha inteira
+        folha.zoom(1 / 1.25)
+    assert folha.transform().m11() == pytest.approx(minima)
+    for _ in range(40):  # aumentar muito: para no máximo (não é infinito)
+        folha.zoom(1.25)
+    assert folha.transform().m11() == pytest.approx(maxima)
+    # no máximo, as letras pequenas ficam com ~20 px (bem legíveis), sem passar disso à toa
+    alturas = sorted((p.caixa[3] - p.caixa[1]) * folha._imagem.size[1]
+                     for p in janela.analise.pagina.palavras)
+    pequena = alturas[len(alturas) // 10] * maxima
+    assert pequena <= folha.ALTURA_LETRA_MAXIMA + 0.5 or maxima == pytest.approx(minima * 2)
+    janela.close()
