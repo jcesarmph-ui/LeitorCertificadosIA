@@ -8,6 +8,7 @@ ponto do certificado que não está no plano, erro que não bate com "encontrado
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 
 from .avaliacao import Avaliacao, Resultado, avaliar_ponto, resultado_geral
@@ -132,6 +133,12 @@ def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
     achados: set[int] = set()
     for lido in certificado.pontos:
         ponto_plano = _ponto_do_plano(plano, lido.nominal, achados)
+        if ponto_plano is None:
+            # o modelo marcou mais de um número como nominal: vale o que existe no plano
+            for outro in lido.nominais:
+                if (i := _ponto_do_plano(plano, outro, achados)) is not None:
+                    lido, ponto_plano = dataclasses.replace(lido, nominal=outro), i
+                    break
         erro, avisos = _erro_do_ponto(lido)
         if ponto_plano is None or avisos or (lido.encontrado is None and lido.erro is None):
             novo = reatribuir(lido, plano)

@@ -224,3 +224,29 @@ def test_nominal_repetido_no_plano_e_casado_na_ordem(tmp_path):
         planos.fechar()
     assert not any("não está" in a for a in resultado.avisos), resultado.avisos
     assert resultado.resultado == Resultado.APROVADO
+
+
+def test_dois_numeros_com_o_mesmo_rotulo_vale_o_de_mais_certeza():
+    from leitor_certificados.conferencia.extracao import _valor_da_coluna
+
+    assert _valor_da_coluna([("7,941", 0.58), ("0,004", 1.0)]) == "0,004"
+    assert _valor_da_coluna([("1", 0.9), ("350,00", 0.9)]) == "1 350,00"  # número em pedaços
+    assert _valor_da_coluna([("0,07", 0.99)]) == "0,07"
+
+
+def test_dois_nominais_na_linha_vale_o_que_esta_no_plano(tmp_path):
+    from leitor_certificados.conferencia.extracao import CertificadoLido, PontoLido
+
+    banco = tmp_path / "planos.db"
+    criar_banco_de_planos(banco, [{
+        "id": "g", "tipo": "Goniômetro", "codigo": "GN-0001", "faixa_min": 0, "faixa_max": 90,
+        "pontos": [{"nominal": 30.0, "erro": 0.05, "incerteza": 0.07}]}])
+    lido = CertificadoLido("GN-0001", [PontoLido(29.95, None, 0.05, 0.07, (0, 0, 1, 1),
+                                                 nominais=(30.0, 29.95))])
+    planos = PlanosDQ05(banco)
+    try:
+        resultado = conferir(lido, planos)
+    finally:
+        planos.fechar()
+    assert resultado.pontos[0].lido.nominal == 30.0
+    assert not any("não está" in a for a in resultado.avisos), resultado.avisos
