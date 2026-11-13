@@ -136,3 +136,150 @@ def test_faixa_igual_nao_avisa_e_diferente_avisa_sem_mudar_o_parecer():
     assert comparar_faixas("0 mm | 500 mm", None).aviso is None  # plano sem faixa: nada a conferir
     assert "não encontrada" in comparar_faixas(None, "0-500").aviso
     assert "não comparada" in comparar_faixas("0 a 25", "5000 / 3000").aviso
+
+
+# --- critério de aceitação do certificado: só avisa (decisão do usuário, 2026-11-13) ------------
+
+def test_criterio_igual_so_quando_o_plano_vai_de_menos_c_a_mais_c():
+    from leitor_certificados.conferencia.criterio import SituacaoCriterio as S
+    from leitor_certificados.conferencia.criterio import comparar_criterio
+
+    assert comparar_criterio(0.05, -0.05, 0.05) == S.IGUAL
+    assert comparar_criterio(0.05, -0.03, 0.03) == S.DIFERENTE
+    assert comparar_criterio(0.05, 0.0, 0.05) == S.DIFERENTE  # plano assimétrico
+    assert comparar_criterio(0.05, None, 0.05) == S.DIFERENTE  # plano com um lado só
+    assert comparar_criterio(None, -0.05, 0.05) == S.NAO_COMPARADO  # certificado sem critério
+    assert comparar_criterio(0.05, None, None) == S.NAO_COMPARADO  # plano sem tolerância
+
+
+def test_criterio_diferente_avisa_uma_vez_sem_mudar_o_parecer(tmp_path):
+    from leitor_certificados.conferencia.criterio import SituacaoCriterio
+    from leitor_certificados.conferencia.extracao import CertificadoLido, PontoLido
+
+    banco = tmp_path / "planos.db"
+    pontos = [{"nominal": v, "erro": 0.01, "incerteza": 0.01} for v in (0.0, 50.0, 100.0)]
+    criar_banco_de_planos(banco, [{"id": "c1", "tipo": "Paquímetro", "codigo": "PQ-0001",
+                                   "faixa_min": 0, "faixa_max": 100, "pontos": pontos}])
+    con = sqlite3.connect(banco)
+    con.execute("UPDATE pontos_plano SET tolerancia_inferior = -0.05, tolerancia_superior = 0.05")
+    con.commit()
+    con.close()
+
+    def ler(criterio):
+        return CertificadoLido("PQ-0001", [
+            PontoLido(v, v + 0.01, 0.01, 0.01, (0, 0, 1, 1), erro_maximo=0.02, criterio=criterio)
+            for v in (0.0, 50.0, 100.0)])
+
+    planos = PlanosDQ05(banco)
+    try:
+        igual, diferente, sem = (conferir(ler(c), planos) for c in (0.05, 0.03, None))
+    finally:
+        planos.fechar()
+    assert igual.resultado == diferente.resultado == sem.resultado == Resultado.APROVADO
+    assert not any("critério" in a for a in igual.avisos + sem.avisos)
+    avisos = [a for a in diferente.avisos if "critério" in a]
+    assert avisos == ["critério de aceitação do certificado (± 0,03) diferente da tolerância "
+                      "do plano (± 0,05)"]  # um aviso só para os três pontos
+    assert all(p.criterio == SituacaoCriterio.DIFERENTE for p in diferente.pontos)
+    assert all(p.criterio == SituacaoCriterio.IGUAL for p in igual.pontos)
+
+
+# --- "Erro ± U" igual ao programa de calibração (pedido do usuário, 2026-11-13) -----------------
+
+def test_erro_com_incerteza_fica_do_lado_mais_perto_da_tolerancia():
+    from leitor_certificados.conferencia.avaliacao import erro_com_incerteza
+
+    tol = {"tolerancia_inferior": -5.0, "tolerancia_superior": 5.0}
+    assert erro_com_incerteza(-1.0, 1.0, **tol).valor == -2.0  # e não 0
+    assert erro_com_incerteza(1.0, 1.0, **tol).valor == 2.0
+    zero = erro_com_incerteza(0.0, 1.0, **tol)
+    assert zero.dos_dois_lados and zero.valor == 1.0  # "± 1"
+    # tolerância assimétrica: o lado que chega mais perto do limite
+    assert erro_com_incerteza(0.0, 1.0, tolerancia_inferior=-2.0,
+                              tolerancia_superior=5.0).valor == -1.0
+    assert erro_com_incerteza(0.5, 0.2, **tol, sem_incerteza=True).valor == 0.5
+    assert erro_com_incerteza(0.5, None, **tol) is None  # U ausente nunca vale zero
+    assert erro_com_incerteza(None, 0.1, **tol) is None
+
+
+def test_nominal_repetido_no_plano_e_casado_na_ordem(tmp_path):
+    """Goniômetro: 0° e 90° aparecem uma vez por quadrante; cada um casa com o seu do plano."""
+    from leitor_certificados.conferencia.extracao import CertificadoLido, PontoLido
+
+    nominais = (0.0, 90.0, 0.0, 90.0, 0.0)
+    banco = tmp_path / "planos.db"
+    criar_banco_de_planos(banco, [{
+        "id": "g", "tipo": "Goniômetro", "codigo": "GN-0001", "faixa_min": 0, "faixa_max": 360,
+        "pontos": [{"nominal": v, "erro": 0.0, "incerteza": 0.07} for v in nominais]}])
+    con = sqlite3.connect(banco)
+    con.execute("UPDATE pontos_plano SET tolerancia_inferior = -0.25, tolerancia_superior = 0.25")
+    con.commit()
+    con.close()
+    lido = CertificadoLido("GN-0001", [PontoLido(v, v + 0.05, 0.05, 0.07, (0, 0, 1, 1))
+                                       for v in nominais])
+    planos = PlanosDQ05(banco)
+    try:
+        resultado = conferir(lido, planos)
+    finally:
+        planos.fechar()
+    assert not any("não está" in a for a in resultado.avisos), resultado.avisos
+    assert resultado.resultado == Resultado.APROVADO
+
+
+def test_dois_numeros_com_o_mesmo_rotulo_vale_o_de_mais_certeza():
+    from leitor_certificados.conferencia.extracao import _valor_da_coluna
+
+    assert _valor_da_coluna([("7,941", 0.58), ("0,004", 1.0)]) == "0,004"
+    assert _valor_da_coluna([("1", 0.9), ("350,00", 0.9)]) == "1 350,00"  # número em pedaços
+    assert _valor_da_coluna([("0,07", 0.99)]) == "0,07"
+
+
+def test_dois_nominais_na_linha_vale_o_que_esta_no_plano(tmp_path):
+    from leitor_certificados.conferencia.extracao import CertificadoLido, PontoLido
+
+    banco = tmp_path / "planos.db"
+    criar_banco_de_planos(banco, [{
+        "id": "g", "tipo": "Goniômetro", "codigo": "GN-0001", "faixa_min": 0, "faixa_max": 90,
+        "pontos": [{"nominal": 30.0, "erro": 0.05, "incerteza": 0.07}]}])
+    lido = CertificadoLido("GN-0001", [PontoLido(29.95, None, 0.05, 0.07, (0, 0, 1, 1),
+                                                 nominais=(30.0, 29.95))])
+    planos = PlanosDQ05(banco)
+    try:
+        resultado = conferir(lido, planos)
+    finally:
+        planos.fechar()
+    assert resultado.pontos[0].lido.nominal == 30.0
+    assert not any("não está" in a for a in resultado.avisos), resultado.avisos
+
+
+# --- comparador cadastro × certificado do painel Instrumento (pedido do usuário, 2026-11-13) ---
+
+def test_comparador_do_cadastro_so_informa():
+    from leitor_certificados.conferencia.cadastro import Bate, comparar_campo, comparar_com_cadastro
+
+    assert comparar_campo("codigo", "PAQ-016", "paq 016") == Bate.SIM
+    assert comparar_campo("tipo", "Paquímetro", "Paquímetro Digital") == Bate.SIM  # um contém
+    assert comparar_campo("tipo", "Paquímetro", "PAQUIMETRO") == Bate.SIM  # sem acento/maiúscula
+    assert comparar_campo("tipo", "Válvula de segurança", "bar") == Bate.NAO
+    assert comparar_campo("fabricante", "Digimess", "Digimes") == Bate.NAO  # uma letra: avisa
+    assert comparar_campo("faixa", "0-500", "0 mm | 500 mm") == Bate.SIM
+    assert comparar_campo("faixa", "7,5 bar", "8 kgf/cm²") == Bate.NAO
+    assert comparar_campo("resolucao", "0,01", "0.01 mm") == Bate.SIM
+    assert comparar_campo("resolucao", "0,01", "0,02 mm") == Bate.NAO
+    assert comparar_campo("fabricante", "-", "Digimess") == Bate.SEM_DADO  # cadastro sem dado
+    assert comparar_campo("fabricante", "Digimess", None) == Bate.SEM_DADO
+    itens = comparar_com_cadastro({"codigo": "PAQ-016"}, {"codigo": "PAQ-016"})
+    assert [i.chave for i in itens] == ["codigo", "tipo", "fabricante", "faixa", "resolucao"]
+
+
+def test_plano_traz_o_cadastro_do_instrumento(mundo):
+    _, _, gabaritos, banco, _ = mundo
+    cert = gabaritos[0]["certificado"]
+    planos = PlanosDQ05(banco)
+    try:
+        plano = planos.plano_do_instrumento(cert["codigo"])
+    finally:
+        planos.fechar()
+    assert plano.cadastro["tipo"] == cert["tipo"]
+    assert plano.cadastro["fabricante"] == cert["fabricante"]
+    assert plano.cadastro["codigo"] == cert["codigo"]

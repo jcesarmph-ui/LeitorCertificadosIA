@@ -35,6 +35,8 @@ from PySide6.QtWidgets import (
 
 from .. import __version__
 from ..conferencia.avaliacao import Resultado
+from ..conferencia.cadastro import CAMPOS as CAMPOS_CADASTRO
+from ..conferencia.cadastro import Bate, ItemComparado, comparar_com_cadastro
 from .estilo import (
     AMARELO,
     FAIXA_DENTRO,
@@ -59,11 +61,15 @@ from .servico import (
 )
 from .tarefas import Tarefa
 
-COLUNAS = ["Nominal", "Encontrado", "Erro", "U", "Erro ± U", "Tolerância", "Resultado"]
+COLUNAS = ["Nominal", "Encontrado", "Erro", "U", "Erro ± U", "Tolerância", "Critério",
+           "Resultado"]
 DICAS_COLUNAS = {
     "U": "Incerteza expandida de medição, informada no certificado",
-    "Erro ± U": "A faixa que o erro pode ocupar: do erro − U até o erro + U",
+    "Erro ± U": "O erro somado à incerteza, do lado mais perto da tolerância (igual ao "
+                "programa de calibração). Ex.: erro −1 e U 1 → −2. \"± U\" só quando o erro é 0",
     "Tolerância": "Tolerância do plano: limites de erro aceitos no plano de calibração",
+    "Critério": "Critério de aceitação ± informado no certificado. Se for diferente da "
+                "tolerância do plano, fica amarelo (não muda o parecer)",
 }
 
 
@@ -253,27 +259,42 @@ class Janela(QMainWindow):
         play.addWidget(self.motivo)
         lay.addWidget(parecer)
 
+        # Comparador: o que o cadastro diz × o que foi lido no certificado (pedido do usuário,
+        # 2026-11-13). Check verde = bate; amarelo = não bate. Só informa: não muda o parecer.
         instrumento = QGroupBox("Instrumento")
         grade = QGridLayout(instrumento)
-        self.campos: dict[str, QLabel] = {}
-        for linha, (chave, nome, dica) in enumerate((
-            ("codigo", "Código achado", "O código do instrumento lido no certificado"),
-            ("plano", "Instrumento / plano", "Nome do plano no cadastro do sistema de calibração"),
-            ("faixa", "Faixa lida", "Faixa de utilização que o modelo leu no certificado"),
-            ("faixa_plano", "Faixa do plano",
-             "Faixa do instrumento no cadastro. Se for diferente da lida, aparece um aviso "
-             "amarelo (não muda o parecer)"),
-            ("tipo", "Tipo lido", "Tipo de instrumento que o modelo leu no certificado"),
-        )):
+        grade.setHorizontalSpacing(14)
+        plano_rotulo = QLabel("Plano:")
+        plano_rotulo.setToolTip("Nome do plano no cadastro do sistema de calibração")
+        self.campos: dict[str, QLabel] = {}  # o que foi lido no certificado (e "plano")
+        self.campos_cadastro: dict[str, QLabel] = {}  # o que o cadastro diz
+        self.marcas: dict[str, QLabel] = {}  # ✓ bate / não bate
+        self.campos["plano"] = QLabel("—")
+        grade.addWidget(plano_rotulo, 0, 0)
+        grade.addWidget(self.campos["plano"], 0, 1, 1, 3)
+        for coluna, (titulo, dica) in enumerate((
+            ("Cadastro", "O que o cadastro do instrumento diz (sistema de calibração)"),
+            ("Certificado", "O que o modelo leu no certificado"),
+        ), start=1):
+            cabeca = QLabel(titulo)
+            cabeca.setStyleSheet("font-weight: bold;")
+            cabeca.setToolTip(dica)
+            grade.addWidget(cabeca, 1, coluna)
+        for linha, (chave, nome) in enumerate(CAMPOS_CADASTRO, start=2):
             rotulo = QLabel(nome + ":")
-            rotulo.setToolTip(dica)
-            valor = QLabel("—")
-            valor.setWordWrap(True)
-            valor.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             grade.addWidget(rotulo, linha, 0, Qt.AlignmentFlag.AlignTop)
-            grade.addWidget(valor, linha, 1)
-            self.campos[chave] = valor
+            for destino, coluna in ((self.campos_cadastro, 1), (self.campos, 2)):
+                valor = QLabel("—")
+                valor.setWordWrap(True)
+                valor.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                grade.addWidget(valor, linha, coluna)
+                destino[chave] = valor
+            marca = QLabel("")
+            marca.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            grade.addWidget(marca, linha, 3)
+            self.marcas[chave] = marca
         grade.setColumnStretch(1, 1)
+        grade.setColumnStretch(2, 1)
         lay.addWidget(instrumento)
 
         pontos = QGroupBox("Pontos conferidos")
@@ -461,10 +482,14 @@ class Janela(QMainWindow):
         self.parecer.setStyleSheet(f"background: {cor('campo')}; color: {cor('dica')};")
         self.motivo.setText("")
         self.motivo.hide()
-        for valor in self.campos.values():
+        for valor in [*self.campos.values(), *self.campos_cadastro.values()]:
             valor.setText("—")
             valor.setStyleSheet("")
             valor.setToolTip("")
+        for marca in self.marcas.values():
+            marca.setText("")
+            marca.setStyleSheet("")
+            marca.setToolTip("")
         self.tabela.setRowCount(0)
 
     def _preencher_painel(self, analise: Analise) -> None:
@@ -484,45 +509,76 @@ class Janela(QMainWindow):
         self.motivo.setText("\n".join(f"• {m}" for m in motivos))
         self.motivo.setStyleSheet(f"color: {cor('aviso_texto')};")
         self.motivo.setVisible(bool(self.motivo.text()))  # sem texto, não ocupa lugar
-        if analise.manual.get("codigo"):
-            self.campos["codigo"].setText(f"{analise.manual['codigo']} (digitado)")
-        else:
-            self.campos["codigo"].setText(
-                (conferencia.codigo if conferencia and conferencia.codigo else None)
-                or analise.campos.get("codigo") or "não encontrado")
         self.campos["plano"].setText(
             (conferencia.plano_nome if conferencia and conferencia.plano_nome else None)
             or "sem plano no cadastro")
-        if analise.manual.get("faixa"):
-            self.campos["faixa"].setText(f"{analise.manual['faixa']} (digitada)")
-        else:
-            self.campos["faixa"].setText(
-                (conferencia.faixa_certificado if conferencia else None)
-                or analise.campos.get("faixa") or "não encontrada")
-        self.campos["faixa_plano"].setText(
-            (conferencia.faixa_plano if conferencia else None) or "—")
-        # aviso de faixa: os dois campos da faixa ficam amarelos, com o aviso na dica
-        aviso_faixa = next((a for a in (conferencia.avisos if conferencia else [])
-                            if "faixa" in a), None)
-        for chave in ("faixa", "faixa_plano"):
-            self.campos[chave].setStyleSheet(
-                f"color: {cor('aviso_texto')}; font-weight: bold;" if aviso_faixa else "")
-            self.campos[chave].setToolTip(aviso_faixa or "")
-        self.campos["tipo"].setText(analise.campos.get("tipo") or "não encontrado")
+        # o que foi lido no certificado (o digitado à mão vale mais que o lido)
+        lido = {chave: analise.campos.get(chave) or None for chave, _ in CAMPOS_CADASTRO}
+        if conferencia and conferencia.codigo:
+            lido["codigo"] = conferencia.codigo
+        if conferencia and conferencia.faixa_certificado:
+            lido["faixa"] = conferencia.faixa_certificado
+        digitado = {chave: analise.manual[chave] for chave in ("codigo", "faixa")
+                    if analise.manual.get(chave)}
+        lido.update(digitado)
+        cadastro = conferencia.cadastro if conferencia else {}
+        for item in comparar_com_cadastro(cadastro, lido):
+            texto = item.certificado or "não encontrado"
+            if item.chave in digitado:
+                texto += " (digitado)" if item.chave == "codigo" else " (digitada)"
+            self.campos[item.chave].setText(texto)
+            self.campos_cadastro[item.chave].setText(
+                item.cadastro if item.cadastro not in (None, "") else "—")
+            self._pintar_marca(item)
         self._preencher_tabela()
+
+    def _pintar_marca(self, item: ItemComparado) -> None:
+        """Check verde quando bate; aviso amarelo quando não bate; nada quando falta um lado."""
+        marca = self.marcas[item.chave]
+        valores = (self.campos[item.chave], self.campos_cadastro[item.chave])
+        if item.bate == Bate.SIM:
+            marca.setText("✓")
+            marca.setStyleSheet(f"color: {VERDE}; font-weight: bold; font-size: 16pt;")
+            marca.setToolTip("Cadastro e certificado batem")
+            for valor in valores:
+                valor.setStyleSheet("font-weight: bold;")
+        elif item.bate == Bate.NAO:
+            marca.setText("não bate")
+            marca.setStyleSheet(f"background: {AMARELO}; color: #000000; font-weight: bold; "
+                                "padding: 2px 6px; border-radius: 3px;")
+            aviso = (f"{item.nome} do certificado não bate com o cadastro "
+                     "(só avisa: não muda o parecer)")
+            marca.setToolTip(aviso)
+            for valor in valores:
+                valor.setStyleSheet(f"color: {cor('aviso_texto')}; font-weight: bold;")
+                valor.setToolTip(aviso)
+        else:
+            marca.setText("")
+            marca.setStyleSheet("")
+            marca.setToolTip("Falta este dado no cadastro ou no certificado: nada a comparar")
+            for valor in valores:
+                valor.setStyleSheet("")
+                valor.setToolTip("")
 
     def _preencher_tabela(self) -> None:
         self.tabela.setRowCount(len(self.linhas))
         for r, linha in enumerate(self.linhas):
             valores = [linha.nominal, linha.encontrado, linha.erro, linha.incerteza,
-                       linha.erro_mais_u, linha.tolerancia, linha.resultado.value]
+                       linha.erro_mais_u, linha.tolerancia, linha.criterio or "—",
+                       linha.resultado.value]
             for c, valor in enumerate(valores):
                 celula = QTableWidgetItem(valor)
                 celula.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 celula.setToolTip(linha.dica())
                 if c == len(valores) - 1:
                     self._pintar_resultado(celula, linha.resultado)
+                elif COLUNAS[c] == "Critério" and linha.criterio_diferente:
+                    celula.setBackground(QBrush(QColor(AMARELO)))  # aviso: fundo amarelo
+                    celula.setForeground(QBrush(QColor("#000000")))
                 self.tabela.setItem(r, c, celula)
+        # a coluna só aparece quando o laboratório informa o critério (ADR 0009)
+        self.tabela.setColumnHidden(COLUNAS.index("Critério"),
+                                    not any(linha.criterio for linha in self.linhas))
 
     @staticmethod
     def _pintar_resultado(celula: QTableWidgetItem, resultado: Resultado) -> None:
@@ -613,7 +669,14 @@ class Janela(QMainWindow):
             return
         if self.quadro is not None:
             self.quadro.close()
-        self.quadro = QuadroPonto(linha, self, palavra)
+        ordem = None
+        if linha is not None:
+            # o mesmo ponto fica marcado na folha, na tabela e no título do quadrinho
+            self.folha.destacar_ponto(n)
+            self.tabela.selectRow(n)
+            ordem = (n + 1, len(self.linhas))
+            posicao = self.folha.lado_do_ponto(n)  # colado à direita da linha do ponto
+        self.quadro = QuadroPonto(linha, self, palavra, ordem)
         self.quadro.destroyed.connect(self._quadro_fechado)
         self.quadro.destroyed.connect(self._selecao_do_quadro_acabou)
         # o quadrinho fecha antes; a lista de rótulos / a caixa de texto abrem logo depois
@@ -672,6 +735,8 @@ class Janela(QMainWindow):
 
     def _quadro_fechado(self) -> None:
         self.quadro = None
+        self.folha.destacar_ponto(None)
+        self.tabela.clearSelection()
 
     # ================================================================== arrastar e soltar
     def dragEnterEvent(self, evento: QDragEnterEvent) -> None:

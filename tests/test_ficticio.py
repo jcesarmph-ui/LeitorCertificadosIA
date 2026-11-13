@@ -176,3 +176,54 @@ def test_linha_de_comando_gera_o_lote(tmp_path, capsys):
     assert len(list(tmp_path.glob("*.json"))) == 2
     assert len(list(tmp_path.glob("*.pdf"))) == 4
     assert "2 certificados fictícios" in capsys.readouterr().out
+
+
+# --- laboratório no estilo das colunas "Erro Máximo" e "Critério de aceitação ±" (ADR 0009) -----
+
+def test_laboratorio_com_erro_maximo_e_criterio():
+    certs = [c for n in range(1, 120)
+             if (c := sortear_certificado(random.Random(f"2026-{n}"), "x")).laboratorio
+             == "rio_manso"]
+    assert certs, "o laboratório novo precisa aparecer no sorteio"
+    for cert in certs:
+        criterios = {p.criterio for p in cert.pontos}
+        assert len(criterios) == 1 and criterios.pop() > 0  # um critério para o certificado
+        for p in cert.pontos:
+            assert p.erro_maximo == pytest.approx(abs(p.erro) + p.incerteza,
+                                                  abs=10 ** -(cert.casas + 1))
+    outro = next(c for n in range(1, 120)
+                 if (c := sortear_certificado(random.Random(f"2026-{n}"), "x")).laboratorio
+                 != "rio_manso")
+    assert all(p.criterio is None and p.erro_maximo is None for p in outro.pontos)
+
+
+def test_gabarito_anota_erro_maximo_e_criterio(tmp_path):
+    n = next(n for n in range(1, 120)
+             if sortear_certificado(random.Random(f"2026-{n}"), "x").laboratorio == "rio_manso")
+    gab = json.loads(gerar_um(tmp_path, n).read_text(encoding="utf-8"))
+    campos = gab["digital"]["campos"]
+    quantos = len(gab["certificado"]["pontos"])
+    for campo in ("ponto.erro_maximo", "ponto.criterio", "ponto.incerteza", "ponto.k"):
+        assert sum(c["campo"] == campo for c in campos) == quantos, campo
+    pagina, texto, documento = _texto_da_pagina(tmp_path / gab["digital"]["arquivo"])
+    try:
+        tudo = texto.get_text_range()
+        assert "Critério de" in tudo and "aceitação ±" in tudo and "Máximo" in tudo
+        assert "critério de aceitação adotado pelo cliente: ±" in tudo
+    finally:
+        documento.close()
+
+
+def test_gabarito_de_gerador_antigo_e_refeito(tmp_path):
+    from leitor_certificados.ficticio.gerar import VERSAO_GERADOR, gabarito_atual
+
+    caminho = gerar_um(tmp_path, 1)
+    dados = json.loads(caminho.read_text(encoding="utf-8"))
+    assert dados["versao_gerador"] == VERSAO_GERADOR
+    del dados["versao_gerador"]  # como um gabarito feito antes da versão 0.7.0
+    dados["certificado"]["numero"] = "VELHO"
+    caminho.write_text(json.dumps(dados), encoding="utf-8")
+    refeito = json.loads(gabarito_atual(tmp_path, 1).read_text(encoding="utf-8"))
+    assert refeito["versao_gerador"] == VERSAO_GERADOR
+    assert refeito["certificado"]["numero"] != "VELHO"
+    assert gabarito_atual(tmp_path, 1).stat().st_mtime == caminho.stat().st_mtime  # atual: fica

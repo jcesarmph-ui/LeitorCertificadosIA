@@ -31,6 +31,8 @@ class Plano:
     nome: str
     pontos: list[PontoDoPlano] = field(default_factory=list)
     faixa: str | None = None  # texto livre do cadastro do instrumento ("0-500", "0 a 25 mm")
+    # o que o cadastro diz do instrumento (para o comparador do painel Instrumento)
+    cadastro: dict[str, str | None] = field(default_factory=dict)
 
 
 def normalizar_codigo(codigo: str) -> str:
@@ -48,16 +50,22 @@ class PlanosDQ05:
         self._con.row_factory = sqlite3.Row
         self._plano_por_codigo: dict[str, int] = {}
         self._faixa_por_codigo: dict[str, str | None] = {}
-        tem_faixa = any(c["name"] == "faixa"
-                        for c in self._con.execute("PRAGMA table_info(instrumentos)"))
-        coluna_faixa = "faixa" if tem_faixa else "NULL AS faixa"
+        self._cadastro_por_codigo: dict[str, dict[str, str | None]] = {}
+        existentes = {c["name"] for c in self._con.execute("PRAGMA table_info(instrumentos)")}
+        # colunas que bancos mais antigos (ou o banco fictício dos testes) podem não ter
+        extras = ", ".join(c if c in existentes else f"NULL AS {c}"
+                           for c in ("faixa", "tipo", "fabricante", "resolucao"))
         for linha in self._con.execute(
-            f"SELECT codigo, plano_id, {coluna_faixa} FROM instrumentos "
+            f"SELECT codigo, plano_id, {extras} FROM instrumentos "
             "WHERE excluido_em IS NULL AND plano_id IS NOT NULL"
         ):
             chave = normalizar_codigo(linha["codigo"])
             self._plano_por_codigo[chave] = linha["plano_id"]
             self._faixa_por_codigo[chave] = linha["faixa"]
+            self._cadastro_por_codigo[chave] = {
+                "codigo": linha["codigo"], "tipo": linha["tipo"],
+                "fabricante": linha["fabricante"], "faixa": linha["faixa"],
+                "resolucao": None if linha["resolucao"] is None else str(linha["resolucao"])}
 
     def fechar(self) -> None:
         self._con.close()
@@ -93,4 +101,5 @@ class PlanosDQ05:
             )
         ]
         return Plano(codigo=codigo, nome=cabecalho["nome"], pontos=pontos,
-                     faixa=self._faixa_por_codigo.get(normalizar_codigo(codigo)))
+                     faixa=self._faixa_por_codigo.get(normalizar_codigo(codigo)),
+                     cadastro=dict(self._cadastro_por_codigo.get(normalizar_codigo(codigo), {})))

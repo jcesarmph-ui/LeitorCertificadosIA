@@ -52,22 +52,27 @@ modelo_mod.atributos_da_pagina = _pistas_em_cache
 # incerteza) são comparados com a tolerância. Fabricante, laboratório, técnico etc. são secundários.
 ESSENCIAIS = {"codigo", "faixa", "ponto.nominal", "ponto.encontrado", "ponto.erro",
               "ponto.incerteza"}
+# Colunas que só alguns laboratórios trazem (ADR 0009): medidas à parte.
+EXTRAS = {"ponto.erro_maximo", "ponto.criterio"}
 
 
 def medir(modelo, pagina, certos):
-    """(essenciais certos, essenciais, outros campos certos, outros campos, falsos)."""
+    """(essenciais certos, essenciais, outros certos, outros, falsos, extras certos, extras)."""
     previstos = [r for r, _ in prever(modelo, pagina)]
-    e_ok = e = o_ok = o = falsos = 0
+    e_ok = e = o_ok = o = falsos = x_ok = x = 0
     for prev, certo in zip(previstos, certos, strict=True):
         if certo == OUTRO:
             falsos += prev != OUTRO
+        elif certo in EXTRAS:
+            x += 1
+            x_ok += prev == certo
         elif certo in ESSENCIAIS:
             e += 1
             e_ok += prev == certo
         else:
             o += 1
             o_ok += prev == certo
-    return e_ok, e, o_ok, o, falsos
+    return e_ok, e, o_ok, o, falsos, x_ok, x
 
 
 def main() -> None:
@@ -103,8 +108,10 @@ def main() -> None:
             sec = sum(m[2] / m[3] for m in medidas) / n if medidas[0][3] else float("nan")
             fal = sum(m[4] for m in medidas) / n
             por_k[k].append((ess, sec, fal))
+            extras = (f" | erro máx./critério {100 * sum(m[5] / m[6] for m in medidas) / n:5.1f} %"
+                      if medidas[0][6] else "")
             print(f"   com {k} outro(s) real(is): ESSENCIAIS {100 * ess:5.1f} % | "
-                  f"outros campos {100 * sec:5.1f} % | falsos {fal:5.1f}")
+                  f"outros campos {100 * sec:5.1f} % | falsos {fal:5.1f}{extras}")
     print("\nMÉDIA nos certificados deixados de fora")
     for k, itens in por_k.items():
         n = len(itens)

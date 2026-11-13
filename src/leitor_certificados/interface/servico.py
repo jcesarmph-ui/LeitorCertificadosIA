@@ -25,11 +25,12 @@ from PIL import Image
 from ..aprendizado import modelo as ml
 from ..aprendizado.correcoes import carregar_pasta, treinar_com_correcoes
 from ..aprendizado.rotulos import rotular
-from ..conferencia.avaliacao import Avaliacao, Resultado
-from ..conferencia.conferir import Conferencia, conferir
+from ..conferencia.avaliacao import Avaliacao, Resultado, erro_com_incerteza
+from ..conferencia.conferir import Conferencia, PontoConferido, conferir
+from ..conferencia.criterio import SituacaoCriterio, descrever_criterio
 from ..conferencia.extracao import CertificadoLido, montar_certificado
 from ..conferencia.plano import PlanosDQ05
-from ..ficticio.gerar import gerar_um
+from ..ficticio.gerar import gabarito_atual
 from ..leitura import Pagina
 from ..leitura.ler import ler_pdf
 
@@ -276,17 +277,16 @@ class Servico:
 
     # -- treino ---------------------------------------------------------------------------
     def _carregar_ficticios(self, progresso: Progresso) -> tuple[list[Pagina], list[list[str]]]:
-        """Lê os certificados inventados (gera os que faltam). Fica em memória para os próximos
-        treinos — ler 150 PDFs é a parte lenta."""
+        """Lê os certificados inventados (gera os que faltam ou estão velhos). Fica em memória
+        para os próximos treinos — ler 150 PDFs é a parte lenta."""
         if self._ficticios is None:
             paginas, rotulos = [], []
             total = self.pastas.quantidade_ficticios
             for n in range(1, total + 1):
                 if n % 10 == 1:
                     progresso(f"Preparando certificados de treino ({n} de {total})")
-                gabarito = self.pastas.ficticios / f"cert_{n:04d}.json"
-                if not gabarito.exists():
-                    gerar_um(self.pastas.ficticios, n)
+                # gera os que faltam e refaz os de um gerador antigo (laboratório novo etc.)
+                gabarito = gabarito_atual(self.pastas.ficticios, n)
                 gab = json.loads(gabarito.read_text(encoding="utf-8"))
                 pagina = ler_pdf(self.pastas.ficticios / gab["digital"]["arquivo"])[0]
                 paginas.append(pagina)
@@ -413,13 +413,19 @@ class LinhaPonto:
     avisos: list[str]
     # certeza do modelo nas palavras deste ponto, por coluna ("nominal", "erro"…): a menor
     certezas: dict[str, float] = field(default_factory=dict)
+    # critério de aceitação ± do certificado ("" quando o laboratório não informa; ADR 0009)
+    criterio: str = ""
+    criterio_diferente: bool = False  # diferente da tolerância do plano → amarelo
 
     def dica(self) -> str:
         parecer = self.resultado.value + (f" ({self.motivo})" if self.motivo else "")
         linhas = [f"Ponto {self.nominal}", f"Erro: {self.erro}",
                   f"U (incerteza): {self.incerteza}", f"Erro ± U: {self.erro_mais_u}",
-                  f"Tolerância do plano: {self.tolerancia}", f"Parecer: {parecer}",
-                  "Clique para ver os detalhes"]
+                  f"Tolerância do plano: {self.tolerancia}"]
+        if self.criterio:
+            linhas.append(f"Critério do certificado: {self.criterio}"
+                          + (" (diferente do plano)" if self.criterio_diferente else ""))
+        linhas += [f"Parecer: {parecer}", "Clique para ver os detalhes"]
         return "\n".join(linhas + [f"Aviso: {a}" for a in self.avisos])
 
 
@@ -436,6 +442,20 @@ def _certezas_da_linha(analise: Analise, caixa: tuple[float, ...]) -> dict[str, 
     return certezas
 
 
+def texto_erro_com_incerteza(p: PontoConferido) -> str:
+    """O "Erro ± U" igual ao do programa de calibração: o lado mais perto da tolerância
+    (erro −1 e U 1 → "-2"); "± U" só quando o erro é zero."""
+    plano = p.plano
+    final = erro_com_incerteza(
+        p.erro, p.lido.incerteza,
+        plano.tolerancia_inferior if plano else None,
+        plano.tolerancia_superior if plano else None,
+        plano.sem_incerteza if plano else False)
+    if final is None:
+        return "—"
+    return f"± {numero(final.valor)}" if final.dos_dois_lados else numero(final.valor)
+
+
 def descrever_pontos(conferencia: Conferencia | None,
                      analise: Analise | None = None) -> list[LinhaPonto]:
     if conferencia is None:
@@ -443,7 +463,7 @@ def descrever_pontos(conferencia: Conferencia | None,
     linhas = []
     for p in conferencia.pontos:
         av: Avaliacao = p.avaliacao
-        faixa = f"{numero(av.faixa[0])} a {numero(av.faixa[1])}" if av.faixa else "—"
+        faixa = texto_erro_com_incerteza(p)
         tol = (descrever_tolerancia(p.plano.tolerancia_inferior, p.plano.tolerancia_superior)
                if p.plano else "fora do plano")
         linhas.append(LinhaPonto(
@@ -451,5 +471,8 @@ def descrever_pontos(conferencia: Conferencia | None,
             erro=numero(p.erro), incerteza=numero(p.lido.incerteza), erro_mais_u=faixa,
             tolerancia=tol, resultado=av.resultado, motivo=av.motivo or "",
             caixa=p.lido.caixa, avisos=list(p.avisos),
-            certezas=_certezas_da_linha(analise, p.lido.caixa) if analise else {}))
+            certezas=_certezas_da_linha(analise, p.lido.caixa) if analise else {},
+            criterio=(descrever_criterio(p.lido.criterio)
+                      if p.lido.criterio is not None else ""),
+            criterio_diferente=p.criterio == SituacaoCriterio.DIFERENTE))
     return linhas

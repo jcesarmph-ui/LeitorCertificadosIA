@@ -8,11 +8,12 @@ ponto do certificado que não está no plano, erro que não bate com "encontrado
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 
 from .avaliacao import Avaliacao, Resultado, avaliar_ponto, resultado_geral
+from .criterio import SituacaoCriterio, aviso_de_criterio, comparar_criterio
 from .extracao import CertificadoLido, PontoLido
-from .faixa import comparar_faixas
 from .plano import Plano, PlanosDQ05, PontoDoPlano, normalizar_codigo
 
 # Dois valores nominais são "o mesmo ponto" se diferem menos que isto (relativo, com piso).
@@ -27,6 +28,8 @@ class PontoConferido:
     erro: float | None  # o erro usado na avaliação
     avaliacao: Avaliacao
     avisos: list[str] = field(default_factory=list)
+    # critério de aceitação do certificado × tolerância do plano (só avisa; ADR 0009)
+    criterio: SituacaoCriterio = SituacaoCriterio.NAO_COMPARADO
 
 
 @dataclass
@@ -38,6 +41,7 @@ class Conferencia:
     avisos: list[str] = field(default_factory=list)
     faixa_certificado: str | None = None  # só mostrada/avisada: não muda o parecer
     faixa_plano: str | None = None
+    cadastro: dict[str, str | None] = field(default_factory=dict)  # do instrumento (comparador)
 
 
 def _mesmo_nominal(a: float, b: float) -> bool:
@@ -94,9 +98,19 @@ def reatribuir(lido: PontoLido, plano: Plano) -> PontoLido | None:
             sobra = [x for j, x in resto if j not in (ja, jb)]
             u = lido.incerteza if lido.incerteza in sobra else min(
                 (x for x in sobra if x > 0), default=None)
-            achadas.append(PontoLido(candidato, e, r, u, lido.caixa, lido.numeros))
+            achadas.append(PontoLido(candidato, e, r, u, lido.caixa, lido.numeros,
+                                     lido.erro_maximo, lido.criterio))
     unicas = {(a.nominal, a.encontrado, a.erro) for a in achadas}
     return achadas[0] if len(unicas) == 1 else None
+
+
+def _ponto_do_plano(plano: Plano, nominal: float, usados: set[int]) -> int | None:
+    """O ponto do plano com este nominal. O plano pode repetir o nominal (ex.: goniômetro com
+    0° e 90° em cada quadrante): os repetidos são casados **na ordem**, o 1º do certificado com
+    o 1º do plano, o 2º com o 2º… Só se todos já foram usados, volta ao primeiro."""
+    iguais = [i for i, p in enumerate(plano.pontos) if _mesmo_nominal(p.nominal, nominal)]
+    livres = [i for i in iguais if i not in usados]
+    return (livres or iguais or [None])[0]
 
 
 def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
@@ -111,24 +125,26 @@ def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
         return Conferencia(certificado.codigo, None, Resultado.PENDENTE,
                            avisos=["instrumento sem plano no cadastro (código desconhecido)"])
     conferencia = Conferencia(certificado.codigo, plano.nome, Resultado.PENDENTE,
-                              faixa_certificado=certificado.faixa, faixa_plano=plano.faixa)
-    aviso_faixa = comparar_faixas(certificado.faixa, plano.faixa).aviso
-    if aviso_faixa:  # decisão do usuário: faixa diferente só avisa; o parecer vem da tolerância
-        conferencia.avisos.append(aviso_faixa)
+                              faixa_certificado=certificado.faixa, faixa_plano=plano.faixa,
+                              cadastro=plano.cadastro)
+    # a faixa (e o resto do cadastro) é comparada no comparador do painel Instrumento
+    # (conferencia/cadastro.py): só avisa ali, nunca muda o parecer
     resultados: list[Resultado] = []
     achados: set[int] = set()
     for lido in certificado.pontos:
-        ponto_plano = next(
-            (i for i, p in enumerate(plano.pontos) if _mesmo_nominal(p.nominal, lido.nominal)),
-            None,
-        )
+        ponto_plano = _ponto_do_plano(plano, lido.nominal, achados)
+        if ponto_plano is None:
+            # o modelo marcou mais de um número como nominal: vale o que existe no plano
+            for outro in lido.nominais:
+                if (i := _ponto_do_plano(plano, outro, achados)) is not None:
+                    lido, ponto_plano = dataclasses.replace(lido, nominal=outro), i
+                    break
         erro, avisos = _erro_do_ponto(lido)
         if ponto_plano is None or avisos or (lido.encontrado is None and lido.erro is None):
             novo = reatribuir(lido, plano)
             if novo is not None:
                 lido = novo
-                ponto_plano = next(i for i, p in enumerate(plano.pontos)
-                                   if _mesmo_nominal(p.nominal, lido.nominal))
+                ponto_plano = _ponto_do_plano(plano, lido.nominal, achados)
                 erro, avisos = _erro_do_ponto(lido)
                 avisos = [*avisos, "colunas reatribuídas com ajuda do plano"]
         if ponto_plano is None:
@@ -142,8 +158,16 @@ def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
         avaliacao = avaliar_ponto(
             erro, incerteza=lido.incerteza, tolerancia_inferior=p.tolerancia_inferior,
             tolerancia_superior=p.tolerancia_superior, sem_incerteza=p.sem_incerteza)
-        conferencia.pontos.append(PontoConferido(lido, p, erro, avaliacao, avisos))
+        criterio = comparar_criterio(lido.criterio, p.tolerancia_inferior, p.tolerancia_superior)
+        conferencia.pontos.append(PontoConferido(lido, p, erro, avaliacao, avisos, criterio))
         resultados.append(avaliacao.resultado)
+    # decisão do usuário: critério diferente do plano só avisa (como a faixa)
+    comparados = [c for c in conferencia.pontos if c.criterio != SituacaoCriterio.NAO_COMPARADO]
+    conferencia.avisos += aviso_de_criterio(
+        [(c.lido.nominal, c.lido.criterio, c.plano.tolerancia_inferior,
+          c.plano.tolerancia_superior)
+         for c in comparados if c.criterio == SituacaoCriterio.DIFERENTE],
+        len(comparados))
     for i, p in enumerate(plano.pontos):
         if i not in achados:
             resultados.append(Resultado.NAO_INFORMADO)

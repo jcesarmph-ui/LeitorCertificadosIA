@@ -12,7 +12,7 @@ import random
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
 
-from .laboratorios import LABORATORIOS, Laboratorio
+from .laboratorios import CRITERIO, LABORATORIOS, Laboratorio
 
 
 @dataclass(frozen=True)
@@ -57,6 +57,10 @@ class Ponto:
     erro: float  # encontrado − nominal
     incerteza: float  # incerteza expandida U
     k: float  # fator de abrangência
+    # só nos laboratórios que trazem estas colunas (ADR 0009); nos outros fica None
+    erro_maximo: float | None = None  # |erro| + U
+    criterio: float | None = None  # critério de aceitação ± do cliente
+    parametro: str | None = None  # o que foi medido na linha ("Face externa"…)
 
 
 @dataclass
@@ -116,6 +120,12 @@ def _pontos(rng: random.Random, modelo: ModeloInstrumento, minimo: float, maximo
     nominais.append(round(maximo, casas))
     # Fator k: quem não tem coluna "k" declara k = 2 na observação.
     tem_k = "k" in lab.colunas
+    # Critério de aceitação: um só para o certificado inteiro, algumas divisões de resolução.
+    criterio = None
+    if CRITERIO in lab.colunas:
+        criterio = round(resolucao * rng.choice((2, 3, 5, 5, 10)), casas)
+    parametros = (("Face Externa",) * 4 + ("Face Interna", "Bico Interno/Externo")
+                  if modelo.tipo == "Paquímetro" else ("Leitura",))
     pontos = []
     for nominal in nominais:
         # Erro: quase sempre poucas divisões; às vezes um erro maior (instrumento ruim).
@@ -126,7 +136,12 @@ def _pontos(rng: random.Random, modelo: ModeloInstrumento, minimo: float, maximo
         incerteza = round(resolucao * rng.uniform(0.6, 2.5), casas + 1)
         incerteza = max(incerteza, 10 ** -(casas + 1))
         k = rng.choice((2.0, 2.0, 2.0, 2.03, 2.05, 2.11)) if tem_k else 2.0
-        pontos.append(Ponto(nominal, encontrado, erro, incerteza, k))
+        ponto = Ponto(nominal, encontrado, erro, incerteza, k)
+        if criterio is not None:
+            ponto.erro_maximo = round(abs(erro) + incerteza, casas + 1)
+            ponto.criterio = criterio
+            ponto.parametro = rng.choice(parametros)
+        pontos.append(ponto)
     return pontos
 
 

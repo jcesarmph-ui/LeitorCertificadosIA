@@ -52,6 +52,48 @@ def avaliar_ponto(erro: float | None, *, incerteza: float | None,
     return Avaliacao(Resultado.APROVADO, None, faixa)
 
 
+@dataclass(frozen=True)
+class ErroComIncerteza:
+    """O "erro ± U" que se mostra: um número só, ou "± U" quando o erro é zero."""
+
+    valor: float
+    dos_dois_lados: bool = False
+
+
+def erro_com_incerteza(erro: float | None, incerteza: float | None,
+                       tolerancia_inferior: float | None, tolerancia_superior: float | None,
+                       sem_incerteza: bool = False) -> ErroComIncerteza | None:
+    """Erro somado à U **do lado mais perto da tolerância** — mesma regra do programa de
+    calibração (`desvio_final`, pedido do usuário de 2026-11-13).
+
+    Ex.: erro −1 e U 1 → −2 (e não 0). Erro 0 → "± U". U ausente → None (nunca U = 0);
+    "U não se aplica" → o próprio erro.
+    """
+    if erro is None:
+        return None
+    if sem_incerteza:
+        return ErroComIncerteza(erro)
+    if incerteza is None:
+        return None
+    u = abs(incerteza)
+    if u == 0:
+        return ErroComIncerteza(erro)
+
+    def folga(valor: float) -> float:
+        """Quanto falta para sair da tolerância (menor = mais perto)."""
+        folgas = [tolerancia_superior - valor] if tolerancia_superior is not None else []
+        if tolerancia_inferior is not None:
+            folgas.append(valor - tolerancia_inferior)
+        return min(folgas) if folgas else -abs(valor)  # sem tolerância: o mais longe do zero
+
+    abaixo, acima = erro - u, erro + u
+    if abs(folga(abaixo) - folga(acima)) <= _FOLGA:
+        if abs(erro) <= _FOLGA:
+            return ErroComIncerteza(u, dos_dois_lados=True)
+        return ErroComIncerteza(abaixo if abs(abaixo) > abs(acima) else acima)
+    return ErroComIncerteza(abaixo if folga(abaixo) < folga(acima) else acima)
+
+
 def resultado_geral(resultados: list[Resultado]) -> Resultado:
     """Resultado do certificado inteiro: um ponto reprovado reprova tudo; ponto sem avaliação
     deixa tudo "pendente" (nunca é ignorado)."""

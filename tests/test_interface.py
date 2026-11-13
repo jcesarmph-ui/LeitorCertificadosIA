@@ -346,14 +346,19 @@ def test_clicar_num_ponto_conferido_abre_o_quadrinho_e_esc_fecha(app, mundo):
     local = folha.mapFromScene(folha._zonas[0].rect().center())
     QTest.mouseClick(folha.viewport(), Qt.MouseButton.LeftButton,
                      Qt.KeyboardModifier.NoModifier, local)
-    assert janela.quadro is None  # espera o tempo do duplo clique antes de abrir
-    girar(app, QApplication.doubleClickInterval() / 1000 + 0.2)
+    # fora de um número não há duplo clique: abre NA HORA, com o ponto destacado na folha e
+    # selecionado na tabela, e o título diz qual é ("Ponto 1 de N")
+    app.processEvents()
     assert janela.quadro is not None and janela.quadro.isVisible()
+    assert folha.ponto_destacado() == 0
+    assert [i.row() for i in janela.tabela.selectionModel().selectedRows()] == [0]
     textos = " ".join(w.text() for w in janela.quadro.findChildren(QLabel))
     assert "Certeza do modelo" in textos and "Tolerância do plano" in textos
+    assert f"Ponto 1 de {len(janela.linhas)}" in textos
     QTest.keyClick(janela.quadro, Qt.Key.Key_Escape)
     app.processEvents()
     assert janela.quadro is None or not janela.quadro.isVisible()
+    assert folha.ponto_destacado() is None  # fechou: o destaque sai
     # clicar fora de um ponto conferido e fora das palavras não abre nada
     QTest.mouseClick(folha.viewport(), Qt.MouseButton.LeftButton,
                      Qt.KeyboardModifier.NoModifier, QPoint(3, 3))
@@ -500,4 +505,81 @@ def test_digitar_codigo_na_tela_mostra_digitado(app, mundo):
     janela.valor_manual.setText("")
     janela.usar_valor_manual()  # apaga: volta ao que o modelo leu
     assert "(digitado)" not in janela.campos["codigo"].text()
+    janela.close()
+
+
+def test_coluna_criterio_so_aparece_quando_o_certificado_tem_e_fica_amarela(app):
+    from leitor_certificados.interface.estilo import AMARELO
+    from leitor_certificados.interface.janela import COLUNAS
+    from leitor_certificados.interface.quadro import QuadroPonto
+    from leitor_certificados.interface.servico import LinhaPonto
+
+    def linha(criterio="", diferente=False):
+        return LinhaPonto("10", "10,01", "0,01", "0,01", "0 a 0,02", "± 0,05",
+                          Resultado.APROVADO, "", (0, 0, 1, 1), [], criterio=criterio,
+                          criterio_diferente=diferente)
+
+    janela = Janela(Servico(Pastas()))
+    coluna = COLUNAS.index("Critério")
+    janela.linhas = [linha()]
+    janela._preencher_tabela()
+    assert janela.tabela.isColumnHidden(coluna)  # laboratório sem critério: coluna escondida
+    janela.linhas = [linha("± 0,05"), linha("± 0,03", diferente=True)]
+    janela._preencher_tabela()
+    assert not janela.tabela.isColumnHidden(coluna)
+    assert janela.tabela.item(1, coluna).background().color().name() == AMARELO.lower()
+    assert janela.tabela.item(0, coluna).background().style() == Qt.BrushStyle.NoBrush
+    quadro = QuadroPonto(janela.linhas[1])
+    textos = " ".join(w.text() for w in quadro.findChildren(QLabel))
+    assert "Critério do certificado" in textos and "diferente do plano" in textos
+    quadro.close()
+    janela.close()
+
+
+def test_zoom_tem_limite_para_diminuir_e_para_aumentar(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    folha = janela.folha
+    minima, maxima = folha.escala_ajuste(), folha.escala_maxima()
+    assert minima * 2 <= maxima <= minima * 8
+    for _ in range(10):  # diminuir muito: para na folha inteira
+        folha.zoom(1 / 1.25)
+    assert folha.transform().m11() == pytest.approx(minima)
+    for _ in range(40):  # aumentar muito: para no máximo (não é infinito)
+        folha.zoom(1.25)
+    assert folha.transform().m11() == pytest.approx(maxima)
+    # no máximo, as letras pequenas ficam com ~20 px (bem legíveis), sem passar disso à toa
+    alturas = sorted((p.caixa[3] - p.caixa[1]) * folha._imagem.size[1]
+                     for p in janela.analise.pagina.palavras)
+    pequena = alturas[len(alturas) // 10] * maxima
+    assert pequena <= folha.ALTURA_LETRA_MAXIMA + 0.5 or maxima == pytest.approx(minima * 2)
+    janela.close()
+
+
+def test_painel_instrumento_compara_cadastro_e_certificado(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    assert janela.campos_cadastro["codigo"].text() not in ("", "—")
+    assert janela.marcas["codigo"].text() == "✓"  # o código achou o plano: sempre bate
+    marcas = {janela.marcas[c].text() for c in janela.marcas}
+    assert marcas <= {"✓", "não bate", ""}
+    janela.close()
+
+
+def test_shift_ctrl_roda_rola_a_folha_para_os_lados(app, mundo):
+    servico, _, certificado = mundo
+    janela = _abrir_pronto(app, servico, certificado)
+    folha = janela.folha
+    for _ in range(6):
+        folha.zoom(1.25)  # com zoom, a folha fica mais larga que o quadro
+    barra = folha.horizontalScrollBar()
+    barra.setValue(barra.maximum() // 2)
+    antes, escala = barra.value(), folha.transform().m11()
+    meio = QPointF(folha.viewport().width() / 2, folha.viewport().height() / 2)
+    teclas = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+    evento = QWheelEvent(meio, folha.viewport().mapToGlobal(meio), QPoint(0, 0), QPoint(0, -120),
+                         Qt.MouseButton.NoButton, teclas, Qt.ScrollPhase.NoScrollPhase, False)
+    app.sendEvent(folha.viewport(), evento)
+    assert barra.value() > antes  # rolou para a direita
+    assert folha.transform().m11() == pytest.approx(escala)  # e não mudou o zoom
     janela.close()

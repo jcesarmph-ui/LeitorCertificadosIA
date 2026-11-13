@@ -135,6 +135,9 @@ class FolhaView(QGraphicsView):
         self._caixas: list[CaixaPalavra] = []
         self._linhas: list[LinhaPonto] = []
         self._zonas: list[QGraphicsRectItem] = []  # uma por ponto conferido (dica e clique)
+        # a faixa colorida de cada ponto (para destacar o ponto clicado) e o destaque atual
+        self._faixas: list[tuple[QGraphicsRectItem, QPen]] = []
+        self._destacado: int | None = None
         self._nos_pontos: set[int] = set()  # palavras que estão numa linha conferida
         self._destacar = True  # esmaece o que não é ponto conferido
         self._corrigir = False
@@ -171,6 +174,7 @@ class FolhaView(QGraphicsView):
         self._etiquetas = []
         self._cena.clear()
         self._caixas, self._zonas, self._linhas = [], [], []
+        self._faixas, self._destacado = [], None
         self._nos_pontos = set()
         self._analise = None
 
@@ -324,6 +328,7 @@ class FolhaView(QGraphicsView):
             faixa.setPen(QPen(cor, 3))
             faixa.setZValue(0.5)  # atrás das caixas das palavras, na frente da folha
             self._cena.addItem(faixa)
+            self._faixas.append((faixa, faixa.pen()))
             # área invisível do clique no ponto; sem dica própria, para a dica de cada número
             # (o tipo: erro, incerteza…) aparecer ao passar o mouse
             zona = QGraphicsRectItem(faixa.rect())
@@ -469,18 +474,56 @@ class FolhaView(QGraphicsView):
 
     # ------------------------------------------------------------------ zoom
     def zoom(self, fator: float) -> None:
+        """Aumenta/diminui com limites (pedido do usuário, 2026-11-13):
+        - diminuir para quando a folha inteira cabe no quadro (o tamanho de "Ajustar");
+        - aumentar para quando as menores letras já se leem bem (`escala_maxima`)."""
+        minima = self.escala_ajuste()
+        if minima is None:
+            return
+        atual = self.transform().m11()
+        nova = min(max(atual * fator, minima), self.escala_maxima())
+        if nova <= minima * 1.0001:
+            self.ajustar()  # chegou ao mínimo: folha inteira e centralizada
+            return
         self._ajustado = False  # zoom do usuário: não reajusta sozinho ao redimensionar
-        self.scale(fator, fator)
+        self.scale(nova / atual, nova / atual)
+
+    def escala_ajuste(self) -> float | None:
+        """A escala em que a folha inteira cabe no quadro (o menor zoom permitido)."""
+        retangulo = self._cena.sceneRect()
+        if retangulo.width() <= 0 or self._imagem is None:
+            return None
+        largura = max(self.viewport().width() - 4, 50)
+        altura = max(self.viewport().height() - 4, 50)
+        return min(largura / retangulo.width(), altura / retangulo.height())
+
+    # Zoom máximo: as menores letras da folha ficam com esta altura na tela (em pixels).
+    ALTURA_LETRA_MAXIMA = 20
+    ZOOM_MAXIMO_SEM_PALAVRAS = 4.0  # antes da análise: até 4× o tamanho da folha inteira
+
+    def escala_maxima(self) -> float:
+        """Até onde aumentar: o suficiente para as menores letras ficarem bem legíveis.
+
+        Usa a altura das palavras pequenas da folha (as 10 % menores, para um risco solto do OCR
+        não contar). Fica entre 2× e 8× o tamanho da folha inteira."""
+        minima = self.escala_ajuste() or 1.0
+        alturas = sorted(
+            (p.caixa[3] - p.caixa[1]) * self._imagem.size[1]
+            for p in (self._analise.pagina.palavras if self._analise else [])
+            if p.caixa[3] > p.caixa[1]
+        ) if self._imagem is not None else []
+        if not alturas:
+            return minima * self.ZOOM_MAXIMO_SEM_PALAVRAS
+        pequena = alturas[len(alturas) // 10]
+        return min(max(self.ALTURA_LETRA_MAXIMA / pequena, minima * 2), minima * 8)
 
     def ajustar(self) -> None:
         """A folha INTEIRA na tela (largura e altura): é o jeito padrão de ver a página."""
-        retangulo = self._cena.sceneRect()
-        if retangulo.width() <= 0 or self._imagem is None:
+        escala = self.escala_ajuste()
+        if escala is None:
             return
+        retangulo = self._cena.sceneRect()
         self.resetTransform()
-        largura = max(self.viewport().width() - 4, 50)
-        altura = max(self.viewport().height() - 4, 50)
-        escala = min(largura / retangulo.width(), altura / retangulo.height())
         self.scale(escala, escala)
         self.centerOn(retangulo.center())
         self._ajustado = True
@@ -499,8 +542,18 @@ class FolhaView(QGraphicsView):
         self.redimensionada.emit()
 
     def wheelEvent(self, evento: QWheelEvent) -> None:
-        """Ctrl + roda = zoom centrado no ponteiro; a roda sozinha só rola."""
-        if evento.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        """Ctrl + roda = zoom centrado no ponteiro; Shift + Ctrl + roda = rola para os lados;
+        a roda sozinha só rola para cima e para baixo."""
+        teclas = evento.modifiers()
+        ctrl, shift = Qt.KeyboardModifier.ControlModifier, Qt.KeyboardModifier.ShiftModifier
+        if teclas & ctrl and teclas & shift:
+            # o Windows às vezes entrega a roda com Shift como movimento "x": vale qualquer um
+            delta = evento.angleDelta().y() or evento.angleDelta().x()
+            barra = self.horizontalScrollBar()
+            barra.setValue(barra.value() - int(delta / 120 * barra.singleStep() * 3))
+            evento.accept()
+            return
+        if teclas & ctrl:
             passos = evento.angleDelta().y() / 120
             if passos:
                 self.zoom(1.15 ** passos)  # AnchorUnderMouse mantém o ponto sob o ponteiro
@@ -516,6 +569,32 @@ class FolhaView(QGraphicsView):
             if zona.rect().contains(ponto_cena):
                 return n
         return None
+
+    # Contorno do ponto clicado: grosso e escuro, para não haver dúvida de qual ponto é.
+    COR_DESTAQUE = "#0d2a5c"
+
+    def destacar_ponto(self, n: int | None) -> None:
+        """Destaca a linha do ponto `n` (None = tira o destaque). Fica até o quadrinho fechar."""
+        if self._destacado is not None and self._destacado < len(self._faixas):
+            faixa, original = self._faixas[self._destacado]
+            faixa.setPen(original)
+            faixa.setZValue(0.5)
+        self._destacado = n if n is not None and 0 <= n < len(self._faixas) else None
+        if self._destacado is not None:
+            faixa, _ = self._faixas[self._destacado]
+            faixa.setPen(QPen(QColor(self.COR_DESTAQUE), 6))
+            faixa.setZValue(0.6)  # por cima das faixas vizinhas
+
+    def ponto_destacado(self) -> int | None:
+        return self._destacado
+
+    def lado_do_ponto(self, n: int) -> QPoint:
+        """Onde abrir o quadrinho do ponto `n`: colado à direita da linha, na altura dela (na
+        tela). Se a linha passa da borda da folha, usa a borda."""
+        retangulo = self.mapFromScene(self._zonas[n].rect()).boundingRect()
+        x = min(retangulo.right(), self.viewport().width() - 2)
+        y = min(max(retangulo.top(), 0), self.viewport().height() - 2)
+        return self.viewport().mapToGlobal(QPoint(x, y))
 
     def centro_do_ponto(self, n: int) -> QPoint:
         """Onde fica, na tela, o meio da linha do ponto `n` (para testes e fotos)."""
@@ -596,6 +675,14 @@ class FolhaView(QGraphicsView):
 
     def _agendar(self, local: QPoint, tela: QPoint) -> None:
         self._pendente = (local, tela)
+        if not self._corrigir:
+            n = self.linha_em(self.mapToScene(local))
+            if n is not None:
+                self.destacar_ponto(n)  # resposta na hora: qual ponto foi clicado
+                if self.palavra_em(local) is None:
+                    # fora de um número não existe duplo clique: abre o quadrinho na hora
+                    self._clique_confirmado()
+                    return
         self._espera.start(QApplication.doubleClickInterval())
 
     def _clique_confirmado(self) -> None:
@@ -624,6 +711,7 @@ class FolhaView(QGraphicsView):
             return
         self._espera.stop()
         self._pendente = None
+        self.destacar_ponto(None)  # duplo clique é para corrigir o texto, não para o ponto
         self._ignorar_soltura = True
         indice = self.palavra_em(evento.position().toPoint())
         if indice is not None:

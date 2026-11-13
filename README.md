@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.6.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-0.7.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -134,7 +134,8 @@ gerado sai em **três arquivos**: o PDF **digital**, o mesmo certificado **"esca
 **gabarito**.
 
 **Cinco laboratórios inventados**, cada um com o seu jeito de montar a folha — para o modelo
-aprender o que cada informação **é**, e não decorar onde ela fica:
+aprender o que cada informação **é**, e não decorar onde ela fica (um **sexto**, com as colunas
+"Erro Máximo" e "Critério de aceitação", entrou na versão 0.7.0):
 
 <p align="center">
   <img src="docs/figuras/laboratorios.png" alt="Topo de um certificado fictício de cada um dos cinco laboratórios inventados" width="100%"/>
@@ -241,6 +242,22 @@ consulta. **Na dúvida, o parecer fica "pendente"** — melhor pedir uma confer�
 A **faixa** lida também é comparada com a do cadastro (mínimo e máximo): se for diferente, ou se
 não der para comparar, aparece um aviso amarelo — o parecer continua vindo da tolerância.
 
+<details>
+<summary><b>Novidades da versão 0.7.0 na conferência</b></summary>
+
+- **Comparador cadastro × certificado** no painel Instrumento: código, tipo, fabricante, faixa e
+  resolução lado a lado — check verde quando batem, "não bate" em amarelo quando não. **Só
+  informa**: uma letra lida diferente nunca reprova um certificado.
+- **Critério de aceitação ±** do laboratório comparado com a tolerância do plano: se for
+  diferente, aviso amarelo (o laboratório julgou com outra régua) — o parecer não muda.
+- **Erro ± U igual ao do sistema de calibração**: o lado mais perto da tolerância
+  (erro −1 e U 1 → **−2**, e não 0); "± U" só quando o erro é zero.
+- **Pontos repetidos no plano** (ex.: goniômetro com 0° e 90° em cada quadrante; válvula com três
+  aberturas de 8 bar) casados na ordem com os do certificado.
+- Quando o modelo marca **dois números da mesma linha com o mesmo rótulo**, vale o de maior
+  certeza — e, para o nominal, o que existe no plano.
+</details>
+
 | Prova (150 certificados fictícios) | Pareceres certos | Pendentes | Decisão errada |
 |---|---|---|---|
 | Digital, certificados novos | 30 de 30 | 0 | 0 |
@@ -262,14 +279,22 @@ fictícios no treino.
 **Medido com "deixa um de fora"**: treina sem um certificado real e testa nele. O que importa para
 comparar com o plano — código, faixa e os pontos (nominal, encontrado, erro e incerteza):
 
-| Certificados reais corrigidos no treino | Essenciais certos | "Falsos" (ruído por certificado) |
-|---|---|---|
-| nenhum (só fictícios) | 70,2 % | 75 |
-| 1 | 83,0 % | 39 |
-| 2 | 89,2 % | 32 |
-| 3 | 91,5 % | 30 |
+| Certificados reais corrigidos no treino | Essenciais certos (0.6.0) | "Falsos" (0.6.0) | **Essenciais certos (0.7.0)** | **"Falsos" (0.7.0)** |
+|---|---|---|---|---|
+| nenhum (só fictícios) | 70,2 % | 75 | **83,7 %** | 59 |
+| 1 | 83,0 % | 39 | **83,4 %** | 35 |
+| 2 | 89,2 % | 32 | **88,4 %** | 30 |
+| 3 | 91,5 % | 30 | **92,8 %** | 29 |
 
-<sub>Média dos 4 certificados reais, cada um deixado de fora; só os números vão para o GitHub.</sub>
+<sub>Média dos 4 certificados reais, cada um deixado de fora; só os números vão para o GitHub.
+"Falsos" = palavras comuns marcadas como dado, por certificado.</sub>
+
+Na **0.7.0** entrou um **sexto laboratório inventado** com as colunas **"Erro Máximo"**
+(|erro| + U) e **"Critério de aceitação ±"**, que o modelo antes confundia com a incerteza, e uma
+pista nova para o modelo: "este número é |erro| + U?". Resultado: com o certificado real dessas
+colunas deixado de fora, o modelo acerta **100 %** delas aprendendo **só com os fictícios** — e
+os essenciais, só com fictícios, subiram de **70,2 % para 83,7 %**
+([ADR 0009](docs/decisoes/0009-erro-maximo-e-criterio-de-aceitacao.md)).
 
 > [!NOTE]
 > Medir também achou um defeito na leitura: o carimbo "ESTE CERTIFICADO FOI ANALISADO" enganava a
@@ -301,7 +326,11 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Etapa 4 — Conferência com o plano: erro ± U dentro da tolerância (parecer só quando há certeza)
 - [x] Aprendizado com o uso — o modelo aprende com certificados reais corrigidos (acerto nos essenciais: 70 % → 92 %)
 - [x] Interface — abrir, ver os checks, corrigir e reaprender pela tela
+- [x] Colunas "Erro Máximo" e "Critério de aceitação", comparador cadastro × certificado e Erro ± U igual ao do sistema de calibração (0.7.0)
+- [ ] Validade dos padrões — conferir que cada padrão usado estava válido no dia da calibração
+- [ ] Registro de cada análise — quem, quando, o que foi lido e corrigido (rastreabilidade)
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
+- [ ] Previsão da deriva — prever quando cada instrumento sai da tolerância e sugerir a periodicidade de calibração
 
 ---
 

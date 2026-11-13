@@ -2,7 +2,8 @@
 
 O modelo diz o que cada palavra é; aqui montamos a tabela: as palavras `ponto.nominal`,
 `ponto.encontrado`, `ponto.erro` e `ponto.incerteza` que estão na mesma linha da folha formam um
-ponto. Cada texto vira número (vírgula ou ponto decimal, com ou sem "+"/"−").
+ponto (com `ponto.erro_maximo` e `ponto.criterio`, quando o laboratório traz essas colunas).
+Cada texto vira número (vírgula ou ponto decimal, com ou sem "+"/"−").
 """
 
 from __future__ import annotations
@@ -37,6 +38,11 @@ class PontoLido:
     incerteza: float | None
     caixa: tuple[float, float, float, float]  # a linha na folha (para desenhar o check)
     numeros: tuple[float, ...] = ()  # todos os números da linha, da esquerda para a direita
+    erro_maximo: float | None = None  # |erro| + U, quando o laboratório informa (ADR 0009)
+    criterio: float | None = None  # critério de aceitação ± do laboratório/cliente
+    # todos os números que o modelo marcou como nominal na linha (às vezes marca dois, ex.:
+    # "30,00" e "29,95"): a conferência usa o que existir no plano
+    nominais: tuple[float, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -59,6 +65,19 @@ def _linhas(palavras: list[Palavra]) -> list[list[Palavra]]:
     return linhas
 
 
+def _valor_da_coluna(textos: list[tuple[str, float]]) -> str:
+    """`textos` = [(texto, certeza do modelo), …] das palavras da linha com o mesmo rótulo.
+
+    Um número dividido em pedaços ("1 350,00") é juntado. Mas, se o modelo marcou dois números
+    diferentes com o mesmo rótulo (ex.: "7,941" e "0,004" como incerteza), juntar dá um texto
+    que não é número: fica o número em que o modelo tem **mais certeza**."""
+    junto = " ".join(t for t, _ in textos)
+    if para_numero(junto) is not None:
+        return junto
+    numeros = [(c, t) for t, c in textos if para_numero(t) is not None]
+    return max(numeros)[1] if numeros else junto
+
+
 def montar_certificado(modelo: Pipeline, pagina: Pagina,
                        limiar: float = LIMIAR_CERTEZA) -> CertificadoLido:
     """Usa o modelo para achar o código do instrumento e os pontos da tabela. Palavras com
@@ -76,21 +95,22 @@ def montar_certificado(modelo: Pipeline, pagina: Pagina,
     faixa_palavras.sort(key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
     faixa = " ".join(p.texto for p in faixa_palavras) or None
 
-    da_tabela: list[tuple[Palavra, str]] = [
-        (p, rotulo.removeprefix("ponto."))
-        for p, (rotulo, _) in zip(pagina.palavras, previsoes, strict=True)
+    da_tabela: list[tuple[Palavra, str, float]] = [
+        (p, rotulo.removeprefix("ponto."), certeza)
+        for p, (rotulo, certeza) in zip(pagina.palavras, previsoes, strict=True)
         if rotulo.startswith("ponto.")
     ]
-    rotulo_de = {id(p): t for p, t in da_tabela}
+    rotulo_de = {id(p): t for p, t, _ in da_tabela}
+    certeza_de = {id(p): c for p, _, c in da_tabela}
     pontos: list[PontoLido] = []
     for linha in _linhas(pagina.palavras):
         da_linha = [p for p in linha if id(p) in rotulo_de]
         if len(da_linha) < 2:
             continue
-        valores: dict[str, str] = {}
+        textos: dict[str, list[tuple[str, float]]] = {}
         for p in sorted(da_linha, key=lambda q: q.caixa[0]):
-            tipo = rotulo_de[id(p)]
-            valores[tipo] = (valores.get(tipo, "") + " " + p.texto).strip()
+            textos.setdefault(rotulo_de[id(p)], []).append((p.texto, certeza_de[id(p)]))
+        valores = {tipo: _valor_da_coluna(lista) for tipo, lista in textos.items()}
         esq = min(p.caixa[0] for p in da_linha)
         dir_ = max(p.caixa[2] for p in da_linha)
         numeros = tuple(
@@ -104,12 +124,16 @@ def montar_certificado(modelo: Pipeline, pagina: Pagina,
             nominal = numeros[0]  # chute; o plano pode corrigir (reatribuição)
         pontos.append(PontoLido(
             nominal=nominal,
+            nominais=tuple(n for t, _ in textos.get("nominal", [])
+                           if (n := para_numero(t)) is not None),
             encontrado=para_numero(valores.get("encontrado", "")),
             erro=para_numero(valores.get("erro", "")),
             incerteza=para_numero(valores.get("incerteza", "")),
             caixa=(esq, min(p.caixa[1] for p in da_linha), dir_,
                    max(p.caixa[3] for p in da_linha)),
             numeros=numeros,
+            erro_maximo=para_numero(valores.get("erro_maximo", "")),
+            criterio=para_numero(valores.get("criterio", "")),
         ))
     ordem = sorted(pagina.palavras, key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
     return CertificadoLido(codigo, pontos, tuple(p.texto for p in ordem), faixa)

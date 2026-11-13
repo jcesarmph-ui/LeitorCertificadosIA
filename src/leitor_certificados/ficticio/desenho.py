@@ -21,11 +21,15 @@ from reportlab.pdfgen.canvas import Canvas
 
 from .dados import Certificado
 from .laboratorios import (
+    CRITERIO,
     ENCONTRADO,
     ERRO,
+    ERRO_MAXIMO,
     INCERTEZA,
     INDICE,
     NOMINAL,
+    PARAMETRO,
+    K,
     Laboratorio,
     formatar_data,
     formatar_numero,
@@ -167,32 +171,62 @@ def _informacoes(p: _Pagina, cert: Certificado, lab: Laboratorio, y: float) -> f
     return y - altura - 6
 
 
+def _frase_criterio(p: _Pagina, cert: Certificado, lab: Laboratorio, y: float) -> float:
+    """Frase acima da tabela com o critério de aceitação (só em quem tem `frase_criterio`)."""
+    criterio = cert.pontos[0].criterio if cert.pontos else None
+    if not lab.frase_criterio or criterio is None:
+        return y
+    valor = f"± {formatar_numero(criterio, cert.casas, lab.decimal)} {cert.unidade}"
+    p.texto(MARGEM, y, lab.frase_criterio.format(criterio=valor), 8.5)
+    return y - 20
+
+
 def _tabela(p: _Pagina, cert: Certificado, lab: Laboratorio, y: float) -> float:
     colunas = lab.colunas
-    largura = (LARGURA - 2 * MARGEM) / len(colunas)
+    # a coluna de texto ("Face Externa") é mais larga que as de números
+    pesos = [2.2 if c == PARAMETRO else 1.0 for c in colunas]
+    unidade = (LARGURA - 2 * MARGEM) / sum(pesos)
+    larguras = [w * unidade for w in pesos]
+    centros = [MARGEM + sum(larguras[:n]) + larguras[n] / 2 for n in range(len(colunas))]
     altura_linha = 17
-    p.retangulo(MARGEM, y - 6, LARGURA - 2 * MARGEM, altura_linha + 4, preencher=Color(.9, .9, .9))
-    for n, coluna in enumerate(colunas):
+    sem_unidade = (INDICE, K, PARAMETRO)
+    titulos = []
+    for coluna in colunas:
         titulo = lab.titulos_colunas[coluna]
-        if coluna not in (INDICE, "k"):
+        if coluna not in sem_unidade and not lab.unidade_em_linha:
             titulo += f" ({cert.unidade})"
+        titulos.append(titulo.split("\n"))  # título pode ter duas linhas ("Erro / Máximo")
+    linhas_titulo = max(len(t) for t in titulos) + (1 if lab.unidade_em_linha else 0)
+    altura_cab = 11 * linhas_titulo + 10
+    p.retangulo(MARGEM, y - altura_cab + 11, LARGURA - 2 * MARGEM, altura_cab,
+                preencher=Color(.9, .9, .9))
+    for n, partes in enumerate(titulos):
         tam = 8.5
-        while stringWidth(titulo, p.negrito, tam) > largura - 6:  # título comprido: letra menor
-            tam -= 0.5
-        p.texto(MARGEM + largura * (n + 0.5), y, titulo, tam, True, "centro")
-    y -= altura_linha + 4
+        while max(stringWidth(t, p.negrito, tam) for t in partes) > larguras[n] - 6:
+            tam -= 0.5  # título comprido: letra menor
+        for m, parte in enumerate(partes):
+            p.texto(centros[n], y - 11 * m, parte, tam, True, "centro")
+        if lab.unidade_em_linha:
+            texto = "-" if colunas[n] in sem_unidade else cert.unidade
+            p.texto(centros[n], y - 11 * (linhas_titulo - 1), texto, 8.5, alinhar="centro")
+    y -= altura_cab + 2
     for i, ponto in enumerate(cert.pontos):
         valores = {
             INDICE: str(i + 1),
+            PARAMETRO: ponto.parametro or "",
             NOMINAL: formatar_numero(ponto.nominal, cert.casas, lab.decimal),
             ENCONTRADO: formatar_numero(ponto.encontrado, cert.casas, lab.decimal),
             ERRO: formatar_numero(ponto.erro, cert.casas, lab.decimal, lab.sinal_mais),
             INCERTEZA: formatar_numero(ponto.incerteza, cert.casas + 1, lab.decimal),
-            "k": formatar_numero(ponto.k, 2, lab.decimal),
+            K: formatar_numero(ponto.k, 2, lab.decimal),
         }
+        if ponto.erro_maximo is not None:
+            valores[ERRO_MAXIMO] = formatar_numero(ponto.erro_maximo, cert.casas + 1, lab.decimal)
+        if ponto.criterio is not None:
+            valores[CRITERIO] = formatar_numero(ponto.criterio, cert.casas, lab.decimal)
         for n, coluna in enumerate(colunas):
-            campo = None if coluna == INDICE else f"ponto.{coluna}"
-            p.texto(MARGEM + largura * (n + 0.5), y, valores[coluna], 10, alinhar="centro",
+            campo = None if coluna in (INDICE, PARAMETRO) else f"ponto.{coluna}"
+            p.texto(centros[n], y, valores[coluna], 10, alinhar="centro",
                     campo=campo, ponto=i if campo else None)
         p.linha(MARGEM, y - 6, LARGURA - MARGEM, y - 6, 0.3)
         y -= altura_linha
@@ -217,6 +251,7 @@ def desenhar(cert: Certificado, destino: Path, rng: random.Random) -> list[dict]
     p = _Pagina(canvas, lab.fonte, rng.uniform(-8, 8), rng.uniform(-12, 4))
     y = _cabecalho(p, cert, lab)
     y = _informacoes(p, cert, lab, y)
+    y = _frase_criterio(p, cert, lab, y)
     y = _tabela(p, cert, lab, y)
     _rodape(p, cert, lab, y)
     canvas.showPage()
