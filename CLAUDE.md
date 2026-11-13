@@ -107,5 +107,11 @@ Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
   casados na ordem, dois números com o mesmo rótulo (vale o de mais certeza; nominal: o do
   plano), painel Instrumento = comparador cadastro × certificado (só avisa).
 - Pendente de resposta do usuário: "tela cheia" = maximizada (já é) ou cobrir a barra de tarefas?
+- **2026-11-13 (fim do dia): PR #7 juntado, tag `v0.7.0`. Etapa 8 (validade dos padrões)
+  começou só com o branch `etapa-8-validade-padroes` — nada programado.** Respostas do usuário:
+  validade **não lida** → aviso amarelo (parecer não muda). **Ainda perguntar**: (a) validade
+  "07/2026" vale o mês inteiro (até 31/07) ou vence no início do mês? (b) padrão **vencido** →
+  aviso amarelo, PENDENTE ou REPROVADO? Na Laftec a tabela "Padrões" tem Código | Descrição -
+  Certificado | Validade (MM/AAAA); a data da calibração vem do certificado.
 - Achado (2026-11-13): o escaneado Laftec usa um modelo de folha **sem** "Erro Máximo" e
   "Critério"; só o digital tem. As correções dos reais já estavam certas (não remarcar).
