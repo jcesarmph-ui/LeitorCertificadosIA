@@ -103,6 +103,15 @@ def reatribuir(lido: PontoLido, plano: Plano) -> PontoLido | None:
     return achadas[0] if len(unicas) == 1 else None
 
 
+def _ponto_do_plano(plano: Plano, nominal: float, usados: set[int]) -> int | None:
+    """O ponto do plano com este nominal. O plano pode repetir o nominal (ex.: goniômetro com
+    0° e 90° em cada quadrante): os repetidos são casados **na ordem**, o 1º do certificado com
+    o 1º do plano, o 2º com o 2º… Só se todos já foram usados, volta ao primeiro."""
+    iguais = [i for i, p in enumerate(plano.pontos) if _mesmo_nominal(p.nominal, nominal)]
+    livres = [i for i in iguais if i not in usados]
+    return (livres or iguais or [None])[0]
+
+
 def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
     codigo = achar_codigo(certificado, planos)
     if not codigo:
@@ -122,17 +131,13 @@ def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
     resultados: list[Resultado] = []
     achados: set[int] = set()
     for lido in certificado.pontos:
-        ponto_plano = next(
-            (i for i, p in enumerate(plano.pontos) if _mesmo_nominal(p.nominal, lido.nominal)),
-            None,
-        )
+        ponto_plano = _ponto_do_plano(plano, lido.nominal, achados)
         erro, avisos = _erro_do_ponto(lido)
         if ponto_plano is None or avisos or (lido.encontrado is None and lido.erro is None):
             novo = reatribuir(lido, plano)
             if novo is not None:
                 lido = novo
-                ponto_plano = next(i for i, p in enumerate(plano.pontos)
-                                   if _mesmo_nominal(p.nominal, lido.nominal))
+                ponto_plano = _ponto_do_plano(plano, lido.nominal, achados)
                 erro, avisos = _erro_do_ponto(lido)
                 avisos = [*avisos, "colunas reatribuídas com ajuda do plano"]
         if ponto_plano is None:

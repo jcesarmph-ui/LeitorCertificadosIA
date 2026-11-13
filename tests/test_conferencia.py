@@ -200,3 +200,27 @@ def test_erro_com_incerteza_fica_do_lado_mais_perto_da_tolerancia():
     assert erro_com_incerteza(0.5, 0.2, **tol, sem_incerteza=True).valor == 0.5
     assert erro_com_incerteza(0.5, None, **tol) is None  # U ausente nunca vale zero
     assert erro_com_incerteza(None, 0.1, **tol) is None
+
+
+def test_nominal_repetido_no_plano_e_casado_na_ordem(tmp_path):
+    """Goniômetro: 0° e 90° aparecem uma vez por quadrante; cada um casa com o seu do plano."""
+    from leitor_certificados.conferencia.extracao import CertificadoLido, PontoLido
+
+    nominais = (0.0, 90.0, 0.0, 90.0, 0.0)
+    banco = tmp_path / "planos.db"
+    criar_banco_de_planos(banco, [{
+        "id": "g", "tipo": "Goniômetro", "codigo": "GN-0001", "faixa_min": 0, "faixa_max": 360,
+        "pontos": [{"nominal": v, "erro": 0.0, "incerteza": 0.07} for v in nominais]}])
+    con = sqlite3.connect(banco)
+    con.execute("UPDATE pontos_plano SET tolerancia_inferior = -0.25, tolerancia_superior = 0.25")
+    con.commit()
+    con.close()
+    lido = CertificadoLido("GN-0001", [PontoLido(v, v + 0.05, 0.05, 0.07, (0, 0, 1, 1))
+                                       for v in nominais])
+    planos = PlanosDQ05(banco)
+    try:
+        resultado = conferir(lido, planos)
+    finally:
+        planos.fechar()
+    assert not any("não está" in a for a in resultado.avisos), resultado.avisos
+    assert resultado.resultado == Resultado.APROVADO

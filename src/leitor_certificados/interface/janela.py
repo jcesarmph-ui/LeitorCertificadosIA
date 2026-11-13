@@ -624,7 +624,14 @@ class Janela(QMainWindow):
             return
         if self.quadro is not None:
             self.quadro.close()
-        self.quadro = QuadroPonto(linha, self, palavra)
+        ordem = None
+        if linha is not None:
+            # o mesmo ponto fica marcado na folha, na tabela e no título do quadrinho
+            self.folha.destacar_ponto(n)
+            self.tabela.selectRow(n)
+            ordem = (n + 1, len(self.linhas))
+            posicao = self.folha.lado_do_ponto(n)  # colado à direita da linha do ponto
+        self.quadro = QuadroPonto(linha, self, palavra, ordem)
         self.quadro.destroyed.connect(self._quadro_fechado)
         self.quadro.destroyed.connect(self._selecao_do_quadro_acabou)
         # o quadrinho fecha antes; a lista de rótulos / a caixa de texto abrem logo depois
@@ -683,6 +690,8 @@ class Janela(QMainWindow):
 
     def _quadro_fechado(self) -> None:
         self.quadro = None
+        self.folha.destacar_ponto(None)
+        self.tabela.clearSelection()
 
     # ================================================================== arrastar e soltar
     def dragEnterEvent(self, evento: QDragEnterEvent) -> None:

@@ -346,14 +346,19 @@ def test_clicar_num_ponto_conferido_abre_o_quadrinho_e_esc_fecha(app, mundo):
     local = folha.mapFromScene(folha._zonas[0].rect().center())
     QTest.mouseClick(folha.viewport(), Qt.MouseButton.LeftButton,
                      Qt.KeyboardModifier.NoModifier, local)
-    assert janela.quadro is None  # espera o tempo do duplo clique antes de abrir
-    girar(app, QApplication.doubleClickInterval() / 1000 + 0.2)
+    # fora de um número não há duplo clique: abre NA HORA, com o ponto destacado na folha e
+    # selecionado na tabela, e o título diz qual é ("Ponto 1 de N")
+    app.processEvents()
     assert janela.quadro is not None and janela.quadro.isVisible()
+    assert folha.ponto_destacado() == 0
+    assert [i.row() for i in janela.tabela.selectionModel().selectedRows()] == [0]
     textos = " ".join(w.text() for w in janela.quadro.findChildren(QLabel))
     assert "Certeza do modelo" in textos and "Tolerância do plano" in textos
+    assert f"Ponto 1 de {len(janela.linhas)}" in textos
     QTest.keyClick(janela.quadro, Qt.Key.Key_Escape)
     app.processEvents()
     assert janela.quadro is None or not janela.quadro.isVisible()
+    assert folha.ponto_destacado() is None  # fechou: o destaque sai
     # clicar fora de um ponto conferido e fora das palavras não abre nada
     QTest.mouseClick(folha.viewport(), Qt.MouseButton.LeftButton,
                      Qt.KeyboardModifier.NoModifier, QPoint(3, 3))

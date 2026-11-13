@@ -135,6 +135,9 @@ class FolhaView(QGraphicsView):
         self._caixas: list[CaixaPalavra] = []
         self._linhas: list[LinhaPonto] = []
         self._zonas: list[QGraphicsRectItem] = []  # uma por ponto conferido (dica e clique)
+        # a faixa colorida de cada ponto (para destacar o ponto clicado) e o destaque atual
+        self._faixas: list[tuple[QGraphicsRectItem, QPen]] = []
+        self._destacado: int | None = None
         self._nos_pontos: set[int] = set()  # palavras que estão numa linha conferida
         self._destacar = True  # esmaece o que não é ponto conferido
         self._corrigir = False
@@ -171,6 +174,7 @@ class FolhaView(QGraphicsView):
         self._etiquetas = []
         self._cena.clear()
         self._caixas, self._zonas, self._linhas = [], [], []
+        self._faixas, self._destacado = [], None
         self._nos_pontos = set()
         self._analise = None
 
@@ -324,6 +328,7 @@ class FolhaView(QGraphicsView):
             faixa.setPen(QPen(cor, 3))
             faixa.setZValue(0.5)  # atrás das caixas das palavras, na frente da folha
             self._cena.addItem(faixa)
+            self._faixas.append((faixa, faixa.pen()))
             # área invisível do clique no ponto; sem dica própria, para a dica de cada número
             # (o tipo: erro, incerteza…) aparecer ao passar o mouse
             zona = QGraphicsRectItem(faixa.rect())
@@ -555,6 +560,32 @@ class FolhaView(QGraphicsView):
                 return n
         return None
 
+    # Contorno do ponto clicado: grosso e escuro, para não haver dúvida de qual ponto é.
+    COR_DESTAQUE = "#0d2a5c"
+
+    def destacar_ponto(self, n: int | None) -> None:
+        """Destaca a linha do ponto `n` (None = tira o destaque). Fica até o quadrinho fechar."""
+        if self._destacado is not None and self._destacado < len(self._faixas):
+            faixa, original = self._faixas[self._destacado]
+            faixa.setPen(original)
+            faixa.setZValue(0.5)
+        self._destacado = n if n is not None and 0 <= n < len(self._faixas) else None
+        if self._destacado is not None:
+            faixa, _ = self._faixas[self._destacado]
+            faixa.setPen(QPen(QColor(self.COR_DESTAQUE), 6))
+            faixa.setZValue(0.6)  # por cima das faixas vizinhas
+
+    def ponto_destacado(self) -> int | None:
+        return self._destacado
+
+    def lado_do_ponto(self, n: int) -> QPoint:
+        """Onde abrir o quadrinho do ponto `n`: colado à direita da linha, na altura dela (na
+        tela). Se a linha passa da borda da folha, usa a borda."""
+        retangulo = self.mapFromScene(self._zonas[n].rect()).boundingRect()
+        x = min(retangulo.right(), self.viewport().width() - 2)
+        y = min(max(retangulo.top(), 0), self.viewport().height() - 2)
+        return self.viewport().mapToGlobal(QPoint(x, y))
+
     def centro_do_ponto(self, n: int) -> QPoint:
         """Onde fica, na tela, o meio da linha do ponto `n` (para testes e fotos)."""
         local = self.mapFromScene(self._zonas[n].rect().center())
@@ -634,6 +665,14 @@ class FolhaView(QGraphicsView):
 
     def _agendar(self, local: QPoint, tela: QPoint) -> None:
         self._pendente = (local, tela)
+        if not self._corrigir:
+            n = self.linha_em(self.mapToScene(local))
+            if n is not None:
+                self.destacar_ponto(n)  # resposta na hora: qual ponto foi clicado
+                if self.palavra_em(local) is None:
+                    # fora de um número não existe duplo clique: abre o quadrinho na hora
+                    self._clique_confirmado()
+                    return
         self._espera.start(QApplication.doubleClickInterval())
 
     def _clique_confirmado(self) -> None:
@@ -662,6 +701,7 @@ class FolhaView(QGraphicsView):
             return
         self._espera.stop()
         self._pendente = None
+        self.destacar_ponto(None)  # duplo clique é para corrigir o texto, não para o ponto
         self._ignorar_soltura = True
         indice = self.palavra_em(evento.position().toPoint())
         if indice is not None:

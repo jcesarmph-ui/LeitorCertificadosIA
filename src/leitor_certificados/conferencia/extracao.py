@@ -62,6 +62,16 @@ def _linhas(palavras: list[Palavra]) -> list[list[Palavra]]:
     return linhas
 
 
+def _valor_da_coluna(textos: list[str]) -> str:
+    """Um número dividido em pedaços ("1 350,00") é juntado. Mas, se o modelo marcou dois números
+    diferentes da linha com o mesmo rótulo (ex.: "0,07" e "0,14" como incerteza), juntar dá um
+    texto que não é número: fica o **primeiro** (o mais à esquerda) que for número."""
+    junto = " ".join(textos)
+    if para_numero(junto) is not None:
+        return junto
+    return next((t for t in textos if para_numero(t) is not None), junto)
+
+
 def montar_certificado(modelo: Pipeline, pagina: Pagina,
                        limiar: float = LIMIAR_CERTEZA) -> CertificadoLido:
     """Usa o modelo para achar o código do instrumento e os pontos da tabela. Palavras com
@@ -90,10 +100,10 @@ def montar_certificado(modelo: Pipeline, pagina: Pagina,
         da_linha = [p for p in linha if id(p) in rotulo_de]
         if len(da_linha) < 2:
             continue
-        valores: dict[str, str] = {}
+        textos: dict[str, list[str]] = {}
         for p in sorted(da_linha, key=lambda q: q.caixa[0]):
-            tipo = rotulo_de[id(p)]
-            valores[tipo] = (valores.get(tipo, "") + " " + p.texto).strip()
+            textos.setdefault(rotulo_de[id(p)], []).append(p.texto)
+        valores = {tipo: _valor_da_coluna(lista) for tipo, lista in textos.items()}
         esq = min(p.caixa[0] for p in da_linha)
         dir_ = max(p.caixa[2] for p in da_linha)
         numeros = tuple(

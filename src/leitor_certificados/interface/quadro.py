@@ -34,8 +34,11 @@ class QuadroPonto(QFrame):
     corrigir_texto = Signal(int)
 
     def __init__(self, linha: LinhaPonto | None, parent=None,
-                 palavra: tuple[int, str, str] | None = None):
-        """`palavra` = (índice, texto, TIPO) da palavra clicada, ou None."""
+                 palavra: tuple[int, str, str] | None = None,
+                 ordem: tuple[int, int] | None = None):
+        """`palavra` = (índice, texto, TIPO) da palavra clicada, ou None.
+        `ordem` = (número do ponto, quantos pontos), para o título "Ponto 3 de 9"."""
+        self._ordem = ordem
         super().__init__(parent, Qt.WindowType.Popup)
         self.setObjectName("quadroPonto")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -52,7 +55,8 @@ class QuadroPonto(QFrame):
             self._montar_palavra(lay, palavra, separar=linha is not None)
 
     def _montar_ponto(self, lay: QVBoxLayout, linha: LinhaPonto) -> None:
-        titulo = QLabel(f"Ponto {linha.nominal}")
+        titulo = QLabel(f"Ponto {self._ordem[0]} de {self._ordem[1]} — nominal {linha.nominal}"
+                        if self._ordem else f"Ponto {linha.nominal}")
         titulo.setStyleSheet(f"font-size: 15pt; font-weight: bold; color: {cor('titulo')};")
         lay.addWidget(titulo)
         if linha.certezas:
