@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .avaliacao import Avaliacao, Resultado, avaliar_ponto, resultado_geral
+from .criterio import SituacaoCriterio, aviso_de_criterio, comparar_criterio
 from .extracao import CertificadoLido, PontoLido
 from .faixa import comparar_faixas
 from .plano import Plano, PlanosDQ05, PontoDoPlano, normalizar_codigo
@@ -27,6 +28,8 @@ class PontoConferido:
     erro: float | None  # o erro usado na avaliação
     avaliacao: Avaliacao
     avisos: list[str] = field(default_factory=list)
+    # critério de aceitação do certificado × tolerância do plano (só avisa; ADR 0009)
+    criterio: SituacaoCriterio = SituacaoCriterio.NAO_COMPARADO
 
 
 @dataclass
@@ -94,7 +97,8 @@ def reatribuir(lido: PontoLido, plano: Plano) -> PontoLido | None:
             sobra = [x for j, x in resto if j not in (ja, jb)]
             u = lido.incerteza if lido.incerteza in sobra else min(
                 (x for x in sobra if x > 0), default=None)
-            achadas.append(PontoLido(candidato, e, r, u, lido.caixa, lido.numeros))
+            achadas.append(PontoLido(candidato, e, r, u, lido.caixa, lido.numeros,
+                                     lido.erro_maximo, lido.criterio))
     unicas = {(a.nominal, a.encontrado, a.erro) for a in achadas}
     return achadas[0] if len(unicas) == 1 else None
 
@@ -142,8 +146,16 @@ def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
         avaliacao = avaliar_ponto(
             erro, incerteza=lido.incerteza, tolerancia_inferior=p.tolerancia_inferior,
             tolerancia_superior=p.tolerancia_superior, sem_incerteza=p.sem_incerteza)
-        conferencia.pontos.append(PontoConferido(lido, p, erro, avaliacao, avisos))
+        criterio = comparar_criterio(lido.criterio, p.tolerancia_inferior, p.tolerancia_superior)
+        conferencia.pontos.append(PontoConferido(lido, p, erro, avaliacao, avisos, criterio))
         resultados.append(avaliacao.resultado)
+    # decisão do usuário: critério diferente do plano só avisa (como a faixa)
+    comparados = [c for c in conferencia.pontos if c.criterio != SituacaoCriterio.NAO_COMPARADO]
+    conferencia.avisos += aviso_de_criterio(
+        [(c.lido.nominal, c.lido.criterio, c.plano.tolerancia_inferior,
+          c.plano.tolerancia_superior)
+         for c in comparados if c.criterio == SituacaoCriterio.DIFERENTE],
+        len(comparados))
     for i, p in enumerate(plano.pontos):
         if i not in achados:
             resultados.append(Resultado.NAO_INFORMADO)

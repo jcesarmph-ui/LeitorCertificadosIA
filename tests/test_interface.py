@@ -501,3 +501,31 @@ def test_digitar_codigo_na_tela_mostra_digitado(app, mundo):
     janela.usar_valor_manual()  # apaga: volta ao que o modelo leu
     assert "(digitado)" not in janela.campos["codigo"].text()
     janela.close()
+
+
+def test_coluna_criterio_so_aparece_quando_o_certificado_tem_e_fica_amarela(app):
+    from leitor_certificados.interface.estilo import AMARELO
+    from leitor_certificados.interface.janela import COLUNAS
+    from leitor_certificados.interface.quadro import QuadroPonto
+    from leitor_certificados.interface.servico import LinhaPonto
+
+    def linha(criterio="", diferente=False):
+        return LinhaPonto("10", "10,01", "0,01", "0,01", "0 a 0,02", "± 0,05",
+                          Resultado.APROVADO, "", (0, 0, 1, 1), [], criterio=criterio,
+                          criterio_diferente=diferente)
+
+    janela = Janela(Servico(Pastas()))
+    coluna = COLUNAS.index("Critério")
+    janela.linhas = [linha()]
+    janela._preencher_tabela()
+    assert janela.tabela.isColumnHidden(coluna)  # laboratório sem critério: coluna escondida
+    janela.linhas = [linha("± 0,05"), linha("± 0,03", diferente=True)]
+    janela._preencher_tabela()
+    assert not janela.tabela.isColumnHidden(coluna)
+    assert janela.tabela.item(1, coluna).background().color().name() == AMARELO.lower()
+    assert janela.tabela.item(0, coluna).background().style() == Qt.BrushStyle.NoBrush
+    quadro = QuadroPonto(janela.linhas[1])
+    textos = " ".join(w.text() for w in quadro.findChildren(QLabel))
+    assert "Critério do certificado" in textos and "diferente do plano" in textos
+    quadro.close()
+    janela.close()

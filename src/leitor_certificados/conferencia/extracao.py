@@ -2,7 +2,8 @@
 
 O modelo diz o que cada palavra é; aqui montamos a tabela: as palavras `ponto.nominal`,
 `ponto.encontrado`, `ponto.erro` e `ponto.incerteza` que estão na mesma linha da folha formam um
-ponto. Cada texto vira número (vírgula ou ponto decimal, com ou sem "+"/"−").
+ponto (com `ponto.erro_maximo` e `ponto.criterio`, quando o laboratório traz essas colunas).
+Cada texto vira número (vírgula ou ponto decimal, com ou sem "+"/"−").
 """
 
 from __future__ import annotations
@@ -37,6 +38,8 @@ class PontoLido:
     incerteza: float | None
     caixa: tuple[float, float, float, float]  # a linha na folha (para desenhar o check)
     numeros: tuple[float, ...] = ()  # todos os números da linha, da esquerda para a direita
+    erro_maximo: float | None = None  # |erro| + U, quando o laboratório informa (ADR 0009)
+    criterio: float | None = None  # critério de aceitação ± do laboratório/cliente
 
 
 @dataclass(frozen=True)
@@ -110,6 +113,8 @@ def montar_certificado(modelo: Pipeline, pagina: Pagina,
             caixa=(esq, min(p.caixa[1] for p in da_linha), dir_,
                    max(p.caixa[3] for p in da_linha)),
             numeros=numeros,
+            erro_maximo=para_numero(valores.get("erro_maximo", "")),
+            criterio=para_numero(valores.get("criterio", "")),
         ))
     ordem = sorted(pagina.palavras, key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
     return CertificadoLido(codigo, pontos, tuple(p.texto for p in ordem), faixa)

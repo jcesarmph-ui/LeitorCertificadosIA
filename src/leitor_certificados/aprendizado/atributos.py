@@ -12,7 +12,8 @@ decorar **onde** ela fica —, as pistas são de quatro tipos:
 3. **O que os números fazem na tabela** — a pista mais forte contra o "decorar": numa linha de
    medição, o *erro* é a diferença entre dois outros números ("encontrado − nominal"); o
    *nominal* cresce de cima para baixo; o *k* é o mesmo em todas as linhas; a *incerteza* é
-   sempre positiva e pequena. Isso vale para qualquer laboratório, com qualquer nome de coluna.
+   sempre positiva e pequena; o *erro máximo* é |erro| + U (ADR 0009).
+   Isso vale para qualquer laboratório, com qualquer nome de coluna.
 4. **Onde está** (aproximadamente): fração da folha e tamanho da letra. É pista fraca de
    propósito: cada laboratório monta a folha de um jeito.
 """
@@ -121,6 +122,11 @@ def _pistas_de_tabela(i: int, palavras: list[Palavra], linha_de: list[int],
         abs((b - a) - v) <= tol for a in outros for b in outros if a is not b
     ))
     pistas["e_igual_a_outro"] = float(any(abs(o - v) <= tol for o in outros))
+    # erro máximo = |erro| + U: a soma de um número da linha (sem sinal) com outro positivo
+    pistas["e_soma_abs"] = float(v > 0 and any(
+        abs((abs(a) + b) - v) <= tol for a in outros for b in outros
+        if a is not b and b > 0 and a != 0
+    ))
 
     # tamanho do número em relação aos outros da linha (0 = o menor, 1 = o maior)
     magnitudes = sorted(abs(o) for o in outros + [v])

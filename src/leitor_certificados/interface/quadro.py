@@ -74,11 +74,17 @@ class QuadroPonto(QFrame):
             ("Erro − U a erro + U", linha.erro_mais_u,
              "A faixa que o erro pode ocupar, contando a incerteza"),
             ("Tolerância do plano", linha.tolerancia, "Limites aceitos no plano de calibração"),
+            *((("Critério do certificado",
+                linha.criterio + (" (diferente do plano)" if linha.criterio_diferente else ""),
+                "Critério de aceitação ± que o laboratório usou (só avisa; não muda o parecer)"),)
+              if linha.criterio else ()),
         )):
             rotulo = QLabel(nome + ":")
             rotulo.setToolTip(dica)
             texto = QLabel(valor)
-            texto.setStyleSheet("font-weight: bold;")
+            amarelo = nome == "Critério do certificado" and linha.criterio_diferente
+            texto.setStyleSheet("font-weight: bold;"
+                                + (f" color: {cor('aviso_texto')};" if amarelo else ""))
             grade.addWidget(rotulo, n, 0)
             grade.addWidget(texto, n, 1)
         lay.addLayout(grade)

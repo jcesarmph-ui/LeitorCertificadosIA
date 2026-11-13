@@ -42,6 +42,11 @@ def criar_banco_de_planos(caminho: Path, certificados: list[dict],
         pontos = cert["pontos"]
         maior = max(abs(p["erro"]) + p["incerteza"] for p in pontos)
         tolerancia = float(f"{rng.choice(_FATORES) * max(maior, 1e-6):.3g}")
+        # Certificado com critério de aceitação (ADR 0009): metade das vezes o plano usa o mesmo
+        # valor (sem aviso); na outra metade, a tolerância sorteada (aviso amarelo).
+        criterio = pontos[0].get("criterio") if pontos else None
+        if criterio is not None and rng.random() < 0.5:
+            tolerancia = criterio
         con.execute("INSERT INTO planos (id, nome) VALUES (?, ?)", (n, f"Plano {cert['tipo']}"))
         faixa = f"{cert['faixa_min']:g}-{cert['faixa_max']:g}"  # como o cadastro real ("0-500")
         con.execute("INSERT INTO instrumentos (id, codigo, plano_id, faixa) VALUES (?, ?, ?, ?)",

@@ -25,6 +25,11 @@ MESES = (
 INDICE, NOMINAL, ENCONTRADO, ERRO, INCERTEZA, K = (
     "indice", "nominal", "encontrado", "erro", "incerteza", "k",
 )
+# Colunas que alguns laboratórios acrescentam (ADR 0009):
+# - PARAMETRO: o que foi medido naquela linha ("Face externa"…); é texto, não é campo;
+# - ERRO_MAXIMO: erro somado à incerteza (|erro| + U), já calculado pelo laboratório;
+# - CRITERIO: critério de aceitação ± adotado pelo cliente (o laboratório compara com ele).
+PARAMETRO, ERRO_MAXIMO, CRITERIO = "parametro", "erro_maximo", "criterio"
 
 
 @dataclass(frozen=True)
@@ -46,6 +51,10 @@ class Laboratorio:
     sinal_mais: bool  # erro positivo escrito com "+"?
     nota: str  # observação sobre a incerteza (quando não há coluna k, diz o k aqui)
     numero: Callable[[random.Random, date], str]  # como este laboratório numera os certificados
+    # unidade numa linha própria embaixo dos títulos (e não "Erro (mm)" no título)
+    unidade_em_linha: bool = False
+    # frase acima da tabela com o critério de aceitação; "{criterio}" vira "± 0,05 mm"
+    frase_criterio: str | None = None
 
 
 def formatar_data(d: date, formato: str) -> str:
@@ -263,6 +272,49 @@ LABORATORIOS: dict[str, Laboratorio] = {
             sinal_mais=False,
             nota="Os resultados referem-se somente ao item calibrado. U para k = 2.",
             numero=lambda rng, d: f"BS {d.year}{rng.randint(1, 9999):04d}",
+        ),
+        Laboratorio(
+            chave="rio_manso",
+            nome="GRUPO RIO MANSO METROLOGIA",
+            endereco="Rua do Paralelismo, 77 - Jardim Aferido - Rio Manso/MG",
+            fonte="Helvetica",
+            cabecalho="centro",
+            info="grade",
+            titulo="CERTIFICADO DE CALIBRAÇÃO",
+            rotulos={
+                **_BASICO_PT,
+                "numero": "Nº",
+                "cliente": "Contratante",
+                "tipo": "Descrição",
+                "codigo": "Identificação",
+                "serie": "N° Série",
+                "faixa": "Faixa de indicação",
+                "resolucao": "Valor de uma Divisão",
+                "data_emissao": "Data da emissão",
+                "temperatura": "Temperatura",
+                "umidade": "Umidade relativa máxima",
+                "tecnico": "Signatário autorizado",
+            },
+            ordem_info=(
+                "data_calibracao", "data_emissao", "cliente", "codigo", "tipo", "faixa",
+                "fabricante", "serie", "resolucao", "temperatura", "umidade",
+            ),
+            colunas=(PARAMETRO, NOMINAL, ENCONTRADO, ERRO, INCERTEZA, K, ERRO_MAXIMO, CRITERIO),
+            titulos_colunas={
+                PARAMETRO: "Parâmetro", NOMINAL: "Padrão", ENCONTRADO: "Instrumento",
+                ERRO: "Erro", INCERTEZA: "Incerteza", K: "k", ERRO_MAXIMO: "Erro\nMáximo",
+                CRITERIO: "Critério de\naceitação ±",
+            },
+            formato_data="dd/mm/aaaa",
+            decimal=",",
+            palavra_faixa="|",
+            sinal_mais=False,
+            nota="A incerteza expandida relatada é a incerteza padrão multiplicada pelo fator "
+            "de abrangência k (aproximadamente 95%).",
+            numero=lambda rng, d: f"{rng.randint(1000000, 9999999)}",
+            unidade_em_linha=True,
+            frase_criterio="Erro somado à incerteza (Erro máximo) deve ser menor ou igual ao "
+            "critério de aceitação adotado pelo cliente: {criterio}",
         ),
     )
 }

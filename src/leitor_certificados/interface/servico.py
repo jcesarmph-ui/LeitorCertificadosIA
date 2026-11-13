@@ -27,6 +27,7 @@ from ..aprendizado.correcoes import carregar_pasta, treinar_com_correcoes
 from ..aprendizado.rotulos import rotular
 from ..conferencia.avaliacao import Avaliacao, Resultado
 from ..conferencia.conferir import Conferencia, conferir
+from ..conferencia.criterio import SituacaoCriterio, descrever_criterio
 from ..conferencia.extracao import CertificadoLido, montar_certificado
 from ..conferencia.plano import PlanosDQ05
 from ..ficticio.gerar import gerar_um
@@ -413,13 +414,19 @@ class LinhaPonto:
     avisos: list[str]
     # certeza do modelo nas palavras deste ponto, por coluna ("nominal", "erro"…): a menor
     certezas: dict[str, float] = field(default_factory=dict)
+    # critério de aceitação ± do certificado ("" quando o laboratório não informa; ADR 0009)
+    criterio: str = ""
+    criterio_diferente: bool = False  # diferente da tolerância do plano → amarelo
 
     def dica(self) -> str:
         parecer = self.resultado.value + (f" ({self.motivo})" if self.motivo else "")
         linhas = [f"Ponto {self.nominal}", f"Erro: {self.erro}",
                   f"U (incerteza): {self.incerteza}", f"Erro ± U: {self.erro_mais_u}",
-                  f"Tolerância do plano: {self.tolerancia}", f"Parecer: {parecer}",
-                  "Clique para ver os detalhes"]
+                  f"Tolerância do plano: {self.tolerancia}"]
+        if self.criterio:
+            linhas.append(f"Critério do certificado: {self.criterio}"
+                          + (" (diferente do plano)" if self.criterio_diferente else ""))
+        linhas += [f"Parecer: {parecer}", "Clique para ver os detalhes"]
         return "\n".join(linhas + [f"Aviso: {a}" for a in self.avisos])
 
 
@@ -451,5 +458,8 @@ def descrever_pontos(conferencia: Conferencia | None,
             erro=numero(p.erro), incerteza=numero(p.lido.incerteza), erro_mais_u=faixa,
             tolerancia=tol, resultado=av.resultado, motivo=av.motivo or "",
             caixa=p.lido.caixa, avisos=list(p.avisos),
-            certezas=_certezas_da_linha(analise, p.lido.caixa) if analise else {}))
+            certezas=_certezas_da_linha(analise, p.lido.caixa) if analise else {},
+            criterio=(descrever_criterio(p.lido.criterio)
+                      if p.lido.criterio is not None else ""),
+            criterio_diferente=p.criterio == SituacaoCriterio.DIFERENTE))
     return linhas

@@ -59,11 +59,14 @@ from .servico import (
 )
 from .tarefas import Tarefa
 
-COLUNAS = ["Nominal", "Encontrado", "Erro", "U", "Erro ± U", "Tolerância", "Resultado"]
+COLUNAS = ["Nominal", "Encontrado", "Erro", "U", "Erro ± U", "Tolerância", "Critério",
+           "Resultado"]
 DICAS_COLUNAS = {
     "U": "Incerteza expandida de medição, informada no certificado",
     "Erro ± U": "A faixa que o erro pode ocupar: do erro − U até o erro + U",
     "Tolerância": "Tolerância do plano: limites de erro aceitos no plano de calibração",
+    "Critério": "Critério de aceitação ± informado no certificado. Se for diferente da "
+                "tolerância do plano, fica amarelo (não muda o parecer)",
 }
 
 
@@ -515,14 +518,21 @@ class Janela(QMainWindow):
         self.tabela.setRowCount(len(self.linhas))
         for r, linha in enumerate(self.linhas):
             valores = [linha.nominal, linha.encontrado, linha.erro, linha.incerteza,
-                       linha.erro_mais_u, linha.tolerancia, linha.resultado.value]
+                       linha.erro_mais_u, linha.tolerancia, linha.criterio or "—",
+                       linha.resultado.value]
             for c, valor in enumerate(valores):
                 celula = QTableWidgetItem(valor)
                 celula.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 celula.setToolTip(linha.dica())
                 if c == len(valores) - 1:
                     self._pintar_resultado(celula, linha.resultado)
+                elif COLUNAS[c] == "Critério" and linha.criterio_diferente:
+                    celula.setBackground(QBrush(QColor(AMARELO)))  # aviso: fundo amarelo
+                    celula.setForeground(QBrush(QColor("#000000")))
                 self.tabela.setItem(r, c, celula)
+        # a coluna só aparece quando o laboratório informa o critério (ADR 0009)
+        self.tabela.setColumnHidden(COLUNAS.index("Critério"),
+                                    not any(linha.criterio for linha in self.linhas))
 
     @staticmethod
     def _pintar_resultado(celula: QTableWidgetItem, resultado: Resultado) -> None:

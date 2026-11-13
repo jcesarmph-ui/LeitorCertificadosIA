@@ -136,3 +136,49 @@ def test_faixa_igual_nao_avisa_e_diferente_avisa_sem_mudar_o_parecer():
     assert comparar_faixas("0 mm | 500 mm", None).aviso is None  # plano sem faixa: nada a conferir
     assert "não encontrada" in comparar_faixas(None, "0-500").aviso
     assert "não comparada" in comparar_faixas("0 a 25", "5000 / 3000").aviso
+
+
+# --- critério de aceitação do certificado: só avisa (decisão do usuário, 2026-11-13) ------------
+
+def test_criterio_igual_so_quando_o_plano_vai_de_menos_c_a_mais_c():
+    from leitor_certificados.conferencia.criterio import SituacaoCriterio as S
+    from leitor_certificados.conferencia.criterio import comparar_criterio
+
+    assert comparar_criterio(0.05, -0.05, 0.05) == S.IGUAL
+    assert comparar_criterio(0.05, -0.03, 0.03) == S.DIFERENTE
+    assert comparar_criterio(0.05, 0.0, 0.05) == S.DIFERENTE  # plano assimétrico
+    assert comparar_criterio(0.05, None, 0.05) == S.DIFERENTE  # plano com um lado só
+    assert comparar_criterio(None, -0.05, 0.05) == S.NAO_COMPARADO  # certificado sem critério
+    assert comparar_criterio(0.05, None, None) == S.NAO_COMPARADO  # plano sem tolerância
+
+
+def test_criterio_diferente_avisa_uma_vez_sem_mudar_o_parecer(tmp_path):
+    from leitor_certificados.conferencia.criterio import SituacaoCriterio
+    from leitor_certificados.conferencia.extracao import CertificadoLido, PontoLido
+
+    banco = tmp_path / "planos.db"
+    pontos = [{"nominal": v, "erro": 0.01, "incerteza": 0.01} for v in (0.0, 50.0, 100.0)]
+    criar_banco_de_planos(banco, [{"id": "c1", "tipo": "Paquímetro", "codigo": "PQ-0001",
+                                   "faixa_min": 0, "faixa_max": 100, "pontos": pontos}])
+    con = sqlite3.connect(banco)
+    con.execute("UPDATE pontos_plano SET tolerancia_inferior = -0.05, tolerancia_superior = 0.05")
+    con.commit()
+    con.close()
+
+    def ler(criterio):
+        return CertificadoLido("PQ-0001", [
+            PontoLido(v, v + 0.01, 0.01, 0.01, (0, 0, 1, 1), erro_maximo=0.02, criterio=criterio)
+            for v in (0.0, 50.0, 100.0)])
+
+    planos = PlanosDQ05(banco)
+    try:
+        igual, diferente, sem = (conferir(ler(c), planos) for c in (0.05, 0.03, None))
+    finally:
+        planos.fechar()
+    assert igual.resultado == diferente.resultado == sem.resultado == Resultado.APROVADO
+    assert not any("critério" in a for a in igual.avisos + sem.avisos)
+    avisos = [a for a in diferente.avisos if "critério" in a]
+    assert avisos == ["critério de aceitação do certificado (± 0,03) diferente da tolerância "
+                      "do plano (± 0,05)"]  # um aviso só para os três pontos
+    assert all(p.criterio == SituacaoCriterio.DIFERENTE for p in diferente.pontos)
+    assert all(p.criterio == SituacaoCriterio.IGUAL for p in igual.pontos)
