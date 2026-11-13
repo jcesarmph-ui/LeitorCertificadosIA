@@ -96,6 +96,16 @@ Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
   certificado diferente da tolerância do plano **só avisa em amarelo**, como a faixa);
   (2) **validade dos padrões** (pedido 2026-11-13): ler a tabela de padrões do certificado
   (código, validade) e conferir que cada um estava **dentro da validade no dia da calibração**;
-  (3) registro de cada análise (perguntar o formato); (4) teste com os reais (só os números).
+  (3) registro de cada análise (perguntar o formato); (4) teste com os reais (só os números);
+  (5) **prever a deriva** (pedido 2026-11-13): ML que analisa o histórico/gráfico de tendência
+  de cada instrumento (banco do DQ05, só leitura), prevê **quando vai sair da tolerância** e
+  **propõe mudar a periodicidade** (para mais ou para menos), para cortar custo desnecessário.
+  Perguntar antes se fica neste projeto ou no SistemaCalibracao;
+  (6) mais adiante: integrar com o DQ05 (botão "LER CERTIFICADO COM IA"; ver memória).
+- Feito na etapa 7 (2026-11-13, ainda sem PR): zoom com limites, Shift+Ctrl+roda, Erro ± U igual
+  ao DQ05 (`erro_com_incerteza`), clique no ponto destacado/na hora, nominais repetidos do plano
+  casados na ordem, dois números com o mesmo rótulo (vale o de mais certeza; nominal: o do
+  plano), painel Instrumento = comparador cadastro × certificado (só avisa).
+- Pendente de resposta do usuário: "tela cheia" = maximizada (já é) ou cobrir a barra de tarefas?
 - Achado (2026-11-13): o escaneado Laftec usa um modelo de folha **sem** "Erro Máximo" e
   "Critério"; só o digital tem. As correções dos reais já estavam certas (não remarcar).
