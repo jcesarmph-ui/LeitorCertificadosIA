@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.2.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-0.3.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -33,6 +33,7 @@
   <a href="#-dados-fictícios">Dados fictícios</a> •
   <a href="#-certificados-fictícios">Certificados fictícios</a> •
   <a href="#-leitura-do-pdf">Leitura do PDF</a> •
+  <a href="#-machine-learning">Machine learning</a> •
   <a href="#️-tecnologias">Tecnologias</a> •
   <a href="#️-roteiro">Roteiro</a>
 </p>
@@ -182,12 +183,40 @@ apóstrofo) e o nome do laboratório grudado no endereço:
 > confiança média do OCR ficou bem abaixo da dos fictícios. Por isso o gerador imita um scanner
 > mais ruim (150 dpi, mais ruído) e a etapa 5 vai mostrar o acerto real, sem esconder a diferença.
 
+## 🤖 Machine learning
+
+O modelo recebe a lista de palavras da etapa anterior e aprende a dizer **o que cada palavra é**
+(número do certificado, data, laboratório, valor de cada ponto…). Ele não enxerga a folha: recebe
+**pistas** — como a palavra é escrita, o que há ao lado e em cima (o título da coluna) e o que os
+números fazem na tabela (o *erro* é *encontrado − nominal*, o *nominal* cresce e é "redondo", o *k*
+é o mesmo em todas as linhas). A posição na folha entra só como pista fraca, porque cada laboratório
+monta a folha de um jeito.
+
+**Como saber se aprendeu?** Medindo em certificados que o modelo **nunca viu** — e a diferença entre
+as provas é o que mostra se ele entendeu ou decorou:
+
+| Prova | Palavras certas | Campos inteiros certos |
+|---|---|---|
+| Certificados novos de laboratórios já vistos | 100 % | 100 % |
+| 🔎 **Laboratório que o modelo nunca viu** (treina com 4, testa no 5º) | **80,4 %** | **73,2 %** |
+| Escaneado lido por OCR (treino só com o digital) | 99,1 % | 98,1 % |
+
+<sub>Média dos 5 laboratórios fictícios; 150 certificados. Campo inteiro certo = todas as palavras
+da caixa do gabarito com o rótulo certo.</sub>
+
+> [!NOTE]
+> A prova que conta é a do laboratório novo. O primeiro modelo tirava 100 % nos laboratórios que já
+> conhecia e só **76,7 %** das palavras (**54,2 %** dos campos) no laboratório novo: decorava mais do
+> que entendia. As pistas numéricas e de pedaços de letras subiram esse número sem mexer no teste. O
+> que ainda erra é estrutura que nenhum laboratório de treino tinha — a cura é **mais variedade**:
+> cada tipo novo de certificado entra no treino e o modelo é medido de novo.
+
 ## 🛠️ Tecnologias
 
 | Tecnologia | Aplicação no projeto |
 |---|---|
 | Python | Linguagem de todo o projeto. |
-| scikit-learn | Modelo de machine learning (gratuito, roda no computador). |
+| scikit-learn | Modelo de machine learning (regressão logística): aprende o que cada palavra é. Gratuito, roda no computador. |
 | reportlab | Escreve os PDFs digitais dos certificados fictícios. |
 | pypdfium2 | Transforma o PDF em imagem (para o "escaneado") e lê o texto do PDF. |
 | Pillow | Imita o scanner: giro, ruído, desfoque e compressão JPEG. |
@@ -203,7 +232,7 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Etapa 0 — Fundação (estrutura, versão, testes, decisões de arquitetura)
 - [x] Etapa 1 — Gerador de certificados fictícios (5 laboratórios, digital e "escaneado") com gabarito anotado
 - [x] Etapa 2 — Leitura do PDF: texto direto e OCR (palavras com posição e confiança)
-- [ ] Etapa 3 — Machine learning: encontrar os campos; acerto medido em treino × teste
+- [x] Etapa 3 — Machine learning: encontrar os campos; acerto medido em treino × teste e em laboratório que o modelo nunca viu
 - [ ] Etapa 4 — Conferência com o plano: erro ± U dentro da tolerância
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
 
