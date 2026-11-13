@@ -89,6 +89,7 @@ Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
   transparência, governança e rastreabilidade (quem, quando, qual certificado, o que o modelo
   leu, o que foi corrigido/digitado, parecer, versão do programa e do modelo). Perguntar o
   formato antes de fazer.
+- **2026-11-13: PRs #3 a #6 juntados no `main` (merge normal, em ordem) e tag `v0.6.0`.** Próxima etapa começa de um branch novo a partir do `main`.
 - **Próximos passos** (feitos: corrigir os reais e medir, limiar de certeza, tela estilo Lens):
   (1) gerador estilo Laftec + rótulos `ponto.erro_maximo`/`ponto.criterio`; (2) registro de cada
   análise (perguntar o formato); (3) teste com os reais (etapa final, só os números).
