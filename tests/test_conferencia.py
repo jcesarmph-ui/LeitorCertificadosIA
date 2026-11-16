@@ -395,3 +395,14 @@ def test_duvida_entre_instrumentos_desempata_pelos_pontos_do_plano(tmp_path):
         assert conferir(ler((0.0,)), planos).resultado == Resultado.PENDENTE  # os dois servem
     finally:
         planos.fechar()
+
+
+def test_goniometro_aparece_em_graus_e_minutos_na_tela():
+    """Pedido do usuário (2026-11-16): ver 90°00', erro 0°04' — igual ao certificado."""
+    from leitor_certificados.interface.servico import graus_minutos
+
+    assert graus_minutos(90.0) == "90°00'"
+    assert graus_minutos(4 / 60) == "0°04'"
+    assert graus_minutos(-1 / 60) == "-0°01'"
+    assert graus_minutos(14 + 59 / 60) == "14°59'"
+    assert graus_minutos(0.0) == "0°00'" and graus_minutos(None) == "—"

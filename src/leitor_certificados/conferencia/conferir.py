@@ -130,8 +130,8 @@ def reatribuir(lido: PontoLido, plano: Plano) -> PontoLido | None:
             sobra = [x for j, x in resto if j not in (ja, jb)]
             u = lido.incerteza if lido.incerteza in sobra else min(
                 (x for x in sobra if x > 0), default=None)
-            novo = PontoLido(candidato, e, r, u, lido.caixa, lido.numeros,
-                             lido.erro_maximo, lido.criterio)
+            novo = dataclasses.replace(lido, nominal=candidato, encontrado=e, erro=r,
+                                       incerteza=u)
             if _erro_maximo_bate(novo, r):  # com "Erro Máximo", a conta tem de fechar
                 achadas.append(novo)
     unicas = {(a.nominal, a.encontrado, a.erro) for a in achadas}

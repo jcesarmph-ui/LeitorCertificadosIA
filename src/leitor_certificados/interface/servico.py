@@ -413,6 +413,15 @@ def numero(x: float | None) -> str:
     return texto.replace(".", ",")
 
 
+def graus_minutos(x: float | None) -> str:
+    """Ângulo do goniômetro como está no certificado: 0.0667 → "0°04'", -0.0167 → "-0°01'"."""
+    if x is None:
+        return "—"
+    minutos = round(abs(x) * 60)
+    sinal = "-" if x < 0 and minutos else ""
+    return f"{sinal}{minutos // 60}°{minutos % 60:02d}'"
+
+
 def descrever_tolerancia(inferior: float | None, superior: float | None) -> str:
     if inferior is None and superior is None:
         return "—"
@@ -466,7 +475,7 @@ def _certezas_da_linha(analise: Analise, caixa: tuple[float, ...]) -> dict[str, 
     return certezas
 
 
-def texto_erro_com_incerteza(p: PontoConferido) -> str:
+def texto_erro_com_incerteza(p: PontoConferido, fmt=numero) -> str:
     """O "Erro ± U" igual ao do programa de calibração: o lado mais perto da tolerância
     (erro −1 e U 1 → "-2"); "± U" só quando o erro é zero."""
     plano = p.plano
@@ -477,7 +486,7 @@ def texto_erro_com_incerteza(p: PontoConferido) -> str:
         plano.sem_incerteza if plano else False)
     if final is None:
         return "—"
-    return f"± {numero(final.valor)}" if final.dos_dois_lados else numero(final.valor)
+    return f"± {fmt(final.valor)}" if final.dos_dois_lados else fmt(final.valor)
 
 
 def descrever_pontos(conferencia: Conferencia | None,
@@ -487,12 +496,17 @@ def descrever_pontos(conferencia: Conferencia | None,
     linhas = []
     for p in conferencia.pontos:
         av: Avaliacao = p.avaliacao
-        faixa = texto_erro_com_incerteza(p)
+        # goniômetro em graus°minutos': mostra igual ao certificado (pedido do usuário,
+        # 2026-11-16); a tolerância é a do plano, como está no cadastro
+        fmt = graus_minutos if p.lido.graus_minutos else numero
+        faixa = texto_erro_com_incerteza(p, fmt)
         tol = (descrever_tolerancia(p.plano.tolerancia_inferior, p.plano.tolerancia_superior)
                if p.plano else "fora do plano")
+        if p.plano and p.lido.graus_minutos and tol != "—":  # plano em graus decimais
+            tol = " a ".join(f"{lado}°" for lado in tol.split(" a "))
         linhas.append(LinhaPonto(
-            nominal=numero(p.lido.nominal), encontrado=numero(p.lido.encontrado),
-            erro=numero(p.erro), incerteza=numero(p.lido.incerteza), erro_mais_u=faixa,
+            nominal=fmt(p.lido.nominal), encontrado=fmt(p.lido.encontrado),
+            erro=fmt(p.erro), incerteza=fmt(p.lido.incerteza), erro_mais_u=faixa,
             tolerancia=tol, resultado=av.resultado, motivo=av.motivo or "",
             caixa=p.lido.caixa, avisos=list(p.avisos),
             certezas=_certezas_da_linha(analise, p.lido.caixa) if analise else {},

@@ -52,6 +52,8 @@ class PontoLido:
     # todos os números que o modelo marcou como nominal na linha (às vezes marca dois, ex.:
     # "30,00" e "29,95"): a conferência usa o que existir no plano
     nominais: tuple[float, ...] = ()
+    # a linha veio em graus°minutos' (goniômetro): a tela mostra assim, sem converter
+    graus_minutos: bool = False
 
 
 @dataclass(frozen=True)
@@ -184,6 +186,8 @@ def montar_certificado(modelo: Pipeline, pagina: Pagina,
             numeros=numeros,
             erro_maximo=para_numero(valores.get("erro_maximo", "")),
             criterio=para_numero(valores.get("criterio", "")),
+            graus_minutos=any(_GRAUS_MINUTOS.match("".join(p.texto.split()).replace("−", "-"))
+                              for p in da_linha),
         ))
     ordem = sorted(pagina.palavras, key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
     data_palavras = sorted(
