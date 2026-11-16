@@ -26,3 +26,6 @@ __pycache__/
 modelos/
 *.joblib
 *.pkl
+
+# instruções do Claude Code: ficam só no PC (cópia no repositório privado claude-config)
+CLAUDE.md
