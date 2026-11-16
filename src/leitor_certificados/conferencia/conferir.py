@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from .avaliacao import Avaliacao, Resultado, avaliar_ponto, resultado_geral
 from .criterio import SituacaoCriterio, aviso_de_criterio, comparar_criterio
 from .extracao import CertificadoLido, PontoLido
+from .padroes import ConferenciaPadroes, conferir_padroes
 from .plano import Plano, PlanosDQ05, PontoDoPlano, normalizar_codigo
 
 # Dois valores nominais são "o mesmo ponto" se diferem menos que isto (relativo, com piso).
@@ -42,6 +43,8 @@ class Conferencia:
     faixa_certificado: str | None = None  # só mostrada/avisada: não muda o parecer
     faixa_plano: str | None = None
     cadastro: dict[str, str | None] = field(default_factory=dict)  # do instrumento (comparador)
+    # validade dos padrões no dia da calibração (etapa 8): vencido → PENDENTE
+    padroes: ConferenciaPadroes | None = None
 
 
 def _mesmo_nominal(a: float, b: float) -> bool:
@@ -114,12 +117,26 @@ def _ponto_do_plano(plano: Plano, nominal: float, usados: set[int]) -> int | Non
 
 
 def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
+    """Confere os pontos com o plano e a validade dos padrões. Padrão vencido no dia da
+    calibração deixa o parecer PENDENTE (decisão do usuário, 2026-11-16); validade não lida só
+    avisa."""
+    conferencia = _conferir_pontos(certificado, planos)
+    padroes = conferir_padroes(
+        [(p.codigo, p.validade, p.caixa) for p in certificado.padroes],
+        certificado.data_calibracao)
+    conferencia.padroes = padroes
+    conferencia.avisos += padroes.avisos
+    if padroes.algum_vencido:
+        conferencia.resultado = Resultado.PENDENTE
+    return conferencia
+
+
+def _conferir_pontos(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
     codigo = achar_codigo(certificado, planos)
     if not codigo:
         return Conferencia(None, None, Resultado.PENDENTE,
                            avisos=["código do instrumento não encontrado no certificado"])
-    certificado = CertificadoLido(codigo, certificado.pontos, certificado.textos,
-                                  certificado.faixa)
+    certificado = dataclasses.replace(certificado, codigo=codigo)
     plano: Plano | None = planos.plano_do_instrumento(certificado.codigo)
     if plano is None:
         return Conferencia(certificado.codigo, None, Resultado.PENDENTE,
