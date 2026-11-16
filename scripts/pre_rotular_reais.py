@@ -9,7 +9,11 @@ Para cada PDF grava:
 - `<nome>.png` — a folha com as caixas coloridas por rótulo e o número de cada palavra, para
   conferir de olho.
 
-Uso: python scripts/pre_rotular_reais.py
+O modelo treina com os fictícios **e com os reais já corrigidos** (peso maior), para errar menos
+nos novos e sobrar menos para corrigir. Certificado que já tem marcação é **pulado** (nunca perder
+correção); `--refazer` refaz todos, guardando as correções feitas.
+
+Uso: python scripts/pre_rotular_reais.py [--refazer]
 """
 
 from __future__ import annotations
@@ -24,7 +28,12 @@ from PIL import ImageDraw, ImageFont
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))
 
-from leitor_certificados.aprendizado.modelo import prever, treinar  # noqa: E402
+from leitor_certificados.aprendizado.correcoes import (  # noqa: E402
+    carregar_pasta,
+    treinar_com_correcoes,
+)
+from leitor_certificados.aprendizado.modelo import prever  # noqa: E402
+from leitor_certificados.aprendizado.rotulos import rotular  # noqa: E402
 from leitor_certificados.ficticio.gerar import gerar_um  # noqa: E402
 from leitor_certificados.leitura.ler import ler_pdf  # noqa: E402
 
@@ -38,22 +47,30 @@ CORES = {
 COR_PADRAO = (190, 0, 120)
 
 
-def treinar_com_ficticios(quantidade: int = 150):
+def treinar_com_tudo(quantidade: int = 150):
+    """Fictícios + os reais que já foram corrigidos (`dados/reais_marcacao/`)."""
     pasta = RAIZ / "dados" / "ficticios"
-    paginas, campos = [], []
+    paginas, rotulos = [], []
     for n in range(1, quantidade + 1):
         gab = json.loads(gerar_um(pasta, n).read_text(encoding="utf-8"))
-        paginas.append(ler_pdf(pasta / gab["digital"]["arquivo"])[0])
-        campos.append(gab["digital"]["campos"])
-    return treinar(paginas, campos)
+        pagina = ler_pdf(pasta / gab["digital"]["arquivo"])[0]
+        paginas.append(pagina)
+        rotulos.append(rotular(pagina, gab["digital"]["campos"]))
+    reais = carregar_pasta(SAIDA) if SAIDA.exists() else []
+    print(f"treino: {quantidade} fictícios + {len(reais)} reais corrigidos")
+    return treinar_com_correcoes(paginas, rotulos, reais)
 
 
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     SAIDA.mkdir(parents=True, exist_ok=True)
-    modelo = treinar_com_ficticios()
+    refazer = "--refazer" in sys.argv
+    modelo = treinar_com_tudo()
     fonte = ImageFont.truetype("C:/Windows/Fonts/segoeui.ttf", 15)
     for pdf in sorted(PASTA_REAIS.glob("*.pdf")):
+        if not refazer and (SAIDA / f"{pdf.stem}.palavras.json").exists():
+            print(f"{pdf.name[:18]}: já marcado, pulado")
+            continue
         (pagina,) = ler_pdf(pdf)[:1]
         previsoes = prever(modelo, pagina)
         itens = [
