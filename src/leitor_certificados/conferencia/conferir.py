@@ -179,11 +179,30 @@ def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
     return conferencia
 
 
+def _desempatar_pelos_pontos(certificado: CertificadoLido, planos: PlanosDQ05,
+                             candidatos: list[str]) -> str | None:
+    """Dúvida entre instrumentos (ex.: "PAQ-7" pode ser PAQ-007 ou PAQ-0007): fica com o único
+    cujo plano tem todos os pontos nominais do certificado (ideia do usuário, 2026-11-16).
+    Se mais de um (ou nenhum) servir, não escolhe."""
+    nominais = {p.nominal for p in certificado.pontos}
+    if not nominais:
+        return None
+    servem = []
+    for chave in candidatos:
+        plano = planos.plano_do_instrumento(chave)
+        if plano and all(any(_mesmo_nominal(n, q.nominal) for q in plano.pontos)
+                         for n in nominais):
+            servem.append(chave)
+    return servem[0] if len(servem) == 1 else None
+
+
 def _conferir_pontos(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
     codigo = achar_codigo(certificado, planos)
     if not codigo:
         return Conferencia(None, None, Resultado.PENDENTE,
                            avisos=["código do instrumento não encontrado no certificado"])
+    if not planos.conhece(codigo) and len(candidatos := planos.candidatos(codigo)) > 1:
+        codigo = _desempatar_pelos_pontos(certificado, planos, candidatos) or codigo
     certificado = dataclasses.replace(certificado, codigo=codigo)
     plano: Plano | None = planos.plano_do_instrumento(certificado.codigo)
     if plano is None:

@@ -41,6 +41,11 @@ def normalizar_codigo(codigo: str) -> str:
     return re.sub(r"[^A-Z0-9]", "", sem_acento.upper())
 
 
+def _sem_zeros(chave: str) -> str:
+    """"GON002" → "GON2": tira os zeros à esquerda de cada número."""
+    return re.sub(r"(?<!\d)0+(?=\d)", "", chave)
+
+
 class PlanosDQ05:
     """Lê instrumentos e planos de uma cópia do banco do DQ05, sem nunca alterar nada."""
 
@@ -70,13 +75,30 @@ class PlanosDQ05:
     def fechar(self) -> None:
         self._con.close()
 
+    def _chave(self, codigo: str) -> str:
+        """A chave do cadastro para o código. "GON-02" acha "GON-002" (zeros à esquerda do número
+        não contam; decisão do usuário, 2026-11-16) — só se houver um único instrumento assim."""
+        chave = normalizar_codigo(codigo)
+        if chave in self._plano_por_codigo:
+            return chave
+        parecidos = [c for c in self._plano_por_codigo if _sem_zeros(c) == _sem_zeros(chave)]
+        return parecidos[0] if len(parecidos) == 1 else chave
+
+    def candidatos(self, codigo: str) -> list[str]:
+        """Os instrumentos que podem ser este código quando há dúvida (zeros à esquerda): mais de
+        um quando o cadastro tem, por exemplo, "PAQ-007" e "PAQ-0007" para um "PAQ-7"."""
+        chave = normalizar_codigo(codigo)
+        if chave in self._plano_por_codigo:
+            return [chave]
+        return [c for c in self._plano_por_codigo if _sem_zeros(c) == _sem_zeros(chave)]
+
     def conhece(self, codigo: str) -> bool:
-        return normalizar_codigo(codigo) in self._plano_por_codigo
+        return self._chave(codigo) in self._plano_por_codigo
 
     def plano_do_instrumento(self, codigo: str) -> Plano | None:
         """O plano do instrumento (só pontos numéricos com tolerância), ou None se o código não
         existe no cadastro ou o instrumento não tem plano."""
-        plano_id = self._plano_por_codigo.get(normalizar_codigo(codigo))
+        plano_id = self._plano_por_codigo.get(self._chave(codigo))
         if plano_id is None:
             return None
         cabecalho = self._con.execute(
@@ -101,5 +123,5 @@ class PlanosDQ05:
             )
         ]
         return Plano(codigo=codigo, nome=cabecalho["nome"], pontos=pontos,
-                     faixa=self._faixa_por_codigo.get(normalizar_codigo(codigo)),
-                     cadastro=dict(self._cadastro_por_codigo.get(normalizar_codigo(codigo), {})))
+                     faixa=self._faixa_por_codigo.get(self._chave(codigo)),
+                     cadastro=dict(self._cadastro_por_codigo.get(self._chave(codigo), {})))

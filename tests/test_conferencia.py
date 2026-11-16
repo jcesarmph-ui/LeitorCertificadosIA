@@ -349,3 +349,49 @@ def test_angulo_em_graus_e_minutos_vira_graus_decimais():
     assert abs(para_numero("-0°01'") + 1 / 60) < 1e-8
     assert abs(para_numero("0°04'") - 4 / 60) < 1e-8
     assert para_numero("90°") is None  # sem os minutos não é o formato do goniômetro
+
+
+def test_codigo_com_menos_zeros_acha_o_instrumento(tmp_path):
+    """"GON-02" no certificado acha "GON-002" do cadastro (decisão do usuário, 2026-11-16), mas
+    só quando não há dois instrumentos possíveis."""
+    banco = tmp_path / "planos.db"
+    pontos = [{"nominal": 0.0, "erro": 0.0, "incerteza": 0.07}]
+    criar_banco_de_planos(banco, [
+        {"id": "a", "tipo": "Goniômetro", "codigo": "GON-002", "faixa_min": 0, "faixa_max": 360,
+         "pontos": pontos},
+        {"id": "b", "tipo": "Paquímetro", "codigo": "PAQ-007", "faixa_min": 0, "faixa_max": 150,
+         "pontos": pontos},
+        {"id": "c", "tipo": "Paquímetro", "codigo": "PAQ-0007", "faixa_min": 0, "faixa_max": 150,
+         "pontos": pontos}])
+    planos = PlanosDQ05(banco)
+    try:
+        assert planos.conhece("GON-02") and planos.plano_do_instrumento("GON-02") is not None
+        assert not planos.conhece("GON-20")
+        assert not planos.conhece("PAQ-7")  # dois possíveis: não escolhe
+    finally:
+        planos.fechar()
+
+
+def test_duvida_entre_instrumentos_desempata_pelos_pontos_do_plano(tmp_path):
+    """"PAQ-7" pode ser PAQ-007 ou PAQ-0007: vale o único cujo plano tem os pontos do
+    certificado (ideia do usuário, 2026-11-16); se os dois servem, fica pendente."""
+    from leitor_certificados.conferencia.extracao import CertificadoLido, PontoLido
+
+    banco = tmp_path / "planos.db"
+    criar_banco_de_planos(banco, [
+        {"id": "b", "tipo": "Paquímetro", "codigo": "PAQ-007", "faixa_min": 0, "faixa_max": 150,
+         "pontos": [{"nominal": v, "erro": 0.0, "incerteza": 0.01} for v in (0.0, 50.0, 150.0)]},
+        {"id": "c", "tipo": "Paquímetro", "codigo": "PAQ-0007", "faixa_min": 0, "faixa_max": 300,
+         "pontos": [{"nominal": v, "erro": 0.0, "incerteza": 0.01} for v in (0.0, 100.0, 300.0)]}])
+
+    def ler(nominais):
+        return CertificadoLido("PAQ-7", [PontoLido(v, v, 0.0, 0.01, (0, 0, 1, 1))
+                                         for v in nominais], **PADRAO_EM_DIA)
+
+    planos = PlanosDQ05(banco)
+    try:
+        assert conferir(ler((0.0, 100.0, 300.0)), planos).codigo == "PAQ0007"
+        assert conferir(ler((0.0, 50.0, 150.0)), planos).codigo == "PAQ007"
+        assert conferir(ler((0.0,)), planos).resultado == Resultado.PENDENTE  # os dois servem
+    finally:
+        planos.fechar()
