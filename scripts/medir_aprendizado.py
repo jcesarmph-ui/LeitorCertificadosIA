@@ -12,7 +12,11 @@ Medidas (no certificado deixado de fora):
 - outros campos: fabricante, laboratório, técnico, data de emissão…;
 - falsos: palavras "outro" que o modelo marcou como campo (ruído).
 
-Uso: python scripts/medir_aprendizado.py [--fictícios 60]
+Com muitos reais, testar todas as combinações fica lento (9 reais = 2.304 treinos): `--maximo 6`
+sorteia no máximo 6 combinações por quantidade (sempre as mesmas, semente fixa) e `--quantidades
+0,1,2,4,8` mede só essas quantidades de reais no treino.
+
+Uso: python scripts/medir_aprendizado.py [--ficticios 60] [--maximo 6] [--quantidades 0,1,2,4,8]
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ from __future__ import annotations
 import argparse
 import itertools
 import json
+import random
 import sys
 from pathlib import Path
 
@@ -87,7 +92,11 @@ def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
     ap.add_argument("--ficticios", type=int, default=60)
-    n_fict = ap.parse_args().ficticios
+    ap.add_argument("--maximo", type=int, default=0, help="combinações por quantidade (0 = todas)")
+    ap.add_argument("--quantidades", default="", help="ex.: 0,1,2,4,8 (vazio = todas)")
+    args = ap.parse_args()
+    n_fict = args.ficticios
+    sorteio = random.Random(2026)
 
     pasta = RAIZ / "dados" / "ficticios"
     paginas, rotulos = [], []
@@ -102,13 +111,18 @@ def main() -> None:
     nomes = [a.name[:14] for a in arquivos]
     print(f"{n_fict} fictícios; {len(reais)} reais corrigidos: {nomes}\n")
 
-    por_k: dict[int, list[tuple[float, float, float]]] = {k: [] for k in range(len(reais))}
+    quantidades = ([int(q) for q in args.quantidades.split(",")] if args.quantidades
+                   else list(range(len(reais))))
+    por_k: dict[int, list[tuple[float, float, float]]] = {k: [] for k in quantidades}
     for alvo in range(len(reais)):
         outros = [i for i in range(len(reais)) if i != alvo]
         print(f"{nomes[alvo]} (deixado de fora)")
-        for k in range(len(outros) + 1):
+        for k in quantidades:
             medidas = []
-            for escolha in itertools.combinations(outros, k):
+            escolhas = list(itertools.combinations(outros, k))
+            if args.maximo and len(escolhas) > args.maximo:
+                escolhas = sorteio.sample(escolhas, args.maximo)
+            for escolha in escolhas:
                 modelo = treinar_com_correcoes(paginas, rotulos, [reais[i] for i in escolha])
                 medidas.append(medir(modelo, *reais[alvo]))
             n = len(medidas)
