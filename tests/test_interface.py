@@ -583,3 +583,28 @@ def test_shift_ctrl_roda_rola_a_folha_para_os_lados(app, mundo):
     assert barra.value() > antes  # rolou para a direita
     assert folha.transform().m11() == pytest.approx(escala)  # e não mudou o zoom
     janela.close()
+
+
+def test_caixa_padroes_mostra_cada_padrao_e_o_vencido_fica_amarelo(app, mundo):
+    """Etapa 8: a caixa "Padrões" lista os padrões lidos; vencido = amarelo e parecer PENDENTE."""
+    from leitor_certificados.conferencia.padroes import SituacaoPadrao
+    from leitor_certificados.interface.estilo import AMARELO, VERDE
+    from leitor_certificados.interface.servico import LinhaPadrao
+
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    analise = servico.analisar(certificado)
+    janela.mostrar_analise(analise)
+    assert analise.conferencia.padroes is not None
+    assert janela.tabela_padroes.rowCount() == len(analise.conferencia.padroes.padroes)
+    assert janela.data_calibracao.text().startswith("Data da calibração: ")
+    janela.padroes = [
+        LinhaPadrao("P-1", "07/2026 (até 31/07/2026)", SituacaoPadrao.EM_DIA, "dica", None),
+        LinhaPadrao("P-2", "06/2026 (até 30/06/2026)", SituacaoPadrao.VENCIDO, "dica", None),
+    ]
+    janela._preencher_padroes(analise)
+    assert janela.tabela_padroes.item(0, 2).text() == "✓ em dia"
+    assert janela.tabela_padroes.item(0, 2).foreground().color().name() == VERDE.lower()
+    assert janela.tabela_padroes.item(1, 2).text() == "VENCIDO (pendente)"
+    assert janela.tabela_padroes.item(1, 2).background().color().name() == AMARELO.lower()
+    janela.close()

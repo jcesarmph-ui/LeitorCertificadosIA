@@ -37,6 +37,7 @@ from .. import __version__
 from ..conferencia.avaliacao import Resultado
 from ..conferencia.cadastro import CAMPOS as CAMPOS_CADASTRO
 from ..conferencia.cadastro import Bate, ItemComparado, comparar_com_cadastro
+from ..conferencia.padroes import SituacaoPadrao, data_br
 from .estilo import (
     AMARELO,
     FAIXA_DENTRO,
@@ -51,8 +52,10 @@ from .servico import (
     CAMPOS_MANUAIS,
     ROTULOS,
     Analise,
+    LinhaPadrao,
     LinhaPonto,
     Servico,
+    descrever_padroes,
     descrever_pontos,
     gravar_correcao,
     gravar_manual,
@@ -63,6 +66,7 @@ from .tarefas import Tarefa
 
 COLUNAS = ["Nominal", "Encontrado", "Erro", "U", "Erro ± U", "Tolerância", "Critério",
            "Resultado"]
+COLUNAS_PADROES = ["Padrão", "Validade", "Situação"]
 DICAS_COLUNAS = {
     "U": "Incerteza expandida de medição, informada no certificado",
     "Erro ± U": "O erro somado à incerteza, do lado mais perto da tolerância (igual ao "
@@ -79,6 +83,7 @@ class Janela(QMainWindow):
         self.servico = servico or Servico()
         self.analise: Analise | None = None
         self.linhas: list[LinhaPonto] = []
+        self.padroes: list[LinhaPadrao] = []
         self.ocupado = False
         self._tarefas: set[Tarefa] = set()  # guardadas: sem isso o Python as apagaria no meio
         self._vez = 0  # muda a cada trabalho novo ou cancelado: resultado de vez antiga é jogado
@@ -297,6 +302,33 @@ class Janela(QMainWindow):
         grade.setColumnStretch(2, 1)
         lay.addWidget(instrumento)
 
+        # Padrões usados na calibração (etapa 8): em dia no dia da calibração? Vencido deixa o
+        # parecer PENDENTE; validade não lida só avisa.
+        padroes = QGroupBox("Padrões")
+        padroes.setToolTip("Os padrões que o laboratório usou e se estavam dentro da validade "
+                           "no dia da calibração")
+        pdlay = QVBoxLayout(padroes)
+        self.data_calibracao = QLabel("Data da calibração: —")
+        self.data_calibracao.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        pdlay.addWidget(self.data_calibracao)
+        self.tabela_padroes = QTableWidget(0, len(COLUNAS_PADROES))
+        self.tabela_padroes.setHorizontalHeaderLabels(COLUNAS_PADROES)
+        self.tabela_padroes.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tabela_padroes.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.tabela_padroes.verticalHeader().hide()
+        cab_padroes = self.tabela_padroes.horizontalHeader()
+        cab_padroes.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        cab_padroes.setSectionResizeMode(COLUNAS_PADROES.index("Situação"),
+                                         QHeaderView.ResizeMode.Stretch)
+        self.tabela_padroes.setStyleSheet("QTableWidget { font-size: 11pt; } "
+                                          "QHeaderView::section { font-size: 11pt; }")
+        pdlay.addWidget(self.tabela_padroes)
+        self.sem_padroes = QLabel("")  # "nenhum padrão encontrado" (só ocupa lugar com texto)
+        self.sem_padroes.setWordWrap(True)
+        self.sem_padroes.hide()
+        pdlay.addWidget(self.sem_padroes)
+        lay.addWidget(padroes)
+
         pontos = QGroupBox("Pontos conferidos")
         tlay = QVBoxLayout(pontos)
         self.tabela = QTableWidget(0, len(COLUNAS))
@@ -464,8 +496,9 @@ class Janela(QMainWindow):
         self.analise = analise
         self._anterior = None
         self.linhas = descrever_pontos(analise.conferencia, analise)
+        self.padroes = descrever_padroes(analise.conferencia)
         self.folha.parar_brilho()
-        self.folha.mostrar_analise(analise, self.linhas)
+        self.folha.mostrar_analise(analise, self.linhas, self.padroes)
         self.dica_folha.setText(
             f"{analise.caminho.name} — {analise.pagina.origem}, "
             f"{len(analise.pagina.palavras)} palavras.")
@@ -491,6 +524,12 @@ class Janela(QMainWindow):
             marca.setStyleSheet("")
             marca.setToolTip("")
         self.tabela.setRowCount(0)
+        self.data_calibracao.setText("Data da calibração: —")
+        self.data_calibracao.setStyleSheet("")
+        self.tabela_padroes.setRowCount(0)
+        self.tabela_padroes.show()
+        self.sem_padroes.setText("")
+        self.sem_padroes.hide()
 
     def _preencher_painel(self, analise: Analise) -> None:
         conferencia = analise.conferencia
@@ -530,7 +569,63 @@ class Janela(QMainWindow):
             self.campos_cadastro[item.chave].setText(
                 item.cadastro if item.cadastro not in (None, "") else "—")
             self._pintar_marca(item)
+        self._preencher_padroes(analise)
         self._preencher_tabela()
+
+    def _preencher_padroes(self, analise: Analise) -> None:
+        """A caixa "Padrões": a data da calibração e cada padrão com a sua situação."""
+        conferencia = analise.conferencia
+        lidos = conferencia.padroes if conferencia else None
+        digitada = bool(analise.manual.get("data_calibracao"))
+        if lidos is None:
+            texto, entendida = "—", True
+        elif lidos.data_calibracao is not None:
+            texto, entendida = data_br(lidos.data_calibracao), True
+        else:
+            texto = (f"“{lidos.data_calibracao_texto}” (não entendida)"
+                     if lidos.data_calibracao_texto else "não encontrada")
+            entendida = False
+        if digitada:
+            texto += " (digitada)"
+        self.data_calibracao.setText(f"Data da calibração: {texto}")
+        self.data_calibracao.setStyleSheet(
+            "font-weight: bold;" if entendida
+            else f"color: {cor('aviso_texto')}; font-weight: bold;")
+        self.data_calibracao.setToolTip(
+            "" if entendida else "Sem a data da calibração a validade dos padrões não é "
+            "conferida. Dá para digitar a data em Corrigir → Digitar à mão")
+        self.tabela_padroes.setRowCount(len(self.padroes))
+        for r, linha in enumerate(self.padroes):
+            textos = {
+                SituacaoPadrao.EM_DIA: "✓ em dia",
+                SituacaoPadrao.VENCIDO: "VENCIDO (pendente)",
+                SituacaoPadrao.NAO_CONFERIDO: "não conferido",
+            }
+            for c, valor in enumerate((linha.codigo, linha.validade, textos[linha.situacao])):
+                celula = QTableWidgetItem(valor)
+                celula.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                celula.setToolTip(linha.dica)
+                if c == 2:
+                    fonte = QFont(celula.font())
+                    fonte.setBold(True)
+                    celula.setFont(fonte)
+                    if linha.situacao == SituacaoPadrao.EM_DIA:
+                        celula.setForeground(QBrush(QColor(VERDE)))
+                    else:  # vencido e não conferido: aviso amarelo com letra preta
+                        celula.setBackground(QBrush(QColor(AMARELO)))
+                        celula.setForeground(QBrush(QColor("#000000")))
+                self.tabela_padroes.setItem(r, c, celula)
+        # altura certa para as linhas (sem sobrar espaço vazio nem barra de rolagem)
+        self.tabela_padroes.setVisible(bool(self.padroes))
+        if self.padroes:
+            altura = (self.tabela_padroes.horizontalHeader().height() + 4
+                      + sum(self.tabela_padroes.rowHeight(r) for r in range(len(self.padroes))))
+            self.tabela_padroes.setFixedHeight(min(altura, 230))
+        vazio = lidos is not None and not lidos.padroes
+        self.sem_padroes.setText("Nenhum padrão encontrado no certificado: validade dos padrões "
+                                 "não conferida." if vazio else "")
+        self.sem_padroes.setStyleSheet(f"color: {cor('aviso_texto')};")
+        self.sem_padroes.setVisible(vazio)
 
     def _pintar_marca(self, item: ItemComparado) -> None:
         """Check verde quando bate; aviso amarelo quando não bate; nada quando falta um lado."""

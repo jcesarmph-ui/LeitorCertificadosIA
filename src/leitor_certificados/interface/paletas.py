@@ -45,6 +45,7 @@ LEGENDA: list[tuple[str, list[str]]] = [
     ("Temperatura", ["temperatura"]),
     ("Umidade", ["umidade"]),
     ("Nº do certificado", ["numero_certificado"]),
+    ("Padrões (código e validade)", ["padrao.codigo", "padrao.validade"]),
 ]
 REVISAR = "Revisar (certeza baixa)"
 
@@ -65,10 +66,11 @@ PALETAS: dict[str, Paleta] = {
         (186, 104, 200), (77, 182, 172), (30, 136, 229), (92, 107, 192), (126, 87, 194),
         (144, 164, 174), (100, 181, 246), (128, 222, 234), (240, 98, 146), (171, 71, 188),
         (120, 144, 156), (159, 168, 218), (79, 195, 247), (38, 198, 218), (206, 147, 216),
+        (92, 107, 192),
     ]), padrao=(144, 164, 174), preencher=False),
     # B — cinzas, com um único destaque azul para os valores da tabela de pontos
     "B": Paleta("cinza_azul", "Cinzas; só a tabela de pontos em azul", _por_grupo(
-        [(25, 118, 210)] * 7 + [(55, 71, 79)] + [(110, 110, 110)] * 12,
+        [(25, 118, 210)] * 7 + [(55, 71, 79)] + [(110, 110, 110)] * 13,
     ), padrao=(140, 140, 140)),
     # C — cores vivas, mas fora de verde/vermelho/amarelo
     "C": Paleta("vivas", "Vivas: azul, ciano, magenta, roxo, laranja-queimado, marrom",
@@ -77,7 +79,7 @@ PALETAS: dict[str, Paleta] = {
                     (94, 53, 177), (200, 90, 20), (109, 76, 65), (40, 53, 147), (0, 131, 143),
                     (121, 85, 72), (84, 110, 122), (57, 73, 171), (2, 119, 189),
                     (173, 20, 87), (106, 27, 154), (69, 90, 100), (123, 31, 162),
-                    (1, 87, 155), (0, 96, 100), (136, 14, 79),
+                    (1, 87, 155), (0, 96, 100), (136, 14, 79), (69, 39, 160),
                 ]), padrao=(84, 110, 122)),
     # D — acessível para daltônicos (Okabe-Ito sem o verde, o vermelhão e o amarelo)
     "D": Paleta("daltonicos", "Okabe-Ito (acessível a daltônicos), sem verde/vermelho/amarelo",
@@ -86,7 +88,7 @@ PALETAS: dict[str, Paleta] = {
                     (0, 0, 0), (230, 159, 0), (204, 121, 167), (0, 0, 0), (0, 114, 178),
                     (86, 180, 233), (120, 120, 120), (120, 120, 120), (120, 120, 120),
                     (204, 121, 167), (120, 120, 120), (120, 120, 120), (120, 120, 120),
-                    (86, 180, 233), (86, 180, 233), (0, 114, 178),
+                    (86, 180, 233), (86, 180, 233), (0, 114, 178), (204, 121, 167),
                 ]), padrao=(120, 120, 120)),
 }
 

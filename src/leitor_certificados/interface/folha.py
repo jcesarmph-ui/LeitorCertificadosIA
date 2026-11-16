@@ -40,9 +40,10 @@ from PySide6.QtWidgets import (
 )
 
 from ..conferencia.avaliacao import Resultado
+from ..conferencia.padroes import SituacaoPadrao
 from .estilo import AMARELO, VERDE, VERMELHO, cor
 from .paletas import cor_rgb, paleta
-from .servico import ROTULOS, Analise, LinhaPonto
+from .servico import ROTULOS, Analise, LinhaPadrao, LinhaPonto
 
 
 def cor_do_rotulo(rotulo: str) -> QColor:
@@ -139,6 +140,7 @@ class FolhaView(QGraphicsView):
         self._faixas: list[tuple[QGraphicsRectItem, QPen]] = []
         self._destacado: int | None = None
         self._nos_pontos: set[int] = set()  # palavras que estão numa linha conferida
+        self._marcas_padroes: list[QGraphicsItem] = []  # marcas dos checks (pontos e padrões)
         self._destacar = True  # esmaece o que não é ponto conferido
         self._corrigir = False
         self._origem: QPoint | None = None
@@ -176,6 +178,7 @@ class FolhaView(QGraphicsView):
         self._caixas, self._zonas, self._linhas = [], [], []
         self._faixas, self._destacado = [], None
         self._nos_pontos = set()
+        self._marcas_padroes = []
         self._analise = None
 
     def mostrar_mensagem(self, texto: str) -> None:
@@ -199,8 +202,10 @@ class FolhaView(QGraphicsView):
         self._cena.addPixmap(pixmap).setZValue(0)
         self._cena.setSceneRect(QRectF(pixmap.rect()))
 
-    def mostrar_analise(self, analise: Analise, linhas: list[LinhaPonto]) -> None:
-        """A folha com as caixas coloridas e, se houve conferência, os checks."""
+    def mostrar_analise(self, analise: Analise, linhas: list[LinhaPonto],
+                        padroes: list[LinhaPadrao] | None = None) -> None:
+        """A folha com as caixas coloridas e, se houve conferência, os checks (dos pontos e dos
+        padrões)."""
         primeira = self._analise is None or self._analise.caminho != analise.caminho
         self._limpar()
         self._analise = analise
@@ -214,12 +219,14 @@ class FolhaView(QGraphicsView):
             self._cena.addItem(item)
             self._caixas.append(item)
         self._linhas = list(linhas)
+        # as linhas conferidas (pontos e padrões) não esmaecem
+        caixas = [ln.caixa for ln in linhas] + [ln.caixa for ln in padroes or [] if ln.caixa]
         for i, palavra in enumerate(analise.pagina.palavras):
             cx, cy = palavra.centro
-            if any(ln.caixa[0] - 0.005 <= cx <= ln.caixa[2] + 0.005
-                   and ln.caixa[1] <= cy <= ln.caixa[3] for ln in linhas):
+            if any(c[0] - 0.005 <= cx <= c[2] + 0.005 and c[1] <= cy <= c[3] for c in caixas):
                 self._nos_pontos.add(i)
         self._desenhar_checks(linhas, largura, altura)
+        self._desenhar_padroes(padroes or [], largura, altura)
         if primeira:
             self.ajustar()
         self.set_modo_corrigir(self._corrigir)
@@ -337,30 +344,57 @@ class FolhaView(QGraphicsView):
             zona.setZValue(2)
             self._cena.addItem(zona)
             self._zonas.append(zona)
-            centro_y = area.center().y()
-            anel = QGraphicsEllipseItem(QRectF(x - 2, centro_y - lado / 2 - 2, lado + 4, lado + 4))
-            anel.setBrush(QBrush(QColor("#000000")))  # anel preto: aparece no papel branco
-            anel.setPen(QPen(Qt.PenStyle.NoPen))
-            anel.setZValue(3)
-            sombra = QGraphicsDropShadowEffect()
-            sombra.setBlurRadius(10)
-            sombra.setOffset(2, 2)
-            sombra.setColor(QColor(0, 0, 0, 170))
-            anel.setGraphicsEffect(sombra)
-            marca = QGraphicsEllipseItem(QRectF(x, centro_y - lado / 2, lado, lado), anel)
             simbolo, letra = {Resultado.APROVADO: ("✓", "#ffffff"),
                               Resultado.REPROVADO: ("✗", "#ffffff")}.get(
                 linha.resultado, ("!", "#000000"))
-            marca.setBrush(QBrush(cor))
-            marca.setPen(QPen(QColor("#ffffff"), 2.5))  # contorno branco por dentro do preto
-            anel.setToolTip(linha.dica())
-            texto = QGraphicsSimpleTextItem(simbolo, marca)
-            texto.setFont(QFont("Segoe UI", max(int(lado * 0.5), 9), QFont.Weight.Bold))
-            texto.setBrush(QBrush(QColor(letra)))
-            caixa_texto = texto.boundingRect()
-            texto.setPos(x + (lado - caixa_texto.width()) / 2,
-                         centro_y - caixa_texto.height() / 2)
-            self._cena.addItem(anel)
+            self._marca(x, area.center().y(), lado, cor, simbolo, letra, linha.dica())
+
+    def _marca(self, x: float, centro_y: float, lado: float, cor: QColor, simbolo: str,
+               letra: str, dica: str) -> None:
+        """O check redondo: anel preto (aparece no papel branco), círculo da cor do resultado
+        com contorno branco, símbolo no meio e sombra."""
+        anel = QGraphicsEllipseItem(QRectF(x - 2, centro_y - lado / 2 - 2, lado + 4, lado + 4))
+        anel.setBrush(QBrush(QColor("#000000")))
+        anel.setPen(QPen(Qt.PenStyle.NoPen))
+        anel.setZValue(3)
+        sombra = QGraphicsDropShadowEffect()
+        sombra.setBlurRadius(10)
+        sombra.setOffset(2, 2)
+        sombra.setColor(QColor(0, 0, 0, 170))
+        anel.setGraphicsEffect(sombra)
+        marca = QGraphicsEllipseItem(QRectF(x, centro_y - lado / 2, lado, lado), anel)
+        marca.setBrush(QBrush(cor))
+        marca.setPen(QPen(QColor("#ffffff"), 2.5))  # contorno branco por dentro do preto
+        anel.setToolTip(dica)
+        texto = QGraphicsSimpleTextItem(simbolo, marca)
+        texto.setFont(QFont("Segoe UI", max(int(lado * 0.5), 9), QFont.Weight.Bold))
+        texto.setBrush(QBrush(QColor(letra)))
+        caixa_texto = texto.boundingRect()
+        texto.setPos(x + (lado - caixa_texto.width()) / 2, centro_y - caixa_texto.height() / 2)
+        self._cena.addItem(anel)
+        self._marcas_padroes.append(anel)
+
+    def _desenhar_padroes(self, padroes: list[LinhaPadrao], largura: int, altura: int) -> None:
+        """Uma marca à direita de cada linha da tabela de padrões: ✓ verde = em dia; "!" amarelo
+        = vencido (parecer pendente) ou não conferido. Contorno fino em volta da linha."""
+        for linha in padroes:
+            if linha.caixa is None:
+                continue
+            e, t, d, b = linha.caixa
+            area = QRectF(e * largura, t * altura, (d - e) * largura, (b - t) * altura)
+            em_dia = linha.situacao == SituacaoPadrao.EM_DIA
+            cor = QColor(VERDE if em_dia else AMARELO)
+            contorno = QGraphicsRectItem(area.adjusted(-4, -2, 4, 2))
+            contorno.setPen(QPen(cor, 2.5))
+            contorno.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+            contorno.setZValue(0.5)
+            contorno.setToolTip(linha.dica)
+            self._cena.addItem(contorno)
+            self._marcas_padroes.append(contorno)
+            lado = max(area.height() * 1.3, 18.0)
+            x = min(area.right() + 10, largura - lado - 4)
+            self._marca(x, area.center().y(), lado, cor, "✓" if em_dia else "!",
+                        "#ffffff" if em_dia else "#000000", linha.dica)
 
     # ------------------------------------------------------------------ animação "analisando"
     def iniciar_brilho(self) -> None:
