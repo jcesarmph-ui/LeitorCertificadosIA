@@ -509,7 +509,8 @@ def descrever_padroes(conferencia: Conferencia | None) -> list[LinhaPadrao]:
             dica = f"Em dia: vale até {data_br(p.validade.ate)}; calibração em {data_br(data_cal)}"
         elif p.situacao == SituacaoPadrao.VENCIDO:
             dica = (f"Vencido: valia até {data_br(p.validade.ate)} e a calibração foi em "
-                    f"{data_br(data_cal)}. O parecer fica PENDENTE")
+                    f"{data_br(data_cal)}. Se os pontos passam, o parecer fica PENDENTE; se "
+                    "reprovam, continua REPROVADO")
         else:
             dica = f"Não conferido: {p.motivo} (só avisa: o parecer não muda)"
         linhas.append(LinhaPadrao(p.codigo or "sem código", validade, p.situacao,

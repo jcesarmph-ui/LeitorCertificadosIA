@@ -26,22 +26,26 @@ Nos certificados reais apareceram três jeitos de escrever a tabela e duas armad
   se cada padrão estava vencido.
 - **Regra** (`conferencia/padroes.py`, decisões do usuário):
   - validade "07/2026" vale **o mês inteiro** (até 31/07/2026);
-  - padrão **vencido** no dia da calibração → parecer **PENDENTE**, com aviso dizendo qual padrão
-    e as duas datas (alguém precisa olhar antes de aceitar o certificado);
+  - padrão **vencido** no dia da calibração → se os pontos passam, parecer **PENDENTE** (alguém
+    precisa olhar antes de aceitar o certificado); se os pontos reprovam, continua
+    **REPROVADO**. Em todos os casos o **motivo** aparece em vermelho no parecer (qual padrão, a
+    validade e a data da calibração; e quais pontos ficaram fora da tolerância);
   - validade não lida, data da calibração não lida ou tabela não encontrada → **só aviso
     amarelo**; o parecer não muda.
 - A data da calibração pode ser **digitada à mão** (Corrigir → Digitar à mão), como o código e a
   faixa.
-- **Tela**: caixa "Padrões" (data da calibração + cada padrão com "✓ em dia" em verde ou
-  "VENCIDO (pendente)" / "não conferido" em amarelo) e, na folha, uma marca redonda ao lado de
-  cada linha de padrão, igual aos checks dos pontos.
+- **Tela**: caixa "Padrões" ao lado de "Instrumento" (data da calibração + cada padrão com
+  "✓ em dia" em verde, "✗ VENCIDO" em vermelho ou "não conferido" em amarelo) e, na folha, uma
+  marca redonda ao lado de cada linha de padrão, nas mesmas cores, igual aos checks dos pontos.
+  No parecer, os motivos de problema ficam em vermelho e os avisos em amarelo.
 - **Reais**: as correções já gravadas marcavam essas palavras como "outro" e pesam 5 vezes no
   treino; sem acertá-las, o modelo desaprenderia os padrões. Um script fora do Git só
   **acrescenta** as marcações de padrão (nada mais muda), com cópia de antes e foto de revisão.
 
 ## Consequências
 - Os certificados fictícios mudam (gerador versão 3): o lote é refeito sozinho na próxima vez.
-- Um certificado com padrão vencido nunca sai "APROVADO" sem alguém olhar.
+- Um certificado com padrão vencido nunca sai "APROVADO" sem alguém olhar, e o reprovado
+  continua reprovado, com os dois motivos à vista.
 - Certificado sem tabela de padrões (ex.: o do durômetro real) recebe o aviso amarelo "padrões
   não encontrados". Tabela numa segunda página ainda não é lida: nesta versão o leitor só olha
   a primeira página.

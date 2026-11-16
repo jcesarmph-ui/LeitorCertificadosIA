@@ -1,7 +1,8 @@
 """Testes da etapa 8: validade dos padrões no dia da calibração (ADR 0010).
 
-Regras do usuário: validade "07/2026" vale o mês inteiro; padrão vencido → parecer PENDENTE;
-validade não lida → só aviso amarelo. Só dados fictícios.
+Regras do usuário: validade "07/2026" vale o mês inteiro; padrão vencido → parecer PENDENTE
+se os pontos passam, REPROVADO continua REPROVADO (sempre com o motivo, em vermelho); validade
+não lida → só aviso amarelo. Só dados fictícios.
 """
 
 import json
@@ -66,14 +67,13 @@ def test_validade_so_com_mes_vale_o_mes_inteiro():
 def test_padrao_do_proprio_mes_esta_em_dia_e_do_mes_anterior_vencido():
     r = conferir_padroes([("P-1", "07/2026", None), ("P-2", "06/2026", None)], "20/07/2026")
     assert [p.situacao for p in r.padroes] == [SituacaoPadrao.EM_DIA, SituacaoPadrao.VENCIDO]
-    assert r.algum_vencido
-    assert r.avisos == ["padrão P-2 vencido: validade até 30/06/2026, calibração em "
-                        "20/07/2026 — parecer pendente"]
+    assert r.algum_vencido and not r.avisos
+    assert r.erros == ["padrão P-2 vencido: validade até 30/06/2026, calibração em 20/07/2026"]
 
 
 def test_validade_no_proprio_dia_ainda_vale():
     r = conferir_padroes([("P-1", "20/07/2026", None)], "20/07/2026")
-    assert r.padroes[0].situacao == SituacaoPadrao.EM_DIA and not r.avisos
+    assert r.padroes[0].situacao == SituacaoPadrao.EM_DIA and not r.avisos and not r.erros
 
 
 def test_validade_ou_data_nao_lida_so_avisa():
@@ -90,7 +90,7 @@ def test_validade_ou_data_nao_lida_so_avisa():
     assert not (sem_validade.algum_vencido or sem_data.algum_vencido or nenhum.algum_vencido)
 
 
-def test_padrao_vencido_deixa_o_parecer_pendente_e_nao_lido_nao_muda(tmp_path):
+def test_padrao_vencido_deixa_pendente_o_aprovado_e_reprovado_continua(tmp_path):
     banco = tmp_path / "planos.db"
     pontos = [{"nominal": v, "erro": 0.0, "incerteza": 0.01} for v in (0.0, 50.0)]
     criar_banco_de_planos(banco, [{"id": "c1", "tipo": "Paquímetro", "codigo": "PQ-0001",
@@ -100,9 +100,11 @@ def test_padrao_vencido_deixa_o_parecer_pendente_e_nao_lido_nao_muda(tmp_path):
     con.commit()
     con.close()
     lidos = [PontoLido(v, v, 0.0, 0.01, (0, 0, 1, 1)) for v in (0.0, 50.0)]
+    fora = [PontoLido(0.0, 0.0, 0.0, 0.01, (0, 0, 1, 1)),
+            PontoLido(50.0, 50.1, 0.1, 0.01, (0, 0, 1, 1))]  # 0,1 + 0,01 passa de 0,05
 
-    def com(padroes, data="20/07/2026"):
-        return CertificadoLido("PQ-0001", lidos, data_calibracao=data, padroes=tuple(
+    def com(padroes, data="20/07/2026", pontos=lidos):
+        return CertificadoLido("PQ-0001", pontos, data_calibracao=data, padroes=tuple(
             PadraoLido(c, v, (0, 0, 1, 1)) for c, v in padroes))
 
     planos = PlanosDQ05(banco)
@@ -111,14 +113,24 @@ def test_padrao_vencido_deixa_o_parecer_pendente_e_nao_lido_nao_muda(tmp_path):
         vencido = conferir(com([("P-1", "07/2026"), ("P-2", "06/2026")]), planos)
         sem_tabela = conferir(com([]), planos)
         sem_data = conferir(com([("P-1", "06/2026")], data=None), planos)
+        reprovado = conferir(com([("P-2", "06/2026")], pontos=fora), planos)
     finally:
         planos.fechar()
-    assert em_dia.resultado == Resultado.APROVADO and not em_dia.avisos
+    assert em_dia.resultado == Resultado.APROVADO and not em_dia.avisos and not em_dia.erros
     assert vencido.resultado == Resultado.PENDENTE
-    assert any("P-2 vencido" in a for a in vencido.avisos)
+    assert vencido.erros == ["padrão P-2 vencido: validade até 30/06/2026, calibração em "
+                             "20/07/2026 — parecer pendente (os pontos passam, mas o padrão "
+                             "estava vencido)"]
+    # pontos fora + padrão vencido: continua REPROVADO, com os dois motivos em vermelho
+    assert reprovado.resultado == Resultado.REPROVADO
+    assert reprovado.erros == [
+        "1 ponto(s) fora da tolerância: 50",
+        "padrão P-2 vencido: validade até 30/06/2026, calibração em 20/07/2026 — o parecer "
+        "continua reprovado pelos pontos"]
     # não lido: aviso amarelo, parecer continua APROVADO
     assert sem_tabela.resultado == sem_data.resultado == Resultado.APROVADO
     assert sem_tabela.avisos and sem_data.avisos
+    assert not (sem_tabela.erros or sem_data.erros)
 
 
 # --- montar os padrões a partir das palavras marcadas ------------------------------------------

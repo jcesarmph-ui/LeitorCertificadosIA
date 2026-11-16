@@ -43,7 +43,9 @@ def medir(titulo, modelo, itens, planos, certo):
         cert = gab["certificado"]
         conf = conferir(montar_certificado(modelo, pagina), planos)
         pareceres += conf.resultado == certo[cert["id"]]
-        sem_decisao += conf.resultado == Resultado.PENDENTE
+        # "sem decisão" = deu pendente quando a resposta certa era aprovado ou reprovado
+        sem_decisao += (conf.resultado == Resultado.PENDENTE
+                        and certo[cert["id"]] != Resultado.PENDENTE)
         if conf.resultado != certo[cert["id"]] and conf.resultado != Resultado.PENDENTE:
             erros.append(f"{cert['id']} ({cert['laboratorio']}): certo {certo[cert['id']].value}, "
                          f"deu {conf.resultado.value}; avisos: {conf.avisos[:2]}")

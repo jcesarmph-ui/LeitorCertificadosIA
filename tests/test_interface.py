@@ -586,9 +586,10 @@ def test_shift_ctrl_roda_rola_a_folha_para_os_lados(app, mundo):
 
 
 def test_caixa_padroes_mostra_cada_padrao_e_o_vencido_fica_amarelo(app, mundo):
-    """Etapa 8: a caixa "Padrões" lista os padrões lidos; vencido = amarelo e parecer PENDENTE."""
+    """Etapa 8: a caixa "Padrões" lista os padrões lidos; em dia = verde, vencido = vermelho,
+    não conferido = amarelo."""
     from leitor_certificados.conferencia.padroes import SituacaoPadrao
-    from leitor_certificados.interface.estilo import AMARELO, VERDE
+    from leitor_certificados.interface.estilo import AMARELO, FAIXA_FORA, VERDE
     from leitor_certificados.interface.servico import LinhaPadrao
 
     servico, _, certificado = mundo
@@ -601,10 +602,12 @@ def test_caixa_padroes_mostra_cada_padrao_e_o_vencido_fica_amarelo(app, mundo):
     janela.padroes = [
         LinhaPadrao("P-1", "07/2026 (até 31/07/2026)", SituacaoPadrao.EM_DIA, "dica", None),
         LinhaPadrao("P-2", "06/2026 (até 30/06/2026)", SituacaoPadrao.VENCIDO, "dica", None),
+        LinhaPadrao("P-3", "não lida", SituacaoPadrao.NAO_CONFERIDO, "dica", None),
     ]
     janela._preencher_padroes(analise)
     assert janela.tabela_padroes.item(0, 2).text() == "✓ em dia"
     assert janela.tabela_padroes.item(0, 2).foreground().color().name() == VERDE.lower()
-    assert janela.tabela_padroes.item(1, 2).text() == "VENCIDO (pendente)"
-    assert janela.tabela_padroes.item(1, 2).background().color().name() == AMARELO.lower()
+    assert janela.tabela_padroes.item(1, 2).text() == "✗ VENCIDO"
+    assert janela.tabela_padroes.item(1, 2).background().color().name() == FAIXA_FORA.lower()
+    assert janela.tabela_padroes.item(2, 2).background().color().name() == AMARELO.lower()
     janela.close()

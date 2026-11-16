@@ -39,7 +39,9 @@ class Conferencia:
     plano_nome: str | None
     resultado: Resultado
     pontos: list[PontoConferido] = field(default_factory=list)
-    avisos: list[str] = field(default_factory=list)
+    avisos: list[str] = field(default_factory=list)  # amarelo: olhar, mas não é problema
+    # vermelho: o motivo do problema (pontos fora da tolerância, padrão vencido)
+    erros: list[str] = field(default_factory=list)
     faixa_certificado: str | None = None  # só mostrada/avisada: não muda o parecer
     faixa_plano: str | None = None
     cadastro: dict[str, str | None] = field(default_factory=dict)  # do instrumento (comparador)
@@ -117,17 +119,30 @@ def _ponto_do_plano(plano: Plano, nominal: float, usados: set[int]) -> int | Non
 
 
 def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
-    """Confere os pontos com o plano e a validade dos padrões. Padrão vencido no dia da
-    calibração deixa o parecer PENDENTE (decisão do usuário, 2026-11-16); validade não lida só
-    avisa."""
+    """Confere os pontos com o plano e a validade dos padrões (decisões do usuário, 2026-11-16):
+    padrão vencido no dia da calibração deixa PENDENTE um parecer que seria APROVADO; se os
+    pontos reprovam, continua REPROVADO. Sempre dizendo o motivo (em `erros`). Validade não lida
+    só avisa."""
     conferencia = _conferir_pontos(certificado, planos)
+    fora = [p.lido.nominal for p in conferencia.pontos
+            if p.avaliacao.resultado == Resultado.REPROVADO]
+    if fora:
+        conferencia.erros.append(
+            f"{len(fora)} ponto(s) fora da tolerância: " + "; ".join(f"{n:g}" for n in fora))
     padroes = conferir_padroes(
         [(p.codigo, p.validade, p.caixa) for p in certificado.padroes],
         certificado.data_calibracao)
     conferencia.padroes = padroes
     conferencia.avisos += padroes.avisos
     if padroes.algum_vencido:
-        conferencia.resultado = Resultado.PENDENTE
+        if conferencia.resultado == Resultado.APROVADO:
+            conferencia.resultado = Resultado.PENDENTE
+            sufixo = " — parecer pendente (os pontos passam, mas o padrão estava vencido)"
+        elif conferencia.resultado == Resultado.REPROVADO:
+            sufixo = " — o parecer continua reprovado pelos pontos"
+        else:
+            sufixo = ""
+        conferencia.erros += [e + sufixo for e in padroes.erros]
     return conferencia
 
 

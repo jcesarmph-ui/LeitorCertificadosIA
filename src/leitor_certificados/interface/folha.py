@@ -375,15 +375,18 @@ class FolhaView(QGraphicsView):
         self._marcas_padroes.append(anel)
 
     def _desenhar_padroes(self, padroes: list[LinhaPadrao], largura: int, altura: int) -> None:
-        """Uma marca à direita de cada linha da tabela de padrões: ✓ verde = em dia; "!" amarelo
-        = vencido (parecer pendente) ou não conferido. Contorno fino em volta da linha."""
+        """Uma marca à direita de cada linha da tabela de padrões: ✓ verde = em dia; ✗ vermelho =
+        vencido no dia da calibração; "!" amarelo = não conferido. Contorno em volta da linha."""
         for linha in padroes:
             if linha.caixa is None:
                 continue
             e, t, d, b = linha.caixa
             area = QRectF(e * largura, t * altura, (d - e) * largura, (b - t) * altura)
-            em_dia = linha.situacao == SituacaoPadrao.EM_DIA
-            cor = QColor(VERDE if em_dia else AMARELO)
+            simbolo, cor_marca, letra = {
+                SituacaoPadrao.EM_DIA: ("✓", VERDE, "#ffffff"),
+                SituacaoPadrao.VENCIDO: ("✗", VERMELHO, "#ffffff"),
+            }.get(linha.situacao, ("!", AMARELO, "#000000"))
+            cor = QColor(cor_marca)
             contorno = QGraphicsRectItem(area.adjusted(-4, -2, 4, 2))
             contorno.setPen(QPen(cor, 2.5))
             contorno.setBrush(QBrush(Qt.BrushStyle.NoBrush))
@@ -393,8 +396,7 @@ class FolhaView(QGraphicsView):
             self._marcas_padroes.append(contorno)
             lado = max(area.height() * 1.3, 18.0)
             x = min(area.right() + 10, largura - lado - 4)
-            self._marca(x, area.center().y(), lado, cor, "✓" if em_dia else "!",
-                        "#ffffff" if em_dia else "#000000", linha.dica)
+            self._marca(x, area.center().y(), lado, cor, simbolo, letra, linha.dica)
 
     # ------------------------------------------------------------------ animação "analisando"
     def iniciar_brilho(self) -> None:

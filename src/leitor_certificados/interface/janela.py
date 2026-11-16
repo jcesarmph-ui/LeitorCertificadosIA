@@ -7,6 +7,7 @@ Tudo o que demora roda numa `Tarefa` (thread), para a tela nunca travar.
 
 from __future__ import annotations
 
+import html
 from pathlib import Path
 
 from PySide6.QtCore import QPoint, Qt, QTimer
@@ -259,7 +260,7 @@ class Janela(QMainWindow):
         play.addWidget(self.parecer)
         self.motivo = QLabel("")
         self.motivo.setWordWrap(True)
-        self.motivo.setTextFormat(Qt.TextFormat.PlainText)
+        self.motivo.setTextFormat(Qt.TextFormat.RichText)  # problema vermelho, aviso amarelo
         self.motivo.hide()
         play.addWidget(self.motivo)
         lay.addWidget(parecer)
@@ -552,9 +553,16 @@ class Janela(QMainWindow):
         for p in (conferencia.pontos if conferencia else []):
             motivos += [f"ponto {p.lido.nominal:g}: {a}" for a in p.avisos]
         # avisos sempre aparecem (ex.: faixa diferente do plano avisa mesmo com "Aprovado")
-        self.motivo.setText("\n".join(f"• {m}" for m in motivos))
-        self.motivo.setStyleSheet(f"color: {cor('aviso_texto')};")
-        self.motivo.setVisible(bool(self.motivo.text()))  # sem texto, não ocupa lugar
+        # o motivo do problema (pontos fora, padrão vencido) em vermelho e primeiro; o resto é
+        # aviso (amarelo). Sempre aparecem, mesmo com "Aprovado"
+        erros = list(conferencia.erros) if conferencia else []
+        linhas = ([(m, cor("erro_texto"), "bold") for m in erros]
+                  + [(m, cor("aviso_texto"), "normal") for m in motivos])
+        self.motivo.setText("<br>".join(
+            f'<span style="color: {tinta}; font-weight: {peso};">• {html.escape(m)}</span>'
+            for m, tinta, peso in linhas))
+        self.motivo.setStyleSheet("")
+        self.motivo.setVisible(bool(linhas))  # sem texto, não ocupa lugar
         self.campos["plano"].setText(
             (conferencia.plano_nome if conferencia and conferencia.plano_nome else None)
             or "sem plano no cadastro")
@@ -605,7 +613,7 @@ class Janela(QMainWindow):
         for r, linha in enumerate(self.padroes):
             textos = {
                 SituacaoPadrao.EM_DIA: "✓ em dia",
-                SituacaoPadrao.VENCIDO: "VENCIDO (pendente)",
+                SituacaoPadrao.VENCIDO: "✗ VENCIDO",
                 SituacaoPadrao.NAO_CONFERIDO: "não conferido",
             }
             for c, valor in enumerate((linha.codigo, linha.validade, textos[linha.situacao])):
@@ -618,7 +626,10 @@ class Janela(QMainWindow):
                     celula.setFont(fonte)
                     if linha.situacao == SituacaoPadrao.EM_DIA:
                         celula.setForeground(QBrush(QColor(VERDE)))
-                    else:  # vencido e não conferido: aviso amarelo com letra preta
+                    elif linha.situacao == SituacaoPadrao.VENCIDO:  # problema: vermelho
+                        celula.setBackground(QBrush(QColor(FAIXA_FORA)))
+                        celula.setForeground(QBrush(QColor("#ffffff")))
+                    else:  # não conferido: aviso amarelo com letra preta
                         celula.setBackground(QBrush(QColor(AMARELO)))
                         celula.setForeground(QBrush(QColor("#000000")))
                 self.tabela_padroes.setItem(r, c, celula)

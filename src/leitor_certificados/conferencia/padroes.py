@@ -3,8 +3,10 @@ ADR 0010).
 
 Regras (decisões do usuário, 2026-11-13 e 2026-11-16):
 - validade só com mês e ano ("07/2026") vale **o mês inteiro** (até 31/07/2026);
-- padrão **vencido** no dia da calibração → o parecer vira **PENDENTE** (alguém precisa olhar
-  antes de aceitar o certificado), com um aviso dizendo qual padrão venceu;
+- padrão **vencido** no dia da calibração → é um **problema** (vermelho), dizendo qual padrão
+  venceu. Se os pontos passam, o parecer vira **PENDENTE** (alguém precisa olhar antes de
+  aceitar o certificado); se os pontos reprovam, continua **REPROVADO** (2026-11-16) — quem
+  decide isso é o `conferir`;
 - validade **não lida** (ou data da calibração não lida, ou nenhum padrão achado) → só **aviso
   amarelo**: o parecer não muda.
 
@@ -109,7 +111,8 @@ class ConferenciaPadroes:
     data_calibracao_texto: str | None
     data_calibracao: date | None
     padroes: list[PadraoConferido] = field(default_factory=list)
-    avisos: list[str] = field(default_factory=list)
+    avisos: list[str] = field(default_factory=list)  # amarelo: não conferido
+    erros: list[str] = field(default_factory=list)  # vermelho: padrão vencido
 
     @property
     def algum_vencido(self) -> bool:
@@ -150,9 +153,9 @@ def conferir_padroes(padroes: list[tuple[str | None, str | None, tuple | None]],
         elif validade.ate < data_cal:
             resultado.padroes.append(PadraoConferido(
                 codigo, validade_texto, validade, SituacaoPadrao.VENCIDO, "", caixa))
-            resultado.avisos.append(
+            resultado.erros.append(
                 f"padrão {nome} vencido: validade até {data_br(validade.ate)}, calibração em "
-                f"{data_br(data_cal)} — parecer pendente")
+                f"{data_br(data_cal)}")
         else:
             resultado.padroes.append(PadraoConferido(
                 codigo, validade_texto, validade, SituacaoPadrao.EM_DIA, "", caixa))
