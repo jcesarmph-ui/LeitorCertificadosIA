@@ -338,3 +338,14 @@ def test_numeros_que_nao_fecham_a_conta_nao_sao_avaliados(tmp_path):
     assert resultado.resultado == Resultado.PENDENTE
     assert resultado.pontos[0].avaliacao.resultado == Resultado.NAO_AVALIADO
     assert any("não fecham a conta" in a for a in resultado.avisos)
+
+
+def test_angulo_em_graus_e_minutos_vira_graus_decimais():
+    """Goniômetro: "14°59'" é 14 graus e 59 minutos (decisão do usuário, 2026-11-16)."""
+    from leitor_certificados.conferencia.extracao import para_numero
+
+    assert para_numero("90°00'") == 90.0
+    assert abs(para_numero("14°59'") - (14 + 59 / 60)) < 1e-8
+    assert abs(para_numero("-0°01'") + 1 / 60) < 1e-8
+    assert abs(para_numero("0°04'") - 4 / 60) < 1e-8
+    assert para_numero("90°") is None  # sem os minutos não é o formato do goniômetro

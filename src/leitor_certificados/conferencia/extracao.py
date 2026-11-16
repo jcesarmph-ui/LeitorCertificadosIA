@@ -19,9 +19,18 @@ from ..leitura import Pagina, Palavra
 _NUMERO = re.compile(r"^[+\-−]?\d+(?:[.,]\d+)?$")
 
 
+# Ângulo em graus e minutos (goniômetro): "14°59'", "-0°01'", "90°00'" (decisão do usuário,
+# 2026-11-16: no goniômetro é sempre graus°minutos'). Vira graus decimais: 14°59' = 14,9833°.
+_GRAUS_MINUTOS = re.compile(r"^([+\-]?)(\d+)°(\d{1,2})['’′]?$")
+
+
 def para_numero(texto: str) -> float | None:
-    """"-0,001" → -0.001; "+1.350,00" → 1350.0; "abc" → None. Um só separador é decimal."""
+    """"-0,001" → -0.001; "+1.350,00" → 1350.0; "14°59'" → 14.9833; "abc" → None.
+    Um só separador é decimal."""
     t = "".join(texto.split()).replace("−", "-").replace("±", "")
+    if m := _GRAUS_MINUTOS.match(t):
+        graus = int(m[2]) + int(m[3]) / 60
+        return round(-graus if m[1] == "-" else graus, 9)
     if "," in t and "." in t:  # o último separador é o decimal; o outro é de milhar
         decimal = "," if t.rfind(",") > t.rfind(".") else "."
         t = t.replace("." if decimal == "," else ",", "").replace(decimal, ".")
