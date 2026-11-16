@@ -4,6 +4,12 @@ Para cada ponto do certificado: acha o ponto do plano com o mesmo valor nominal,
 avalia `erro ± U` contra a tolerância do plano (a U que vale é a do **certificado**).
 Avisos (nunca silenciosos): instrumento sem plano, ponto do plano que não está no certificado,
 ponto do certificado que não está no plano, erro que não bate com "encontrado − nominal".
+
+**Conferência de conta** (decisão do usuário, 2026-11-16): o erro pode vir escrito como
+"encontrado − nominal" ou "nominal − encontrado" (a Laftec, no goniômetro, escreve
+"Instrumento − Padrão"); quando o certificado traz "Erro Máximo", |erro| + U tem de dar esse
+valor. Se os números da linha não fecham a conta nem trocando as colunas, o ponto fica **não
+avaliado** (aviso amarelo, parecer PENDENTE): nunca aprova nem reprova com número que não fecha.
 """
 
 from __future__ import annotations
@@ -58,17 +64,39 @@ def _casas(x: float) -> int:
     return len(texto.split(".")[1]) if "." in texto else 0
 
 
+def _bate(a: float, b: float, *referencias: float) -> bool:
+    """a ≈ b, com folga de 1,5 na última casa decimal dos números envolvidos."""
+    folga = 1.5 * 10 ** -max(_casas(x) for x in (a, b, *referencias))
+    return abs(a - b) <= folga
+
+
+def _erro_bate(nominal: float, encontrado: float, erro: float) -> bool:
+    """O erro fecha a conta com encontrado − nominal, em qualquer um dos dois sinais."""
+    diferenca = encontrado - nominal
+    return (_bate(diferenca, erro, nominal, encontrado)
+            or _bate(-diferenca, erro, nominal, encontrado))
+
+
+def _erro_maximo_bate(lido: PontoLido, erro: float | None) -> bool:
+    """Sem coluna "Erro Máximo" não há o que conferir; com ela, |erro| + U = Erro Máximo."""
+    if lido.erro_maximo is None:
+        return True
+    if erro is None or lido.incerteza is None:
+        return False
+    return _bate(abs(erro) + lido.incerteza, lido.erro_maximo, erro, lido.incerteza)
+
+
 def _erro_do_ponto(lido: PontoLido) -> tuple[float | None, list[str]]:
     """O erro que o laboratório informou (ou encontrado − nominal, se não informou)."""
     avisos: list[str] = []
     calculado = None if lido.encontrado is None else lido.encontrado - lido.nominal
-    if lido.erro is not None:
-        if calculado is not None:
-            folga = 1.5 * 10 ** -max(_casas(lido.encontrado), _casas(lido.nominal))
-            if abs(calculado - lido.erro) > folga:
-                avisos.append("o erro do certificado não bate com encontrado − nominal")
-        return lido.erro, avisos
-    return calculado, avisos
+    erro = lido.erro if lido.erro is not None else calculado
+    if lido.erro is not None and calculado is not None and not _erro_bate(
+            lido.nominal, lido.encontrado, lido.erro):
+        avisos.append("o erro do certificado não bate com encontrado − nominal")
+    if not _erro_maximo_bate(lido, erro):
+        avisos.append("|erro| + U não dá o Erro Máximo do certificado")
+    return erro, avisos
 
 
 def achar_codigo(certificado: CertificadoLido, planos: PlanosDQ05) -> str | None:
@@ -97,14 +125,15 @@ def reatribuir(lido: PontoLido, plano: Plano) -> PontoLido | None:
             continue
         resto = [(j, x) for j, x in enumerate(lido.numeros) if j != i]
         for (ja, e), (jb, r) in ((a, b) for a in resto for b in resto if a[0] != b[0]):
-            folga = 1.6 * 10 ** -max(_casas(e), _casas(candidato), _casas(r))
-            if abs((e - candidato) - r) > folga:
+            if not _erro_bate(candidato, e, r):
                 continue
             sobra = [x for j, x in resto if j not in (ja, jb)]
             u = lido.incerteza if lido.incerteza in sobra else min(
                 (x for x in sobra if x > 0), default=None)
-            achadas.append(PontoLido(candidato, e, r, u, lido.caixa, lido.numeros,
-                                     lido.erro_maximo, lido.criterio))
+            novo = PontoLido(candidato, e, r, u, lido.caixa, lido.numeros,
+                             lido.erro_maximo, lido.criterio)
+            if _erro_maximo_bate(novo, r):  # com "Erro Máximo", a conta tem de fechar
+                achadas.append(novo)
     unicas = {(a.nominal, a.encontrado, a.erro) for a in achadas}
     return achadas[0] if len(unicas) == 1 else None
 
@@ -183,6 +212,18 @@ def _conferir_pontos(certificado: CertificadoLido, planos: PlanosDQ05) -> Confer
                 ponto_plano = _ponto_do_plano(plano, lido.nominal, achados)
                 erro, avisos = _erro_do_ponto(lido)
                 avisos = [*avisos, "colunas reatribuídas com ajuda do plano"]
+        if avisos and ponto_plano is not None:
+            # os números não fecham a conta nem trocando as colunas: não avalia com eles
+            conferencia.pontos.append(PontoConferido(
+                lido, plano.pontos[ponto_plano], erro,
+                Avaliacao(Resultado.NAO_AVALIADO, "os números da linha não fecham a conta"),
+                avisos))
+            achados.add(ponto_plano)
+            resultados.append(Resultado.NAO_AVALIADO)
+            conferencia.avisos.append(
+                f"ponto {lido.nominal:g}: os números não fecham a conta ({avisos[0]}) — "
+                "confira no certificado")
+            continue
         if ponto_plano is None:
             conferencia.pontos.append(PontoConferido(
                 lido, None, erro, Avaliacao(Resultado.NAO_AVALIADO, "ponto fora do plano"),

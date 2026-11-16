@@ -294,3 +294,47 @@ def test_plano_traz_o_cadastro_do_instrumento(mundo):
     assert plano.cadastro["tipo"] == cert["tipo"]
     assert plano.cadastro["fabricante"] == cert["fabricante"]
     assert plano.cadastro["codigo"] == cert["codigo"]
+
+
+# --- conferência de conta (decisão do usuário, 2026-11-16) ---------------------------------------
+
+def _goniometro(tmp_path, linhas):
+    """Plano de goniômetro ± 0,25 e certificado com as colunas da Laftec (Erro Máximo)."""
+    from leitor_certificados.conferencia.extracao import CertificadoLido, PontoLido
+
+    banco = tmp_path / "planos.db"
+    criar_banco_de_planos(banco, [{
+        "id": "g", "tipo": "Goniômetro", "codigo": "GN-0001", "faixa_min": 0, "faixa_max": 360,
+        "pontos": [{"nominal": n, "erro": 0.0, "incerteza": 0.07} for n, *_ in linhas]}])
+    con = sqlite3.connect(banco)
+    con.execute("UPDATE pontos_plano SET tolerancia_inferior = -0.25, tolerancia_superior = 0.25")
+    con.commit()
+    con.close()
+    lido = CertificadoLido("GN-0001", [
+        PontoLido(n, enc, erro, u, (0, 0, 1, 1), numeros, erro_maximo=em, criterio=0.25)
+        for n, enc, erro, u, em, numeros in linhas], **PADRAO_EM_DIA)
+    planos = PlanosDQ05(banco)
+    try:
+        return conferir(lido, planos)
+    finally:
+        planos.fechar()
+
+
+def test_erro_escrito_como_nominal_menos_encontrado_e_aceito(tmp_path):
+    """Goniômetro Laftec: Instrumento 15,00, Padrão 15,07, Erro −0,07 (Instrumento − Padrão).
+    Antes isso virava "colunas trocadas" e o programa escolhia o Quadrante como erro."""
+    numeros = (15.0, 15.07, -0.07, 0.07, 2.0, 2.0, 0.14, 0.25)
+    resultado = _goniometro(tmp_path, [(15.0, 15.07, -0.07, 0.07, 0.14, numeros)])
+    assert resultado.resultado == Resultado.APROVADO, resultado.avisos
+    assert resultado.pontos[0].erro == -0.07
+    assert not any("conta" in a for a in resultado.avisos)
+
+
+def test_numeros_que_nao_fecham_a_conta_nao_sao_avaliados(tmp_path):
+    """O modelo pôs o Quadrante (2) no lugar do erro: |2| + 0,07 ≠ 0,12 e nenhuma troca de
+    colunas fecha a conta → não avaliado (PENDENTE), nunca REPROVADO."""
+    numeros = (0.0, 2.0, 2.0, 0.07, 0.12, 0.25)
+    resultado = _goniometro(tmp_path, [(0.0, 2.0, 2.0, 0.07, 0.12, numeros)])
+    assert resultado.resultado == Resultado.PENDENTE
+    assert resultado.pontos[0].avaliacao.resultado == Resultado.NAO_AVALIADO
+    assert any("não fecham a conta" in a for a in resultado.avisos)
