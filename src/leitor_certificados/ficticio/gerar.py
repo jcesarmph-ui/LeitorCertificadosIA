@@ -21,7 +21,7 @@ from .escaneado import escanear
 
 # Muda quando o gerador passa a desenhar certificados diferentes (ex.: laboratório novo). Quem usa
 # um lote já gerado compara com isto para refazer os gabaritos velhos (ver `gabarito_atual`).
-VERSAO_GERADOR = 2  # 2 = laboratório com Erro Máximo e Critério de aceitação (ADR 0009)
+VERSAO_GERADOR = 3  # 2 = Erro Máximo e Critério (ADR 0009); 3 = tabela de padrões (ADR 0010)
 
 
 def gerar_um(pasta: Path, numero: int, semente: int = 2026) -> Path:
