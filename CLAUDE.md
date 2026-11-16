@@ -137,3 +137,4 @@ Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
   o usuário revisar, medir a curva de novo (pergunta dele: "subir mais reais ajuda? quanto?").
 - Achado (2026-11-13): o escaneado Laftec usa um modelo de folha **sem** "Erro Máximo" e
   "Critério"; só o digital tem. As correções dos reais já estavam certas (não remarcar).
+- **2026-11-16: Etapa 8 fechada no PR #8** (medida da conferência refeita com a regra nova: igual à 1ª; README com "🧪 A prova de que ele aprende", Laftec 85 % → 100 %). Falta: usuário aprovar as fotos, juntar o PR, tag `v0.8.0`. Depois: os 4 Laftec novos (98 % do uso é Laftec).
