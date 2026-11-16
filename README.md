@@ -290,7 +290,7 @@ da calibração, e a conferência olha cada padrão
 | ✓ Padrão em dia | Verde na folha e na tabela. Validade "07/2026" vale o **mês inteiro** (até 31/07). |
 | ✗ Padrão vencido e pontos aprovados | Parecer **PENDENTE**: alguém olha antes de aceitar. Motivo em vermelho. |
 | ✗ Padrão vencido e pontos reprovados | Continua **REPROVADO**, com os dois motivos em vermelho. |
-| ! Validade ou data não lida | Aviso amarelo; o parecer não muda. |
+| ! Validade ou data não lida | Aviso amarelo dizendo o que conferir e parecer **PENDENTE** (reprovado continua reprovado). |
 
 Os laboratórios reais escrevem essa tabela de jeitos bem diferentes — e com **armadilhas**: a
 "Validade" do próprio certificado no topo da folha e a "Data da calibração" **do padrão** não
@@ -370,8 +370,8 @@ xychart-beta
 Nos laboratórios que aparecem pouco a curva também sobe, mais devagar: balanças **69,6 % →
 87,0 %** e durômetro **76,9 % → 94,9 %** nos essenciais. Média dos 5 reais: **80,3 % → 96,4 %**.
 Achar os padrões desses dois ainda é fraco (cada um tem um jeito próprio de escrever a tabela e só
-há um certificado de cada) — por isso o programa avisa em amarelo quando não lê a validade, em vez
-de aprovar sozinho.
+há um certificado de cada) — por isso, quando não lê a validade, o programa avisa em amarelo e deixa
+o parecer **PENDENTE**, em vez de aprovar sozinho.
 
 > [!NOTE]
 > Medir também achou um defeito na leitura: o carimbo "ESTE CERTIFICADO FOI ANALISADO" enganava a

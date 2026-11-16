@@ -7,8 +7,9 @@ Regras (decisões do usuário, 2026-11-13 e 2026-11-16):
   venceu. Se os pontos passam, o parecer vira **PENDENTE** (alguém precisa olhar antes de
   aceitar o certificado); se os pontos reprovam, continua **REPROVADO** (2026-11-16) — quem
   decide isso é o `conferir`;
-- validade **não lida** (ou data da calibração não lida, ou nenhum padrão achado) → só **aviso
-  amarelo**: o parecer não muda.
+- validade **não lida** (ou data da calibração não lida, ou nenhum padrão achado) → **aviso
+  amarelo** dizendo o que faltou e, se os pontos passam, parecer **PENDENTE** (2026-11-16: não
+  dá para aprovar sem conferir os padrões); se os pontos reprovam, continua REPROVADO.
 
 As datas vêm escritas de muitos jeitos: "12/08/2026", "12.08.2026", "2026-08-12",
 "12 de agosto de 2026", "12/ago/2026", "17-11-25" (ano com 2 dígitos) e, na validade, "08/2027".
@@ -117,6 +118,12 @@ class ConferenciaPadroes:
     @property
     def algum_vencido(self) -> bool:
         return any(p.situacao == SituacaoPadrao.VENCIDO for p in self.padroes)
+
+    @property
+    def falta_conferir(self) -> bool:
+        """Algum padrão (ou a tabela inteira, ou a data) não pôde ser conferido."""
+        return bool(self.avisos) or any(
+            p.situacao == SituacaoPadrao.NAO_CONFERIDO for p in self.padroes)
 
 
 def data_br(d: date) -> str:

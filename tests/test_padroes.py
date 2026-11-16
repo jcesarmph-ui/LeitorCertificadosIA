@@ -114,6 +114,7 @@ def test_padrao_vencido_deixa_pendente_o_aprovado_e_reprovado_continua(tmp_path)
         sem_tabela = conferir(com([]), planos)
         sem_data = conferir(com([("P-1", "06/2026")], data=None), planos)
         reprovado = conferir(com([("P-2", "06/2026")], pontos=fora), planos)
+        reprovado_sem_validade = conferir(com([("P-1", None)], pontos=fora), planos)
     finally:
         planos.fechar()
     assert em_dia.resultado == Resultado.APROVADO and not em_dia.avisos and not em_dia.erros
@@ -127,9 +128,12 @@ def test_padrao_vencido_deixa_pendente_o_aprovado_e_reprovado_continua(tmp_path)
         "1 ponto(s) fora da tolerância: 50",
         "padrão P-2 vencido: validade até 30/06/2026, calibração em 20/07/2026 — o parecer "
         "continua reprovado pelos pontos"]
-    # não lido: aviso amarelo, parecer continua APROVADO
-    assert sem_tabela.resultado == sem_data.resultado == Resultado.APROVADO
+    # não lido (decisão do usuário, 2026-11-16): aviso amarelo e parecer PENDENTE
+    assert sem_tabela.resultado == sem_data.resultado == Resultado.PENDENTE
     assert sem_tabela.avisos and sem_data.avisos
+    assert any("não foi conferida" in a for a in sem_tabela.avisos + sem_data.avisos)
+    # não lido + pontos fora: continua REPROVADO
+    assert reprovado_sem_validade.resultado == Resultado.REPROVADO
     assert not (sem_tabela.erros or sem_data.erros)
 
 

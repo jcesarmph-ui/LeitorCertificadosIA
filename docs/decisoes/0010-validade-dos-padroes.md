@@ -30,8 +30,11 @@ Nos certificados reais apareceram três jeitos de escrever a tabela e duas armad
     precisa olhar antes de aceitar o certificado); se os pontos reprovam, continua
     **REPROVADO**. Em todos os casos o **motivo** aparece em vermelho no parecer (qual padrão, a
     validade e a data da calibração; e quais pontos ficaram fora da tolerância);
-  - validade não lida, data da calibração não lida ou tabela não encontrada → **só aviso
-    amarelo**; o parecer não muda.
+  - validade não lida, data da calibração não lida ou tabela não encontrada → **aviso
+    amarelo** dizendo o que faltou e parecer **PENDENTE** se os pontos passam (reprovado
+    continua reprovado). Mudou em 2026-11-16: no começo só avisava, mas a medida mostrou um
+    certificado com padrão vencido, validade não lida, saindo APROVADO — não dá para aprovar
+    sem conferir os padrões.
 - A data da calibração pode ser **digitada à mão** (Corrigir → Digitar à mão), como o código e a
   faixa.
 - **Tela**: caixa "Padrões" ao lado de "Instrumento" (data da calibração + cada padrão com
@@ -47,5 +50,5 @@ Nos certificados reais apareceram três jeitos de escrever a tabela e duas armad
 - Um certificado com padrão vencido nunca sai "APROVADO" sem alguém olhar, e o reprovado
   continua reprovado, com os dois motivos à vista.
 - Certificado sem tabela de padrões (ex.: o do durômetro real) recebe o aviso amarelo "padrões
-  não encontrados". Tabela numa segunda página ainda não é lida: nesta versão o leitor só olha
+  não encontrados" e fica PENDENTE até alguém conferir. Tabela numa segunda página ainda não é lida: nesta versão o leitor só olha
   a primeira página.
