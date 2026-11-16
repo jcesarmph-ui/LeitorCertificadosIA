@@ -260,6 +260,8 @@ def test_comparador_do_cadastro_so_informa():
     assert comparar_campo("codigo", "PAQ-016", "paq 016") == Bate.SIM
     assert comparar_campo("tipo", "Paquímetro", "Paquímetro Digital") == Bate.SIM  # um contém
     assert comparar_campo("tipo", "Paquímetro", "PAQUIMETRO") == Bate.SIM  # sem acento/maiúscula
+    # OCR leu fora de ordem: as mesmas palavras batem
+    assert comparar_campo("tipo", "Micrômetro externo", "externo Micrômetro") == Bate.SIM
     assert comparar_campo("tipo", "Válvula de segurança", "bar") == Bate.NAO
     assert comparar_campo("fabricante", "Digimess", "Digimes") == Bate.NAO  # uma letra: avisa
     assert comparar_campo("faixa", "0-500", "0 mm | 500 mm") == Bate.SIM
