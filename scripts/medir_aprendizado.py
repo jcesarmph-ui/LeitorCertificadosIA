@@ -7,7 +7,9 @@ corrigidos. Os reais ficam em `dados/` (fora do Git); só os números vão para 
 Medidas (no certificado deixado de fora):
 - ESSENCIAIS: o que a conferência com o plano usa — código, faixa e pontos (nominal, encontrado,
   erro, incerteza). É a medida que importa;
-- outros campos: fabricante, laboratório, técnico, datas…;
+- PADRÕES (etapa 8): código e validade de cada padrão e a data da calibração — o que a
+  conferência da validade dos padrões usa;
+- outros campos: fabricante, laboratório, técnico, data de emissão…;
 - falsos: palavras "outro" que o modelo marcou como campo (ruído).
 
 Uso: python scripts/medir_aprendizado.py [--fictícios 60]
@@ -54,15 +56,21 @@ ESSENCIAIS = {"codigo", "faixa", "ponto.nominal", "ponto.encontrado", "ponto.err
               "ponto.incerteza"}
 # Colunas que só alguns laboratórios trazem (ADR 0009): medidas à parte.
 EXTRAS = {"ponto.erro_maximo", "ponto.criterio"}
+# Validade dos padrões (etapa 8, ADR 0010): medida à parte.
+PADROES = {"padrao.codigo", "padrao.validade", "data_calibracao"}
 
 
 def medir(modelo, pagina, certos):
-    """(essenciais certos, essenciais, outros certos, outros, falsos, extras certos, extras)."""
+    """(essenciais certos, essenciais, outros certos, outros, falsos, extras certos, extras,
+    padrões certos, padrões)."""
     previstos = [r for r, _ in prever(modelo, pagina)]
-    e_ok = e = o_ok = o = falsos = x_ok = x = 0
+    e_ok = e = o_ok = o = falsos = x_ok = x = p_ok = p = 0
     for prev, certo in zip(previstos, certos, strict=True):
         if certo == OUTRO:
             falsos += prev != OUTRO
+        elif certo in PADROES:
+            p += 1
+            p_ok += prev == certo
         elif certo in EXTRAS:
             x += 1
             x_ok += prev == certo
@@ -72,7 +80,7 @@ def medir(modelo, pagina, certos):
         else:
             o += 1
             o_ok += prev == certo
-    return e_ok, e, o_ok, o, falsos, x_ok, x
+    return e_ok, e, o_ok, o, falsos, x_ok, x, p_ok, p
 
 
 def main() -> None:
@@ -107,17 +115,22 @@ def main() -> None:
             ess = sum(m[0] / m[1] for m in medidas) / n
             sec = sum(m[2] / m[3] for m in medidas) / n if medidas[0][3] else float("nan")
             fal = sum(m[4] for m in medidas) / n
-            por_k[k].append((ess, sec, fal))
+            pad = sum(m[7] / m[8] for m in medidas) / n if medidas[0][8] else None
+            por_k[k].append((ess, sec, fal, pad))
             extras = (f" | erro máx./critério {100 * sum(m[5] / m[6] for m in medidas) / n:5.1f} %"
                       if medidas[0][6] else "")
+            padroes = f" | PADRÕES {100 * pad:5.1f} %" if pad is not None else ""
             print(f"   com {k} outro(s) real(is): ESSENCIAIS {100 * ess:5.1f} % | "
-                  f"outros campos {100 * sec:5.1f} % | falsos {fal:5.1f}{extras}")
+                  f"outros campos {100 * sec:5.1f} % | falsos {fal:5.1f}{padroes}{extras}")
     print("\nMÉDIA nos certificados deixados de fora")
     for k, itens in por_k.items():
         n = len(itens)
+        com_padroes = [i[3] for i in itens if i[3] is not None]
+        padroes = (f" | PADRÕES {100 * sum(com_padroes) / len(com_padroes):5.1f} %"
+                   if com_padroes else "")
         print(f"   com {k} real(is): ESSENCIAIS {100 * sum(i[0] for i in itens) / n:5.1f} % | "
               f"outros campos {100 * sum(i[1] for i in itens) / n:5.1f} % | "
-              f"falsos {sum(i[2] for i in itens) / n:5.1f}")
+              f"falsos {sum(i[2] for i in itens) / n:5.1f}{padroes}")
 
 
 if __name__ == "__main__":

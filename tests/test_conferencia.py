@@ -152,6 +152,15 @@ def test_criterio_igual_so_quando_o_plano_vai_de_menos_c_a_mais_c():
     assert comparar_criterio(0.05, None, None) == S.NAO_COMPARADO  # plano sem tolerância
 
 
+def _padrao_em_dia():
+    from leitor_certificados.conferencia.extracao import PadraoLido
+    return {"data_calibracao": "20/07/2026",
+            "padroes": (PadraoLido("P-1", "07/2026", (0, 0, 1, 1)),)}
+
+
+PADRAO_EM_DIA = _padrao_em_dia()  # sem padrão conferido o parecer fica pendente
+
+
 def test_criterio_diferente_avisa_uma_vez_sem_mudar_o_parecer(tmp_path):
     from leitor_certificados.conferencia.criterio import SituacaoCriterio
     from leitor_certificados.conferencia.extracao import CertificadoLido, PontoLido
@@ -168,7 +177,7 @@ def test_criterio_diferente_avisa_uma_vez_sem_mudar_o_parecer(tmp_path):
     def ler(criterio):
         return CertificadoLido("PQ-0001", [
             PontoLido(v, v + 0.01, 0.01, 0.01, (0, 0, 1, 1), erro_maximo=0.02, criterio=criterio)
-            for v in (0.0, 50.0, 100.0)])
+            for v in (0.0, 50.0, 100.0)], **PADRAO_EM_DIA)
 
     planos = PlanosDQ05(banco)
     try:
@@ -216,7 +225,7 @@ def test_nominal_repetido_no_plano_e_casado_na_ordem(tmp_path):
     con.commit()
     con.close()
     lido = CertificadoLido("GN-0001", [PontoLido(v, v + 0.05, 0.05, 0.07, (0, 0, 1, 1))
-                                       for v in nominais])
+                                       for v in nominais], **PADRAO_EM_DIA)
     planos = PlanosDQ05(banco)
     try:
         resultado = conferir(lido, planos)
@@ -260,6 +269,8 @@ def test_comparador_do_cadastro_so_informa():
     assert comparar_campo("codigo", "PAQ-016", "paq 016") == Bate.SIM
     assert comparar_campo("tipo", "Paquímetro", "Paquímetro Digital") == Bate.SIM  # um contém
     assert comparar_campo("tipo", "Paquímetro", "PAQUIMETRO") == Bate.SIM  # sem acento/maiúscula
+    # OCR leu fora de ordem: as mesmas palavras batem
+    assert comparar_campo("tipo", "Micrômetro externo", "externo Micrômetro") == Bate.SIM
     assert comparar_campo("tipo", "Válvula de segurança", "bar") == Bate.NAO
     assert comparar_campo("fabricante", "Digimess", "Digimes") == Bate.NAO  # uma letra: avisa
     assert comparar_campo("faixa", "0-500", "0 mm | 500 mm") == Bate.SIM

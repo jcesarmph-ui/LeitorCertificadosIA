@@ -29,6 +29,7 @@ from ..conferencia.avaliacao import Avaliacao, Resultado, erro_com_incerteza
 from ..conferencia.conferir import Conferencia, PontoConferido, conferir
 from ..conferencia.criterio import SituacaoCriterio, descrever_criterio
 from ..conferencia.extracao import CertificadoLido, montar_certificado
+from ..conferencia.padroes import SituacaoPadrao, data_br
 from ..conferencia.plano import PlanosDQ05
 from ..ficticio.gerar import gabarito_atual
 from ..leitura import Pagina
@@ -60,10 +61,13 @@ ROTULOS: dict[str, str] = {
     "ponto.k": "Ponto: fator k",
     "ponto.erro_maximo": "Ponto: erro máximo",
     "ponto.criterio": "Ponto: critério de aceitação",
+    "padrao.codigo": "Padrão: código (ou nº do certificado)",
+    "padrao.validade": "Padrão: validade",
 }
 
 # O que dá para digitar à mão quando o modelo não consegue ler (ex.: código escrito a caneta).
-CAMPOS_MANUAIS: dict[str, str] = {"codigo": "Código do instrumento", "faixa": "Faixa"}
+CAMPOS_MANUAIS: dict[str, str] = {"codigo": "Código do instrumento", "faixa": "Faixa",
+                                  "data_calibracao": "Data da calibração"}
 
 
 @dataclass
@@ -363,6 +367,9 @@ class Servico:
                                               textos=())
         if analise.manual.get("faixa"):
             certificado = dataclasses.replace(certificado, faixa=analise.manual["faixa"])
+        if analise.manual.get("data_calibracao"):
+            certificado = dataclasses.replace(certificado,
+                                              data_calibracao=analise.manual["data_calibracao"])
         if not self.pastas.banco.exists():
             analise.avisos.append("O banco dos planos não foi encontrado: a conferência "
                                   "com o plano não foi feita.")
@@ -475,4 +482,37 @@ def descrever_pontos(conferencia: Conferencia | None,
             criterio=(descrever_criterio(p.lido.criterio)
                       if p.lido.criterio is not None else ""),
             criterio_diferente=p.criterio == SituacaoCriterio.DIFERENTE))
+    return linhas
+
+
+@dataclass
+class LinhaPadrao:
+    """Um padrão conferido, já em texto para a caixa "Padrões" e a marca na folha."""
+
+    codigo: str
+    validade: str  # como está escrita + até quando vale, se só tem mês/ano
+    situacao: SituacaoPadrao
+    dica: str
+    caixa: tuple[float, float, float, float] | None
+
+
+def descrever_padroes(conferencia: Conferencia | None) -> list[LinhaPadrao]:
+    if conferencia is None or conferencia.padroes is None:
+        return []
+    data_cal = conferencia.padroes.data_calibracao
+    linhas = []
+    for p in conferencia.padroes.padroes:
+        validade = p.validade_texto or "não lida"
+        if p.validade and p.validade.so_mes:
+            validade += f" (até {data_br(p.validade.ate)})"
+        if p.situacao == SituacaoPadrao.EM_DIA:
+            dica = f"Em dia: vale até {data_br(p.validade.ate)}; calibração em {data_br(data_cal)}"
+        elif p.situacao == SituacaoPadrao.VENCIDO:
+            dica = (f"Vencido: valia até {data_br(p.validade.ate)} e a calibração foi em "
+                    f"{data_br(data_cal)}. Se os pontos passam, o parecer fica PENDENTE; se "
+                    "reprovam, continua REPROVADO")
+        else:
+            dica = f"Não conferido: {p.motivo} (só avisa: o parecer não muda)"
+        linhas.append(LinhaPadrao(p.codigo or "sem código", validade, p.situacao,
+                                  f"Padrão {p.codigo or 'sem código'}\n{dica}", p.caixa))
     return linhas

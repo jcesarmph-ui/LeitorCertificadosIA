@@ -76,7 +76,8 @@ def com_limiar(previsoes: list[tuple[str, float]],
 
 def ler_campos(modelo: Pipeline, pagina: Pagina) -> dict[str, str]:
     """Junta as palavras de cada rótulo (na ordem de leitura). Os pontos da tabela ficam em
-    `ponto.nominal`, `ponto.encontrado`… com um valor por linha, separados por " | "."""
+    `ponto.nominal`, `ponto.encontrado`… (e os padrões, `padrao.codigo`, `padrao.validade`) com um
+    valor por linha, separados por " | "."""
     por_campo: dict[str, list] = defaultdict(list)
     for palavra, (rotulo, _) in zip(pagina.palavras, prever(modelo, pagina), strict=True):
         if rotulo != OUTRO:
@@ -84,7 +85,7 @@ def ler_campos(modelo: Pipeline, pagina: Pagina) -> dict[str, str]:
     resultado: dict[str, str] = {}
     for campo, palavras in por_campo.items():
         palavras.sort(key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
-        if campo.startswith("ponto."):
+        if campo.startswith(("ponto.", "padrao.")):
             linhas: list[list[str]] = []
             y_anterior = None
             for p in palavras:

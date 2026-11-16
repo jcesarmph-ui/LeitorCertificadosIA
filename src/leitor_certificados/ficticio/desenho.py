@@ -19,7 +19,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen.canvas import Canvas
 
-from .dados import Certificado
+from .dados import LABORATORIOS_DOS_PADROES, Certificado
 from .laboratorios import (
     CRITERIO,
     ENCONTRADO,
@@ -27,7 +27,14 @@ from .laboratorios import (
     ERRO_MAXIMO,
     INCERTEZA,
     INDICE,
+    MES_ANO,
     NOMINAL,
+    P_CALIBRADO,
+    P_CERTIFICADO,
+    P_CODIGO,
+    P_DESCRICAO,
+    P_LABORATORIO,
+    P_VALIDADE,
     PARAMETRO,
     K,
     Laboratorio,
@@ -113,6 +120,9 @@ def _valor_info(cert: Certificado, lab: Laboratorio, chave: str) -> str:
         return f"{formatar_numero(cert.temperatura, 1, lab.decimal)} °C"
     if chave == "umidade":
         return f"{cert.umidade} %"
+    if chave == "validade_certificado":  # validade do certificado (não é de um padrão)
+        validade = cert.data_calibracao.replace(year=cert.data_calibracao.year + 1, day=1)
+        return formatar_data(validade, MES_ANO)
     return str(getattr(cert, chave))
 
 
@@ -151,24 +161,82 @@ def _cabecalho(p: _Pagina, cert: Certificado, lab: Laboratorio) -> float:
 
 
 def _informacoes(p: _Pagina, cert: Certificado, lab: Laboratorio, y: float) -> float:
+    ordem = lab.ordem_info + (("validade_certificado",) if lab.validade_no_topo else ())
+    rotulos = {**lab.rotulos, "validade_certificado": "Validade"}
+
+    def campo(chave: str) -> str | None:
+        return None if chave == "validade_certificado" else chave
+
     if lab.info == "lista":
-        for chave in lab.ordem_info:
-            largura = p.texto(MARGEM, y, lab.rotulos[chave] + ":", 10, True)
+        for chave in ordem:
+            largura = p.texto(MARGEM, y, rotulos[chave] + ":", 10, True)
             p.texto(MARGEM + max(largura + 6, 150), y, _valor_info(cert, lab, chave), 10,
-                    campo=chave)
+                    campo=campo(chave))
             y -= 15
         return y - 10
     # "grade": duas colunas dentro de um quadro
     meia = (LARGURA - 2 * MARGEM) / 2
-    linhas = (len(lab.ordem_info) + 1) // 2
+    linhas = (len(ordem) + 1) // 2
     altura = linhas * 26 + 14
     p.retangulo(MARGEM - 6, y - altura + 12, LARGURA - 2 * MARGEM + 12, altura)
-    for n, chave in enumerate(lab.ordem_info):
+    for n, chave in enumerate(ordem):
         x = MARGEM + (n % 2) * meia
         yy = y - (n // 2) * 26
-        p.texto(x, yy, lab.rotulos[chave], 7.5, cor=CINZA)
-        p.texto(x, yy - 11, _valor_info(cert, lab, chave), 10, True, campo=chave)
+        p.texto(x, yy, rotulos[chave], 7.5, cor=CINZA)
+        p.texto(x, yy - 11, _valor_info(cert, lab, chave), 10, True, campo=campo(chave))
     return y - altura - 6
+
+
+def _padroes(p: _Pagina, cert: Certificado, lab: Laboratorio, y: float,
+             rng: random.Random) -> float:
+    """A tabela dos padrões usados na calibração (etapa 8). A identificação do padrão vira o
+    campo `padrao.codigo` e a validade, `padrao.validade` (com o número do padrão em "padrao")."""
+    estilo = lab.padroes
+    if estilo is None or not cert.padroes:
+        return y
+    if estilo.titulo:
+        p.texto(MARGEM, y, estilo.titulo, 9.5, True)
+        y -= 14
+    colunas = estilo.colunas
+    pesos = [3.2 if c == P_DESCRICAO else 1.3 for c in colunas]
+    unidade = (LARGURA - 2 * MARGEM) / sum(pesos)
+    larguras = [w * unidade for w in pesos]
+    inicios = [MARGEM + sum(larguras[:n]) for n in range(len(colunas))]
+    for n, coluna in enumerate(colunas):
+        tam = 8
+        while stringWidth(estilo.titulos[coluna], p.negrito, tam) > larguras[n] - 4:
+            tam -= 0.5
+        p.texto(inicios[n], y, estilo.titulos[coluna], tam, True)
+    y -= 3
+    p.linha(MARGEM, y, LARGURA - MARGEM, y, 0.4)
+    y -= 10
+    identifica = P_CODIGO if P_CODIGO in colunas else P_CERTIFICADO
+    laboratorio = rng.choice(LABORATORIOS_DOS_PADROES)
+    for i, padrao in enumerate(cert.padroes):
+        descricao = padrao.descricao
+        if estilo.descricao_com_certificado:
+            descricao += f" - {padrao.certificado} - CAL{rng.randint(1, 999):04d}"
+        valores = {
+            P_CODIGO: padrao.identificacao,
+            P_DESCRICAO: descricao,
+            P_CERTIFICADO: padrao.identificacao if identifica == P_CERTIFICADO
+            else padrao.certificado,
+            P_CALIBRADO: formatar_data(padrao.calibrado_em, lab.formato_data),
+            P_VALIDADE: formatar_data(padrao.validade, estilo.formato_validade),
+            P_LABORATORIO: laboratorio,
+        }
+        for n, coluna in enumerate(colunas):
+            campo = ("padrao.codigo" if coluna == identifica
+                     else "padrao.validade" if coluna == P_VALIDADE else None)
+            texto = valores[coluna]
+            tam = 9
+            while stringWidth(texto, p.normal, tam) > larguras[n] - 4:
+                tam -= 0.5  # descrição comprida: letra menor
+            p.texto(inicios[n], y, texto, tam, campo=campo)
+            if campo:
+                p.campos[-1]["padrao"] = i
+        y -= 12.5
+    return y - 8
 
 
 def _frase_criterio(p: _Pagina, cert: Certificado, lab: Laboratorio, y: float) -> float:
@@ -251,6 +319,7 @@ def desenhar(cert: Certificado, destino: Path, rng: random.Random) -> list[dict]
     p = _Pagina(canvas, lab.fonte, rng.uniform(-8, 8), rng.uniform(-12, 4))
     y = _cabecalho(p, cert, lab)
     y = _informacoes(p, cert, lab, y)
+    y = _padroes(p, cert, lab, y, rng)
     y = _frase_criterio(p, cert, lab, y)
     y = _tabela(p, cert, lab, y)
     _rodape(p, cert, lab, y)

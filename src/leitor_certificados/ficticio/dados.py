@@ -7,12 +7,13 @@ certificado. Isso permite repetir o treino e os testes e comparar resultados de 
 
 from __future__ import annotations
 
+import calendar
 import math
 import random
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 
-from .laboratorios import CRITERIO, LABORATORIOS, Laboratorio
+from .laboratorios import CRITERIO, LABORATORIOS, MES_ANO, P_CODIGO, Laboratorio
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,31 @@ SOBRENOMES = ("Andrade", "Barreto", "Campos", "Duarte", "Esteves", "Freitas", "G
 INICIO = date(2024, 1, 1)
 FIM = date(2026, 10, 31)
 
+DESCRICOES_PADRAO = (
+    "Jogo de blocos padrão", "Bloco padrão", "Termohigrômetro", "Micrômetro externo",
+    "Anel padrão liso", "Manômetro padrão", "Termômetro de referência", "Padrão escalonado",
+    "Paralelo óptico", "Massa padrão", "Calibrador de pressão", "Haste padrão",
+)
+LABORATORIOS_DOS_PADROES = ("LabRef Alfa", "Calibre Norte", "Metroteste", "Padronac")
+CHANCE_PADRAO_VENCIDO = 0.12  # um em cada ~8 certificados usa um padrão vencido (para testar)
+
+
+@dataclass
+class Padrao:
+    """Um padrão que o laboratório usou na calibração (etapa 8, ADR 0010)."""
+
+    identificacao: str  # o código do padrão (ou o nº do certificado, se não houver código)
+    descricao: str
+    certificado: str  # nº do certificado de calibração do padrão
+    calibrado_em: date
+    validade: date  # como está escrita (no formato mês/ano, o dia 1º do mês)
+    validade_ate: date  # último dia em que o padrão vale (mês/ano vale o mês inteiro)
+    vencido: bool  # já estava vencido no dia da calibração do instrumento?
+
+
+def ultimo_dia_do_mes(d: date) -> date:
+    return d.replace(day=calendar.monthrange(d.year, d.month)[1])
+
 
 @dataclass
 class Ponto:
@@ -84,6 +110,7 @@ class Certificado:
     umidade: int
     tecnico: str
     pontos: list[Ponto]
+    padroes: list[Padrao] = field(default_factory=list)
 
     @property
     def lab(self) -> Laboratorio:
@@ -93,6 +120,9 @@ class Certificado:
         d = asdict(self)
         d["data_calibracao"] = self.data_calibracao.isoformat()
         d["data_emissao"] = self.data_emissao.isoformat()
+        for padrao in d["padroes"]:
+            for chave in ("calibrado_em", "validade", "validade_ate"):
+                padrao[chave] = padrao[chave].isoformat()
         return d
 
 
@@ -145,6 +175,38 @@ def _pontos(rng: random.Random, modelo: ModeloInstrumento, minimo: float, maximo
     return pontos
 
 
+def _padroes(rng: random.Random, lab: Laboratorio, data_cal: date) -> list[Padrao]:
+    """1 a 5 padrões; quase sempre todos em dia, às vezes um vencido no dia da calibração."""
+    estilo = lab.padroes
+    if estilo is None:
+        return []
+    quantos = rng.randint(1, 5)
+    vencido = rng.randrange(quantos) if rng.random() < CHANCE_PADRAO_VENCIDO else None
+    so_mes = estilo.formato_validade == MES_ANO
+    padroes = []
+    for n in range(quantos):
+        if n == vencido:
+            # mês/ano vale o mês inteiro: para estar vencido, tem de ser de um mês anterior
+            validade = data_cal - timedelta(days=rng.randint(35 if so_mes else 1, 200))
+        else:
+            validade = data_cal + timedelta(days=rng.randint(0, 900))  # 0: vence no dia/mês
+        if so_mes:
+            validade = validade.replace(day=1)
+        ate = ultimo_dia_do_mes(validade) if so_mes else validade
+        certificado = f"{rng.randint(100, 99999):05d}/{rng.randint(23, 26)}"
+        codigo = estilo.codigo(rng)
+        padroes.append(Padrao(
+            identificacao=codigo if P_CODIGO in estilo.colunas else certificado,
+            descricao=rng.choice(DESCRICOES_PADRAO),
+            certificado=certificado,
+            calibrado_em=ate - timedelta(days=rng.choice((365, 730))),
+            validade=validade,
+            validade_ate=ate,
+            vencido=ate < data_cal,
+        ))
+    return padroes
+
+
 def sortear_certificado(rng: random.Random, ident: str) -> Certificado:
     """Inventa um certificado completo. O que for sorteado aqui é a resposta certa (gabarito)."""
     lab = rng.choice(list(LABORATORIOS.values()))
@@ -173,4 +235,5 @@ def sortear_certificado(rng: random.Random, ident: str) -> Certificado:
         umidade=rng.randint(35, 65),
         tecnico=f"{rng.choice(NOMES)} {rng.choice(SOBRENOMES)}",
         pontos=_pontos(rng, modelo, minimo, maximo, resolucao, casas, lab),
+        padroes=_padroes(rng, lab, data_cal),
     )

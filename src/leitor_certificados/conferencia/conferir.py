@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from .avaliacao import Avaliacao, Resultado, avaliar_ponto, resultado_geral
 from .criterio import SituacaoCriterio, aviso_de_criterio, comparar_criterio
 from .extracao import CertificadoLido, PontoLido
+from .padroes import ConferenciaPadroes, conferir_padroes
 from .plano import Plano, PlanosDQ05, PontoDoPlano, normalizar_codigo
 
 # Dois valores nominais são "o mesmo ponto" se diferem menos que isto (relativo, com piso).
@@ -38,10 +39,14 @@ class Conferencia:
     plano_nome: str | None
     resultado: Resultado
     pontos: list[PontoConferido] = field(default_factory=list)
-    avisos: list[str] = field(default_factory=list)
+    avisos: list[str] = field(default_factory=list)  # amarelo: olhar, mas não é problema
+    # vermelho: o motivo do problema (pontos fora da tolerância, padrão vencido)
+    erros: list[str] = field(default_factory=list)
     faixa_certificado: str | None = None  # só mostrada/avisada: não muda o parecer
     faixa_plano: str | None = None
     cadastro: dict[str, str | None] = field(default_factory=dict)  # do instrumento (comparador)
+    # validade dos padrões no dia da calibração (etapa 8): vencido → PENDENTE
+    padroes: ConferenciaPadroes | None = None
 
 
 def _mesmo_nominal(a: float, b: float) -> bool:
@@ -114,12 +119,43 @@ def _ponto_do_plano(plano: Plano, nominal: float, usados: set[int]) -> int | Non
 
 
 def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
+    """Confere os pontos com o plano e a validade dos padrões (decisões do usuário, 2026-11-16):
+    padrão vencido no dia da calibração deixa PENDENTE um parecer que seria APROVADO; se os
+    pontos reprovam, continua REPROVADO. Sempre dizendo o motivo (em `erros`). Validade não lida
+    também deixa PENDENTE (aviso amarelo dizendo o que conferir)."""
+    conferencia = _conferir_pontos(certificado, planos)
+    fora = [p.lido.nominal for p in conferencia.pontos
+            if p.avaliacao.resultado == Resultado.REPROVADO]
+    if fora:
+        conferencia.erros.append(
+            f"{len(fora)} ponto(s) fora da tolerância: " + "; ".join(f"{n:g}" for n in fora))
+    padroes = conferir_padroes(
+        [(p.codigo, p.validade, p.caixa) for p in certificado.padroes],
+        certificado.data_calibracao)
+    conferencia.padroes = padroes
+    conferencia.avisos += padroes.avisos
+    if padroes.algum_vencido:
+        if conferencia.resultado == Resultado.APROVADO:
+            conferencia.resultado = Resultado.PENDENTE
+            sufixo = " — parecer pendente (os pontos passam, mas o padrão estava vencido)"
+        elif conferencia.resultado == Resultado.REPROVADO:
+            sufixo = " — o parecer continua reprovado pelos pontos"
+        else:
+            sufixo = ""
+        conferencia.erros += [e + sufixo for e in padroes.erros]
+    elif padroes.falta_conferir and conferencia.resultado == Resultado.APROVADO:
+        conferencia.resultado = Resultado.PENDENTE
+        conferencia.avisos.append("parecer pendente: os pontos passam, mas a validade dos "
+                                  "padrões não foi conferida — confira no certificado")
+    return conferencia
+
+
+def _conferir_pontos(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
     codigo = achar_codigo(certificado, planos)
     if not codigo:
         return Conferencia(None, None, Resultado.PENDENTE,
                            avisos=["código do instrumento não encontrado no certificado"])
-    certificado = CertificadoLido(codigo, certificado.pontos, certificado.textos,
-                                  certificado.faixa)
+    certificado = dataclasses.replace(certificado, codigo=codigo)
     plano: Plano | None = planos.plano_do_instrumento(certificado.codigo)
     if plano is None:
         return Conferencia(certificado.codigo, None, Resultado.PENDENTE,

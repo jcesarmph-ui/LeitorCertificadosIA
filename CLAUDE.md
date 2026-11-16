@@ -107,5 +107,34 @@ Tem **PDFs digitais e escaneados** (resposta do usuário em 2026-11-10).
   casados na ordem, dois números com o mesmo rótulo (vale o de mais certeza; nominal: o do
   plano), painel Instrumento = comparador cadastro × certificado (só avisa).
 - Pendente de resposta do usuário: "tela cheia" = maximizada (já é) ou cobrir a barra de tarefas?
+- **2026-11-13 (fim do dia): PR #7 juntado, tag `v0.7.0`. Etapa 8 (validade dos padrões)
+  começou só com o branch `etapa-8-validade-padroes` — nada programado.** Respostas do usuário:
+  validade **não lida** → aviso amarelo (parecer não muda). **Respostas de 2026-11-16**:
+  (a) validade "07/2026" vale **o mês inteiro** (até 31/07/2026); (b) padrão **vencido** no dia
+  da calibração → parecer **PENDENTE** (com aviso dizendo qual padrão); **mas se os pontos
+  reprovam, fica REPROVADO** (decisão 2026-11-16), sempre dizendo os motivos. Na folha e na
+  tabela o padrão vencido fica **vermelho** (✗), o certo continua verde; motivos que são problema
+  (pontos fora, padrão vencido) em vermelho no parecer, avisos em amarelo. Na Laftec a tabela
+  "Padrões" tem Código | Descrição - Certificado | Validade (MM/AAAA); a data da calibração vem
+  do certificado.
+- **Etapa 8 — estado em 2026-11-16 (parou por consumo; continuar daqui)**: programada e testada
+  (103+ testes ok, 7 commits no branch `etapa-8-validade-padroes`): gerador v3 com padrões,
+  `conferencia/padroes.py`, erros (vermelho) × avisos (amarelo) na `Conferencia`, caixa
+  "Padrões" ao lado de "Instrumento", marcas na folha, data digitável, comparador aceita palavras
+  fora de ordem, ADR 0010, versão 0.8.0, fotos `docs/telas/01..06` refeitas (conferidas).
+  Reais: padrões marcados só por acréscimo (`dados/correcoes/propor_padroes.py`, foto aprovada
+  por mim em `dados/reais_marcacao/revisao_padroes.png` — **mostrar ao usuário**).
+  Medida reais (`dados/medida_etapa8_aprendizado.txt`, 5 reais): essenciais 80,3 % → 96,4 %
+  (com 4 reais); padrões Laftec 86–91 % → 100 %; balanças (lab. novo) 33 %.
+  **Falta**: (1) `dados/medida_etapa8_conferencia.txt` — se vazio/incompleto, rodar de novo
+  `scripts/medir_conferencia.py --quantidade 150 --escaneados 30` (1ª rodada, regra antiga:
+  digital 30/30 e padrões 28/30; OCR 27/30 e padrões 19/30; lab. novo: padrões ~0 %, exceto
+  serra_clara); (2) trocar `MEDIDA_PADROES` no README pela tabela dos números e pôr a medida
+  dos reais na seção "Aprendizado com o uso"; (3) push, PR "Etapa 8", mostrar fotos ao usuário.
+- "Tela cheia" (resposta 2026-11-16): **maximizada, como já está** (não cobrir a barra de tarefas).
+- **Depois da etapa 8**: o usuário pôs mais 4 PDFs Laftec em `dados/certificados_reais/` (13/11:
+  LAF-2524827, LAF-2540392, LAF-2620420, a.pdf) — ainda **não corrigidos nem medidos**. Pré-marcar,
+  o usuário revisar, medir a curva de novo (pergunta dele: "subir mais reais ajuda? quanto?").
 - Achado (2026-11-13): o escaneado Laftec usa um modelo de folha **sem** "Erro Máximo" e
   "Critério"; só o digital tem. As correções dos reais já estavam certas (não remarcar).
+- **2026-11-16: Etapa 8 fechada no PR #8** (medida da conferência refeita com a regra nova: igual à 1ª; README com "🧪 A prova de que ele aprende", Laftec 85 % → 100 %). Falta: usuário aprovar as fotos, juntar o PR, tag `v0.8.0`. Depois: os 4 Laftec novos (98 % do uso é Laftec).

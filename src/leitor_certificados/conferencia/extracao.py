@@ -46,11 +46,22 @@ class PontoLido:
 
 
 @dataclass(frozen=True)
+class PadraoLido:
+    """Um padrão da tabela "Padrões" (etapa 8): a identificação e a validade, como escritas."""
+
+    codigo: str | None
+    validade: str | None
+    caixa: tuple[float, float, float, float]
+
+
+@dataclass(frozen=True)
 class CertificadoLido:
     codigo: str | None
     pontos: list[PontoLido]
     textos: tuple[str, ...] = ()  # as palavras da folha na ordem de leitura (procurar o código)
     faixa: str | None = None  # a faixa lida, ex.: "0 mm | 500 mm"
+    data_calibracao: str | None = None  # como está escrita ("12/08/2026")
+    padroes: tuple[PadraoLido, ...] = ()
 
 
 def _linhas(palavras: list[Palavra]) -> list[list[Palavra]]:
@@ -76,6 +87,36 @@ def _valor_da_coluna(textos: list[tuple[str, float]]) -> str:
         return junto
     numeros = [(c, t) for t, c in textos if para_numero(t) is not None]
     return max(numeros)[1] if numeros else junto
+
+
+def montar_padroes(pagina: Pagina, rotulos: list[str]) -> tuple[PadraoLido, ...]:
+    """As palavras `padrao.codigo` e `padrao.validade` de uma mesma linha formam um padrão.
+
+    Uma linha pode ter dois padrões lado a lado (tabela em duas metades): um código novo depois
+    de outro código já começa outro padrão. Validade com várias palavras ("12 de agosto de
+    2026") é juntada."""
+    marcadas = {id(p): r for p, r in zip(pagina.palavras, rotulos, strict=True)
+                if r in ("padrao.codigo", "padrao.validade")}
+    padroes: list[PadraoLido] = []
+    for linha in _linhas(pagina.palavras):
+        atual: dict[str, list[Palavra]] = {}
+        grupos: list[dict[str, list[Palavra]]] = []
+        for p in sorted((q for q in linha if id(q) in marcadas), key=lambda q: q.caixa[0]):
+            tipo = marcadas[id(p)].removeprefix("padrao.")
+            if tipo == "codigo" and "codigo" in atual and "validade" in atual:
+                grupos.append(atual)
+                atual = {}
+            atual.setdefault(tipo, []).append(p)
+        if atual:
+            grupos.append(atual)
+        for grupo in grupos:
+            todas = [p for lista in grupo.values() for p in lista]
+            padroes.append(PadraoLido(
+                codigo=" ".join(p.texto for p in grupo.get("codigo", [])) or None,
+                validade=" ".join(p.texto for p in grupo.get("validade", [])) or None,
+                caixa=(min(p.caixa[0] for p in todas), min(p.caixa[1] for p in todas),
+                       max(p.caixa[2] for p in todas), max(p.caixa[3] for p in todas))))
+    return tuple(padroes)
 
 
 def montar_certificado(modelo: Pipeline, pagina: Pagina,
@@ -136,4 +177,11 @@ def montar_certificado(modelo: Pipeline, pagina: Pagina,
             criterio=para_numero(valores.get("criterio", "")),
         ))
     ordem = sorted(pagina.palavras, key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
-    return CertificadoLido(codigo, pontos, tuple(p.texto for p in ordem), faixa)
+    data_palavras = sorted(
+        (p for p, (rotulo, _) in zip(pagina.palavras, previsoes, strict=True)
+         if rotulo == "data_calibracao"),
+        key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
+    return CertificadoLido(
+        codigo, pontos, tuple(p.texto for p in ordem), faixa,
+        data_calibracao=" ".join(p.texto for p in data_palavras) or None,
+        padroes=montar_padroes(pagina, [r for r, _ in previsoes]))

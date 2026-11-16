@@ -53,10 +53,13 @@ def _palavras(texto: str) -> list[str]:
 
 def _texto_bate(cadastro: str, certificado: str) -> bool:
     """Iguais sem ligar para maiúsculas/acentos, ou um contém o outro em palavras inteiras
-    ("Paquímetro" × "Paquímetro Digital")."""
+    ("Paquímetro" × "Paquímetro Digital"). As mesmas palavras em outra ordem também batem: o
+    OCR às vezes lê "externo Micrômetro" no lugar de "Micrômetro externo"."""
     a, b = _palavras(cadastro), _palavras(certificado)
     if not a or not b:
         return False
+    if sorted(a) == sorted(b):
+        return True
     curto, longo = (a, b) if len(a) <= len(b) else (b, a)
     return any(longo[i:i + len(curto)] == curto for i in range(len(longo) - len(curto) + 1))
 

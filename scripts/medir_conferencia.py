@@ -7,6 +7,9 @@ Provas:
 1. certificados novos, digital;  2. os mesmos, escaneados (OCR);
 3. laboratório que o modelo nunca viu (digital).
 
+Etapa 8: também mede os padrões — em quantos certificados a situação de cada padrão (em dia ou
+vencido) saiu certa, e quantos padrões vencidos foram pegos.
+
 Uso: python scripts/medir_conferencia.py --quantidade 150 --escaneados 30
 """
 
@@ -25,6 +28,7 @@ from leitor_certificados.aprendizado.modelo import treinar  # noqa: E402
 from leitor_certificados.conferencia.avaliacao import Resultado  # noqa: E402
 from leitor_certificados.conferencia.conferir import conferir  # noqa: E402
 from leitor_certificados.conferencia.extracao import montar_certificado  # noqa: E402
+from leitor_certificados.conferencia.padroes import SituacaoPadrao  # noqa: E402
 from leitor_certificados.conferencia.plano import PlanosDQ05  # noqa: E402
 from leitor_certificados.ficticio.gerar import gerar_um  # noqa: E402
 from leitor_certificados.ficticio.plano import criar_banco_de_planos  # noqa: E402
@@ -33,12 +37,15 @@ from leitor_certificados.leitura.ler import ler_pdf  # noqa: E402
 
 def medir(titulo, modelo, itens, planos, certo):
     pareceres = sem_decisao = pontos_total = pontos_certos = 0
+    padroes_certos = vencidos = vencidos_pegos = 0
     erros = []
     for pagina, gab in itens:
         cert = gab["certificado"]
         conf = conferir(montar_certificado(modelo, pagina), planos)
         pareceres += conf.resultado == certo[cert["id"]]
-        sem_decisao += conf.resultado == Resultado.PENDENTE
+        # "sem decisão" = deu pendente quando a resposta certa era aprovado ou reprovado
+        sem_decisao += (conf.resultado == Resultado.PENDENTE
+                        and certo[cert["id"]] != Resultado.PENDENTE)
         if conf.resultado != certo[cert["id"]] and conf.resultado != Resultado.PENDENTE:
             erros.append(f"{cert['id']} ({cert['laboratorio']}): certo {certo[cert['id']].value}, "
                          f"deu {conf.resultado.value}; avisos: {conf.avisos[:2]}")
@@ -47,12 +54,23 @@ def medir(titulo, modelo, itens, planos, certo):
         pontos_certos += sum(
             1 for p in conf.pontos if p.avaliacao.resultado != Resultado.NAO_AVALIADO
         )
+        esperado = [p["vencido"] for p in cert["padroes"]]
+        lidos = conf.padroes.padroes if conf.padroes else []
+        padroes_certos += len(lidos) == len(esperado) and all(
+            p.situacao != SituacaoPadrao.NAO_CONFERIDO
+            and (p.situacao == SituacaoPadrao.VENCIDO) == v
+            for p, v in zip(lidos, esperado, strict=True))
+        vencidos += any(esperado)
+        vencidos_pegos += bool(any(esperado) and conf.padroes and conf.padroes.algum_vencido)
     errados = len(itens) - pareceres - sem_decisao
     print(f"\n{titulo}\n   pareceres certos: {pareceres} de {len(itens)} "
           f"({100 * pareceres / len(itens):.1f} %) | sem decisão (pendente): {sem_decisao} "
           f"| DECISÃO ERRADA: {errados}"
           f"\n   pontos da tabela lidos e avaliados: {pontos_certos} de {pontos_total} "
-          f"({100 * pontos_certos / pontos_total:.1f} %)")
+          f"({100 * pontos_certos / pontos_total:.1f} %)"
+          f"\n   padrões todos certos: {padroes_certos} de {len(itens)} certificados "
+          f"({100 * padroes_certos / len(itens):.1f} %) | com padrão vencido: {vencidos}, "
+          f"pegos: {vencidos_pegos}")
     for e in erros[:6]:
         print("     -", e)
 

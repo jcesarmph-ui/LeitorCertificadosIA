@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.7.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-0.8.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -37,6 +37,7 @@
   <a href="#-leitura-do-pdf">Leitura do PDF</a> •
   <a href="#-machine-learning">Machine learning</a> •
   <a href="#-conferência-com-o-plano">Conferência</a> •
+  <a href="#-validade-dos-padrões">Padrões</a> •
   <a href="#-aprendizado-com-o-uso">Aprendizado com o uso</a> •
   <a href="#️-tecnologias">Tecnologias</a> •
   <a href="#️-roteiro">Roteiro</a>
@@ -59,6 +60,7 @@ registra o que melhorou — mesmo quando ele erra.
 | Digitar cada ponto do certificado é demorado e sujeito a erro. | Modelo de **machine learning** que encontra nº do certificado, data, laboratório e os pontos medidos. | Dados extraídos automaticamente, com o **acerto medido**. |
 | Certificados chegam em PDF digital **e** escaneado. | Dois caminhos: texto direto do PDF e **OCR** (ler a imagem). | Comparar o acerto de cada tipo. |
 | Conferir a conformidade exige considerar a incerteza (U). | Regra de avaliação: `erro ± U` dentro da tolerância. | Parecer sugerido ponto a ponto. |
+| Um padrão do laboratório vencido invalida a calibração, e isso passa despercebido. | O modelo lê a tabela de **padrões** e a data da calibração. | Padrão vencido no dia da calibração deixa o parecer **pendente**. |
 | IA paga e envio de documentos para a nuvem. | **scikit-learn** e OCR **locais e gratuitos**. | Nenhum dado sai do computador, custo zero. |
 
 ```mermaid
@@ -79,6 +81,7 @@ mindmap
     Conferência
       Tolerância
       Incerteza U
+      Validade dos padrões
       Parecer sugerido
 ```
 
@@ -99,6 +102,11 @@ mindmap
 | *Analisando um escaneado: uma faixa de "raio X" percorre a folha enquanto o OCR lê; dá para cancelar.* | *Clique num ponto: a conta completa e a certeza do modelo em cada número.* |
 | ![Reprovado](docs/telas/04_reprovado_escaneado.png) | ![Corrigir](docs/telas/05_corrigir.png) |
 | *Escaneado com pontos fora da tolerância: ✗ vermelho na folha e na tabela.* | *Modo Corrigir: clicar numa palavra corrige o rótulo ou o texto; o que não dá para ler (ex.: código a caneta) pode ser digitado à mão.* |
+
+<p align="center">
+  <img src="docs/telas/06_padrao_vencido.png" alt="Padrão vencido" width="100%"/>
+  <br/><i>Versão 0.8.0: os pontos passam, mas um padrão estava vencido no dia da calibração — ✗ vermelho no padrão (folha e caixa "Padrões"), motivo em vermelho e parecer pendente.</i>
+</p>
 
 ## 🧠 Como vai funcionar
 
@@ -269,6 +277,42 @@ não der para comparar, aparece um aviso amarelo — o parecer continua vindo da
 > **aprendizado com o uso**: certificados reais entram, a pessoa corrige o que foi lido errado e o
 > modelo é retreinado — o acerto sobe com o tempo.
 
+## 📅 Validade dos padrões
+
+Todo certificado lista os **padrões** que o laboratório usou. Se algum estava **vencido no dia da
+calibração**, a medição perde a rastreabilidade, mesmo com todos os pontos dentro da tolerância.
+Na versão **0.8.0** o modelo aprendeu a achar a tabela de padrões (código e validade) e a data
+da calibração, e a conferência olha cada padrão
+([ADR 0010](docs/decisoes/0010-validade-dos-padroes.md)):
+
+| Situação | O que acontece |
+|---|---|
+| ✓ Padrão em dia | Verde na folha e na tabela. Validade "07/2026" vale o **mês inteiro** (até 31/07). |
+| ✗ Padrão vencido e pontos aprovados | Parecer **PENDENTE**: alguém olha antes de aceitar. Motivo em vermelho. |
+| ✗ Padrão vencido e pontos reprovados | Continua **REPROVADO**, com os dois motivos em vermelho. |
+| ! Validade ou data não lida | Aviso amarelo dizendo o que conferir e parecer **PENDENTE** (reprovado continua reprovado). |
+
+Os laboratórios reais escrevem essa tabela de jeitos bem diferentes — e com **armadilhas**: a
+"Validade" do próprio certificado no topo da folha e a "Data da calibração" **do padrão** não
+são o que se procura. Os 6 laboratórios inventados ganharam tabelas de padrões variadas, com as
+mesmas armadilhas, e cerca de 1 em cada 8 com um padrão vencido.
+
+**Medida com certificados fictícios** (150 inventados, plano inventado; o programa sabe a resposta
+certa de cada um):
+
+| Grupo | Pareceres certos | Decisão errada | Padrões todos certos |
+|---|---|---|---|
+| Digital, laboratórios conhecidos | **29 de 30** (1 pendente) | **0** | **28 de 30** |
+| Escaneado (OCR) | **26 de 30** (4 pendentes) | **0** | 19 de 30 |
+| Laboratório nunca visto (6, um de cada vez) | 73 de 150 (77 pendentes) | **0** | 21 de 150 |
+
+<sub>Num laboratório nunca visto o modelo quase nunca acha a tabela de padrões. Por isso a
+validade não lida vira **aviso amarelo e parecer PENDENTE**: o programa prefere dizer "confira"
+a aprovar sem saber. Numa 1ª versão ele só avisava, e um certificado com padrão vencido saiu
+aprovado (119 de 150 certos, **1 decisão errada**); com a regra nova, **nenhuma decisão errada**.
+O caminho para tirar os pendentes é o **aprendizado com o uso** (abaixo): com certificados reais
+corrigidos da Laftec, os padrões chegam a **100 %**.</sub>
+
 ## 🌱 Aprendizado com o uso
 
 O modelo não precisa conhecer todo tipo de certificado de antemão. A pessoa abre um certificado
@@ -295,6 +339,40 @@ pista nova para o modelo: "este número é |erro| + U?". Resultado: com o certif
 colunas deixado de fora, o modelo acerta **100 %** delas aprendendo **só com os fictícios** — e
 os essenciais, só com fictícios, subiram de **70,2 % para 83,7 %**
 ([ADR 0009](docs/decisoes/0009-erro-maximo-e-criterio-de-aceitacao.md)).
+
+### 🧪 A prova de que ele aprende (0.8.0, 5 certificados reais)
+
+A pergunta é simples: **quanto mais certificados reais corrigidos, mais ele acerta num certificado
+que nunca viu?** Para responder sem trapaça, cada certificado real é **escondido** do treino e
+usado só como prova; o modelo treina com 0, 1, 2, 3 e 4 dos outros reais e lê o escondido. Isso é
+repetido para cada um dos 5 e tirada a média.
+
+A **Laftec** é o laboratório de quase todos os certificados do dia a dia, por isso vem primeiro:
+
+| Reais corrigidos no treino | **Essenciais certos — Laftec** | **Padrões certos — Laftec** | "Falsos" — Laftec |
+|---|---|---|---|
+| nenhum (só fictícios) | 85,0 % | 87,4 % | 18 |
+| 1 | 91,5 % | 93,8 % | 10 |
+| 2 | 95,0 % | 97,9 % | 4 |
+| 3 | 98,2 % | **100 %** | 3 |
+| 4 | **100 %** | **100 %** | 3 |
+
+<sub>Média de 3 certificados Laftec reais (2 digitais e 1 escaneado), cada um escondido do treino. Como são do mesmo laboratório, um ajuda o
+outro — é exatamente o que acontece no uso. Só os números vão para o GitHub.</sub>
+
+```mermaid
+xychart-beta
+    title "Laftec: essenciais certos x certificados reais corrigidos"
+    x-axis ["0", "1", "2", "3", "4"]
+    y-axis "acerto (%)" 80 --> 100
+    line [85.0, 91.5, 95.0, 98.2, 100]
+```
+
+Nos laboratórios que aparecem pouco a curva também sobe, mais devagar: balanças **69,6 % →
+87,0 %** e durômetro **76,9 % → 94,9 %** nos essenciais. Média dos 5 reais: **80,3 % → 96,4 %**.
+Achar os padrões desses dois ainda é fraco (cada um tem um jeito próprio de escrever a tabela e só
+há um certificado de cada) — por isso, quando não lê a validade, o programa avisa em amarelo e deixa
+o parecer **PENDENTE**, em vez de aprovar sozinho.
 
 > [!NOTE]
 > Medir também achou um defeito na leitura: o carimbo "ESTE CERTIFICADO FOI ANALISADO" enganava a
@@ -324,10 +402,10 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Etapa 2 — Leitura do PDF: texto direto e OCR (palavras com posição e confiança)
 - [x] Etapa 3 — Machine learning: encontrar os campos; acerto medido em treino × teste e em laboratório que o modelo nunca viu
 - [x] Etapa 4 — Conferência com o plano: erro ± U dentro da tolerância (parecer só quando há certeza)
-- [x] Aprendizado com o uso — o modelo aprende com certificados reais corrigidos (acerto nos essenciais: 70 % → 92 %)
+- [x] Aprendizado com o uso — o modelo aprende com certificados reais corrigidos (acerto nos essenciais: 70 % → 92 %; na 0.8.0, Laftec 85 % → 100 %)
 - [x] Interface — abrir, ver os checks, corrigir e reaprender pela tela
 - [x] Colunas "Erro Máximo" e "Critério de aceitação", comparador cadastro × certificado e Erro ± U igual ao do sistema de calibração (0.7.0)
-- [ ] Validade dos padrões — conferir que cada padrão usado estava válido no dia da calibração
+- [x] Validade dos padrões — conferir que cada padrão usado estava válido no dia da calibração (0.8.0)
 - [ ] Registro de cada análise — quem, quando, o que foi lido e corrigido (rastreabilidade)
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
 - [ ] Previsão da deriva — prever quando cada instrumento sai da tolerância e sugerir a periodicidade de calibração

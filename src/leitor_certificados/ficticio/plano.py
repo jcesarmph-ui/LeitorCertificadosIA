@@ -67,6 +67,11 @@ def criar_banco_de_planos(caminho: Path, certificados: list[dict],
                 p["erro"], incerteza=p["incerteza"], tolerancia_inferior=-tolerancia,
                 tolerancia_superior=tolerancia).resultado)
         certo[cert["id"]] = resultado_geral(resultados)
+        # padrão vencido no dia da calibração: o aprovado vira pendente; o reprovado continua
+        # reprovado (etapa 8, ADR 0010)
+        if (certo[cert["id"]] == Resultado.APROVADO
+                and any(p.get("vencido") for p in cert.get("padroes", []))):
+            certo[cert["id"]] = Resultado.PENDENTE
     con.commit()
     con.close()
     return certo

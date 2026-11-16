@@ -31,6 +31,26 @@ INDICE, NOMINAL, ENCONTRADO, ERRO, INCERTEZA, K = (
 # - CRITERIO: critério de aceitação ± adotado pelo cliente (o laboratório compara com ele).
 PARAMETRO, ERRO_MAXIMO, CRITERIO = "parametro", "erro_maximo", "criterio"
 
+# Colunas possíveis da tabela de padrões (etapa 8, ADR 0010). O padrão é identificado pelo
+# `codigo` (ex.: "LAF-01-084") ou, em quem não tem código, pelo número do `certificado` dele.
+P_CODIGO, P_DESCRICAO, P_CERTIFICADO, P_CALIBRADO, P_VALIDADE, P_LABORATORIO = (
+    "codigo", "descricao", "certificado", "calibrado_em", "validade", "laboratorio",
+)
+MES_ANO = "mm/aaaa"  # validade só com mês e ano: vale até o último dia do mês
+
+
+@dataclass(frozen=True)
+class EstiloPadroes:
+    """Como o laboratório mostra os padrões que usou (a tabela "Padrões" / "Rastreabilidade")."""
+
+    titulo: str | None  # linha acima da tabela (None = sem título)
+    colunas: tuple[str, ...]
+    titulos: dict[str, str]
+    formato_validade: str  # MES_ANO ou um formato de `formatar_data`
+    codigo: Callable[[random.Random], str]  # como este laboratório numera os padrões
+    # descrição e certificado numa coluna só: "Bloco Padrão - 02728/24 - CAL0031"
+    descricao_com_certificado: bool = False
+
 
 @dataclass(frozen=True)
 class Laboratorio:
@@ -55,9 +75,14 @@ class Laboratorio:
     unidade_em_linha: bool = False
     # frase acima da tabela com o critério de aceitação; "{criterio}" vira "± 0,05 mm"
     frase_criterio: str | None = None
+    padroes: EstiloPadroes | None = None
+    # a validade **do certificado** escrita no topo ("Validade: 08/2027"): não é de um padrão
+    validade_no_topo: bool = False
 
 
 def formatar_data(d: date, formato: str) -> str:
+    if formato == MES_ANO:
+        return f"{d.month:02d}/{d.year}"
     if formato == "dd/mm/aaaa":
         return d.strftime("%d/%m/%Y")
     if formato == "dd.mm.aaaa":
@@ -122,6 +147,14 @@ LABORATORIOS: dict[str, Laboratorio] = {
             sinal_mais=False,
             nota="A incerteza expandida (U) corresponde a uma probabilidade de abrangência de "
             "aproximadamente 95%.",
+            padroes=EstiloPadroes(
+                titulo="Padrões utilizados",
+                colunas=(P_CODIGO, P_DESCRICAO, P_CERTIFICADO, P_VALIDADE),
+                titulos={P_CODIGO: "Código", P_DESCRICAO: "Descrição",
+                         P_CERTIFICADO: "Certificado", P_VALIDADE: "Validade"},
+                formato_validade="dd/mm/aaaa",
+                codigo=lambda rng: f"SC-P-{rng.randint(1, 999):03d}",
+            ),
             numero=lambda rng, d: f"SC-{d.year}-{rng.randint(1, 99999):05d}",
         ),
         Laboratorio(
@@ -157,6 +190,14 @@ LABORATORIOS: dict[str, Laboratorio] = {
             palavra_faixa="-",
             sinal_mais=True,
             nota="VR = valor de referência; VI = valor indicado. U expandida para k = 2,00.",
+            padroes=EstiloPadroes(
+                titulo="Rastreabilidade",
+                colunas=(P_DESCRICAO, P_CODIGO, P_CALIBRADO, P_VALIDADE),
+                titulos={P_DESCRICAO: "Padrão", P_CODIGO: "Identificação",
+                         P_CALIBRADO: "Calibrado em", P_VALIDADE: "Válido até"},
+                formato_validade="extenso",
+                codigo=lambda rng: f"PA{rng.randint(100, 9999)}",
+            ),
             numero=lambda rng, d: f"{rng.randint(1, 99999):05d}/{d.year % 100:02d}",
         ),
         Laboratorio(
@@ -197,6 +238,14 @@ LABORATORIOS: dict[str, Laboratorio] = {
             palavra_faixa="a",
             sinal_mais=True,
             nota="DESVIO = LEITURA - PADRAO. INC. EXP. PARA 95% DE ABRANGENCIA.",
+            padroes=EstiloPadroes(
+                titulo="PADROES DE REFERENCIA",
+                colunas=(P_CODIGO, P_DESCRICAO, P_CERTIFICADO, P_VALIDADE),
+                titulos={P_CODIGO: "COD. PADRAO", P_DESCRICAO: "DESCRICAO",
+                         P_CERTIFICADO: "CERT. N.", P_VALIDADE: "VENCIMENTO"},
+                formato_validade=MES_ANO,
+                codigo=lambda rng: f"QV-PD-{rng.randint(1, 99):02d}",
+            ),
             numero=lambda rng, d: f"QV{rng.randint(1, 999999):06d}",
         ),
         Laboratorio(
@@ -236,6 +285,15 @@ LABORATORIOS: dict[str, Laboratorio] = {
             palavra_faixa="to",
             sinal_mais=False,
             nota="Expanded uncertainty U = k · uc / Incerteza expandida U = k · uc.",
+            padroes=EstiloPadroes(
+                titulo="Padrões / Standards",
+                colunas=(P_CODIGO, P_DESCRICAO, P_CERTIFICADO, P_VALIDADE),
+                titulos={P_CODIGO: "ID", P_DESCRICAO: "Padrão / Standard",
+                         P_CERTIFICADO: "Certificado / Certificate",
+                         P_VALIDADE: "Validade / Due date"},
+                formato_validade="iso",
+                codigo=lambda rng: f"VT-STD-{rng.randint(1, 999)}",
+            ),
             numero=lambda rng, d: f"VT-{rng.randint(1, 9999):04d}/{d.year}",
         ),
         Laboratorio(
@@ -271,6 +329,15 @@ LABORATORIOS: dict[str, Laboratorio] = {
             palavra_faixa="a",
             sinal_mais=False,
             nota="Os resultados referem-se somente ao item calibrado. U para k = 2.",
+            padroes=EstiloPadroes(
+                titulo="Rastreabilidade - Certificado(s) do(s) Padrão(ões) de Referência",
+                colunas=(P_CERTIFICADO, P_CALIBRADO, P_VALIDADE, P_LABORATORIO),
+                titulos={P_CERTIFICADO: "Número do Certificado",
+                         P_CALIBRADO: "Data da Calibração", P_VALIDADE: "Data da Validade",
+                         P_LABORATORIO: "Laboratório"},
+                formato_validade="dd/mm/aaaa",
+                codigo=lambda rng: f"{rng.randint(100, 9999)}/{rng.randint(2023, 2026)}",
+            ),
             numero=lambda rng, d: f"BS {d.year}{rng.randint(1, 9999):04d}",
         ),
         Laboratorio(
@@ -311,6 +378,16 @@ LABORATORIOS: dict[str, Laboratorio] = {
             sinal_mais=False,
             nota="A incerteza expandida relatada é a incerteza padrão multiplicada pelo fator "
             "de abrangência k (aproximadamente 95%).",
+            padroes=EstiloPadroes(
+                titulo=None,
+                colunas=(P_CODIGO, P_DESCRICAO, P_VALIDADE),
+                titulos={P_CODIGO: "Código Padrões:", P_DESCRICAO: "Descrição - Certificado",
+                         P_VALIDADE: "Validade"},
+                formato_validade=MES_ANO,
+                codigo=lambda rng: f"RM-{rng.randint(1, 2):02d}-{rng.randint(1, 400):03d}",
+                descricao_com_certificado=True,
+            ),
+            validade_no_topo=True,
             numero=lambda rng, d: f"{rng.randint(1000000, 9999999)}",
             unidade_em_linha=True,
             frase_criterio="Erro somado à incerteza (Erro máximo) deve ser menor ou igual ao "
