@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QFileDialog,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -26,6 +27,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSplitter,
     QTableWidget,
@@ -162,7 +164,14 @@ class Janela(QMainWindow):
         self.divisor.setChildrenCollapsible(False)
         self.caixa_folha = self._montar_folha()
         self.divisor.addWidget(self.caixa_folha)
-        self.divisor.addWidget(self._montar_painel())
+        # rolagem geral do painel (pedido do usuário, 2026-11-16): com muitos pontos/avisos
+        # nada fica espremido; a barra só aparece quando não cabe
+        rolagem_painel = QScrollArea()
+        rolagem_painel.setWidgetResizable(True)
+        rolagem_painel.setFrameShape(QFrame.Shape.NoFrame)
+        rolagem_painel.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        rolagem_painel.setWidget(self._montar_painel())
+        self.divisor.addWidget(rolagem_painel)
         self.divisor.setStretchFactor(0, 0)
         self.divisor.setStretchFactor(1, 1)
         coluna.addWidget(self.divisor, 1)
@@ -261,8 +270,16 @@ class Janela(QMainWindow):
         self.motivo = QLabel("")
         self.motivo.setWordWrap(True)
         self.motivo.setTextFormat(Qt.TextFormat.RichText)  # problema vermelho, aviso amarelo
-        self.motivo.hide()
-        play.addWidget(self.motivo)
+        # muitos avisos: rolagem própria com altura máxima, para nunca roubar o espaço da
+        # tabela de pontos (pedido do usuário, 2026-11-16)
+        self.rolagem_motivo = QScrollArea()
+        self.rolagem_motivo.setWidgetResizable(True)
+        self.rolagem_motivo.setFrameShape(QFrame.Shape.NoFrame)
+        self.rolagem_motivo.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.rolagem_motivo.setMaximumHeight(140)
+        self.rolagem_motivo.setWidget(self.motivo)
+        self.rolagem_motivo.hide()
+        play.addWidget(self.rolagem_motivo)
         lay.addWidget(parecer)
 
         # Comparador: o que o cadastro diz × o que foi lido no certificado (pedido do usuário,
@@ -353,6 +370,7 @@ class Janela(QMainWindow):
                                  QHeaderView.ResizeMode.Stretch)
         self.tabela.setStyleSheet("QTableWidget { font-size: 11pt; } "
                                   "QHeaderView::section { font-size: 11pt; }")
+        self.tabela.setMinimumHeight(280)  # sempre algumas linhas à vista
         tlay.addWidget(self.tabela)
         lay.addWidget(pontos, 1)
         return painel
@@ -523,6 +541,7 @@ class Janela(QMainWindow):
         self.parecer.setStyleSheet(f"background: {cor('campo')}; color: {cor('dica')};")
         self.motivo.setText("")
         self.motivo.hide()
+        self.rolagem_motivo.hide()
         for valor in [*self.campos.values(), *self.campos_cadastro.values()]:
             valor.setText("—")
             valor.setStyleSheet("")
@@ -556,13 +575,15 @@ class Janela(QMainWindow):
         # o motivo do problema (pontos fora, padrão vencido) em vermelho e primeiro; o resto é
         # aviso (amarelo). Sempre aparecem, mesmo com "Aprovado"
         erros = list(conferencia.erros) if conferencia else []
+        motivos = list(dict.fromkeys(m for m in motivos if m not in erros))  # sem repetidos
         linhas = ([(m, cor("erro_texto"), "bold") for m in erros]
                   + [(m, cor("aviso_texto"), "normal") for m in motivos])
         self.motivo.setText("<br>".join(
             f'<span style="color: {tinta}; font-weight: {peso};">• {html.escape(m)}</span>'
             for m, tinta, peso in linhas))
         self.motivo.setStyleSheet("")
-        self.motivo.setVisible(bool(linhas))  # sem texto, não ocupa lugar
+        self.motivo.setVisible(bool(linhas))
+        self.rolagem_motivo.setVisible(bool(linhas))  # sem texto, não ocupa lugar
         self.campos["plano"].setText(
             (conferencia.plano_nome if conferencia and conferencia.plano_nome else None)
             or "sem plano no cadastro")
