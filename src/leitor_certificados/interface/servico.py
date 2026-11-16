@@ -310,14 +310,31 @@ class Servico:
         self.modelo = modelo
         return len(reais)
 
+    def _modelo_em_dia(self, modelo) -> bool:
+        """O modelo salvo serve se é mais novo que todas as correções e conhece todos os
+        rótulos usados nelas (um modelo de antes da etapa 8 não conhecia os padrões)."""
+        marcacoes = (list(self.pastas.marcacao.glob("*.palavras.json"))
+                     if self.pastas.marcacao.exists() else [])
+        salvo_em = self.pastas.modelo.stat().st_mtime
+        if any(a.stat().st_mtime > salvo_em for a in marcacoes):
+            return False
+        conhecidos = set(getattr(modelo, "classes_", ()))
+        usados = {it["certo"] for a in marcacoes
+                  for it in json.loads(a.read_text(encoding="utf-8"))["palavras"]}
+        return usados <= conhecidos
+
     def preparar_modelo(self, progresso: Progresso = _nada) -> str:
         """Usa o modelo salvo, se existir; senão treina o base. Devolve "salvo" ou "treinado"."""
         if self.pastas.modelo.exists():
             try:
-                self.modelo = ml.abrir(self.pastas.modelo)
-                return "salvo"
+                modelo = ml.abrir(self.pastas.modelo)
             except Exception:  # arquivo estragado ou de outra versão do scikit-learn
                 progresso("O modelo salvo não abriu; treinando de novo")
+            else:
+                if self._modelo_em_dia(modelo):
+                    self.modelo = modelo
+                    return "salvo"
+                progresso("O modelo salvo é antigo (há correções ou rótulos novos); treinando")
         self.aprender(progresso)
         return "treinado"
 
