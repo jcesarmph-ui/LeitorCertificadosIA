@@ -300,7 +300,6 @@ class Janela(QMainWindow):
             self.marcas[chave] = marca
         grade.setColumnStretch(1, 1)
         grade.setColumnStretch(2, 1)
-        lay.addWidget(instrumento)
 
         # Padrões usados na calibração (etapa 8): em dia no dia da calibração? Vencido deixa o
         # parecer PENDENTE; validade não lida só avisa.
@@ -322,12 +321,20 @@ class Janela(QMainWindow):
                                          QHeaderView.ResizeMode.Stretch)
         self.tabela_padroes.setStyleSheet("QTableWidget { font-size: 11pt; } "
                                           "QHeaderView::section { font-size: 11pt; }")
-        pdlay.addWidget(self.tabela_padroes)
+        pdlay.addWidget(self.tabela_padroes, 1)
         self.sem_padroes = QLabel("")  # "nenhum padrão encontrado" (só ocupa lugar com texto)
         self.sem_padroes.setWordWrap(True)
         self.sem_padroes.hide()
         pdlay.addWidget(self.sem_padroes)
-        lay.addWidget(padroes)
+        pdlay.addStretch(0)
+
+        # Instrumento e Padrões lado a lado, na mesma faixa e com a mesma largura: a tabela de
+        # pontos embaixo continua com espaço para várias linhas
+        faixa_meio = QHBoxLayout()
+        faixa_meio.setSpacing(8)
+        faixa_meio.addWidget(instrumento, 1)
+        faixa_meio.addWidget(padroes, 1)
+        lay.addLayout(faixa_meio)
 
         pontos = QGroupBox("Pontos conferidos")
         tlay = QVBoxLayout(pontos)
@@ -615,12 +622,7 @@ class Janela(QMainWindow):
                         celula.setBackground(QBrush(QColor(AMARELO)))
                         celula.setForeground(QBrush(QColor("#000000")))
                 self.tabela_padroes.setItem(r, c, celula)
-        # altura certa para as linhas (sem sobrar espaço vazio nem barra de rolagem)
         self.tabela_padroes.setVisible(bool(self.padroes))
-        if self.padroes:
-            altura = (self.tabela_padroes.horizontalHeader().height() + 4
-                      + sum(self.tabela_padroes.rowHeight(r) for r in range(len(self.padroes))))
-            self.tabela_padroes.setFixedHeight(min(altura, 230))
         vazio = lidos is not None and not lidos.padroes
         self.sem_padroes.setText("Nenhum padrão encontrado no certificado: validade dos padrões "
                                  "não conferida." if vazio else "")
