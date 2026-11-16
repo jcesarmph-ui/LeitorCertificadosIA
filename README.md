@@ -302,15 +302,16 @@ certa de cada um):
 
 | Grupo | Pareceres certos | Decisão errada | Padrões todos certos |
 |---|---|---|---|
-| Digital, laboratórios conhecidos | **30 de 30** | 0 | **28 de 30** |
-| Escaneado (OCR) | **27 de 30** (3 pendentes) | 0 | 19 de 30 |
-| Laboratório nunca visto (6, um de cada vez) | 119 de 150 | 1 | 21 de 150 |
+| Digital, laboratórios conhecidos | **29 de 30** (1 pendente) | **0** | **28 de 30** |
+| Escaneado (OCR) | **26 de 30** (4 pendentes) | **0** | 19 de 30 |
+| Laboratório nunca visto (6, um de cada vez) | 73 de 150 (77 pendentes) | **0** | 21 de 150 |
 
 <sub>Num laboratório nunca visto o modelo quase nunca acha a tabela de padrões. Por isso a
-validade não lida vira **aviso amarelo**, e o caminho é o **aprendizado com o uso** (abaixo): com
-certificados reais corrigidos da Laftec, os padrões chegam a **100 %**. A única decisão errada
-foi um certificado com padrão vencido cuja validade não foi lida: o programa aprovou, mas deixou o
-aviso amarelo na tela.</sub>
+validade não lida vira **aviso amarelo e parecer PENDENTE**: o programa prefere dizer "confira"
+a aprovar sem saber. Numa 1ª versão ele só avisava, e um certificado com padrão vencido saiu
+aprovado (119 de 150 certos, **1 decisão errada**); com a regra nova, **nenhuma decisão errada**.
+O caminho para tirar os pendentes é o **aprendizado com o uso** (abaixo): com certificados reais
+corrigidos da Laftec, os padrões chegam a **100 %**.</sub>
 
 ## 🌱 Aprendizado com o uso
 
