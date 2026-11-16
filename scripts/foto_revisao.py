@@ -18,7 +18,8 @@ RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "scripts"))
 from pre_rotular_reais import COR_PADRAO, CORES, PASTA_REAIS, SAIDA  # noqa: E402
 
-CORES_EXTRA = {"ponto.erro_maximo": (160, 100, 40), "ponto.criterio": (20, 100, 100)}
+CORES_EXTRA = {"ponto.erro_maximo": (160, 100, 40), "ponto.criterio": (20, 100, 100),
+               "padrao.codigo": (90, 60, 170), "padrao.validade": (200, 80, 0)}
 
 
 def main() -> None:
