@@ -299,7 +299,7 @@ def test_plano_traz_o_cadastro_do_instrumento(mundo):
 # --- conferência de conta (decisão do usuário, 2026-11-16) ---------------------------------------
 
 def _goniometro(tmp_path, linhas):
-    """Plano de goniômetro ± 0,25 e certificado com as colunas da Laftec (Erro Máximo)."""
+    """Plano de goniômetro ± 0,25 e certificado com a coluna Erro Máximo."""
     from leitor_certificados.conferencia.extracao import CertificadoLido, PontoLido
 
     banco = tmp_path / "planos.db"
@@ -321,7 +321,7 @@ def _goniometro(tmp_path, linhas):
 
 
 def test_erro_escrito_como_nominal_menos_encontrado_e_aceito(tmp_path):
-    """Goniômetro Laftec: Instrumento 15,00, Padrão 15,07, Erro −0,07 (Instrumento − Padrão).
+    """Goniômetro real: Instrumento 15,00, Padrão 15,07, Erro −0,07 (Instrumento − Padrão).
     Antes isso virava "colunas trocadas" e o programa escolhia o Quadrante como erro."""
     numeros = (15.0, 15.07, -0.07, 0.07, 2.0, 2.0, 0.14, 0.25)
     resultado = _goniometro(tmp_path, [(15.0, 15.07, -0.07, 0.07, 0.14, numeros)])

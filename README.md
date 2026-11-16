@@ -311,7 +311,7 @@ validade não lida vira **aviso amarelo e parecer PENDENTE**: o programa prefere
 a aprovar sem saber. Numa 1ª versão ele só avisava, e um certificado com padrão vencido saiu
 aprovado (119 de 150 certos, **1 decisão errada**); com a regra nova, **nenhuma decisão errada**.
 O caminho para tirar os pendentes é o **aprendizado com o uso** (abaixo): com certificados reais
-corrigidos da Laftec, os padrões chegam a **100 %**.</sub>
+corrigidos do laboratório principal, os padrões chegam a **100 %**.</sub>
 
 ## 🌱 Aprendizado com o uso
 
@@ -347,9 +347,9 @@ que nunca viu?** Para responder sem trapaça, cada certificado real é **escondi
 usado só como prova; o modelo treina com 0, 1, 2, 3 e 4 dos outros reais e lê o escondido. Isso é
 repetido para cada um dos 5 e tirada a média.
 
-A **Laftec** é o laboratório de quase todos os certificados do dia a dia, por isso vem primeiro:
+Quase todos os certificados do dia a dia vêm de um mesmo laboratório, por isso ele vem primeiro:
 
-| Reais corrigidos no treino | **Essenciais certos — Laftec** | **Padrões certos — Laftec** | "Falsos" — Laftec |
+| Reais corrigidos no treino | **Essenciais certos** | **Padrões certos** | "Falsos" |
 |---|---|---|---|
 | nenhum (só fictícios) | 85,0 % | 87,4 % | 18 |
 | 1 | 91,5 % | 93,8 % | 10 |
@@ -357,12 +357,12 @@ A **Laftec** é o laboratório de quase todos os certificados do dia a dia, por 
 | 3 | 98,2 % | **100 %** | 3 |
 | 4 | **100 %** | **100 %** | 3 |
 
-<sub>Média de 3 certificados Laftec reais (2 digitais e 1 escaneado), cada um escondido do treino. Como são do mesmo laboratório, um ajuda o
+<sub>Média de 3 certificados reais desse laboratório (2 digitais e 1 escaneado), cada um escondido do treino. Como são do mesmo laboratório, um ajuda o
 outro — é exatamente o que acontece no uso. Só os números vão para o GitHub.</sub>
 
 ```mermaid
 xychart-beta
-    title "Laftec: essenciais certos x certificados reais corrigidos"
+    title "Essenciais certos x certificados reais corrigidos"
     x-axis ["0", "1", "2", "3", "4"]
     y-axis "acerto (%)" 80 --> 100
     line [85.0, 91.5, 95.0, 98.2, 100]
@@ -402,7 +402,7 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Etapa 2 — Leitura do PDF: texto direto e OCR (palavras com posição e confiança)
 - [x] Etapa 3 — Machine learning: encontrar os campos; acerto medido em treino × teste e em laboratório que o modelo nunca viu
 - [x] Etapa 4 — Conferência com o plano: erro ± U dentro da tolerância (parecer só quando há certeza)
-- [x] Aprendizado com o uso — o modelo aprende com certificados reais corrigidos (acerto nos essenciais: 70 % → 92 %; na 0.8.0, Laftec 85 % → 100 %)
+- [x] Aprendizado com o uso — o modelo aprende com certificados reais corrigidos (acerto nos essenciais: 70 % → 92 %; na 0.8.0, laboratório principal 85 % → 100 %)
 - [x] Interface — abrir, ver os checks, corrigir e reaprender pela tela
 - [x] Colunas "Erro Máximo" e "Critério de aceitação", comparador cadastro × certificado e Erro ± U igual ao do sistema de calibração (0.7.0)
 - [x] Validade dos padrões — conferir que cada padrão usado estava válido no dia da calibração (0.8.0)

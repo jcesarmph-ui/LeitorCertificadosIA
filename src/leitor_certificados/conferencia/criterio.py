@@ -1,7 +1,7 @@
 """Compara o critério de aceitação do certificado com a tolerância do plano (decisão do usuário,
 2026-11-13, ADR 0009): só **avisa** em amarelo (não muda o parecer), igual à faixa.
 
-Alguns laboratórios (ex.: o estilo da Laftec) trazem a coluna "Critério de aceitação ±" — o
+Alguns laboratórios trazem a coluna "Critério de aceitação ±" — o
 limite que **o cliente** informou ao laboratório. Se ele não for o mesmo do nosso plano, o
 laboratório julgou o instrumento com outra régua: vale a pena olhar. O parecer continua vindo
 da nossa regra (erro ± U contra a tolerância do plano).

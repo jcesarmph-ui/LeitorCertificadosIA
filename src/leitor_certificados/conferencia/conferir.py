@@ -6,7 +6,7 @@ Avisos (nunca silenciosos): instrumento sem plano, ponto do plano que não está
 ponto do certificado que não está no plano, erro que não bate com "encontrado − nominal".
 
 **Conferência de conta** (decisão do usuário, 2026-11-16): o erro pode vir escrito como
-"encontrado − nominal" ou "nominal − encontrado" (a Laftec, no goniômetro, escreve
+"encontrado − nominal" ou "nominal − encontrado" (há laboratório que, no goniômetro, escreve
 "Instrumento − Padrão"); quando o certificado traz "Erro Máximo", |erro| + U tem de dar esse
 valor. Se os números da linha não fecham a conta nem trocando as colunas, o ponto fica **não
 avaliado** (aviso amarelo, parecer PENDENTE): nunca aprova nem reprova com número que não fecha.
