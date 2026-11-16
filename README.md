@@ -297,7 +297,20 @@ Os laboratórios reais escrevem essa tabela de jeitos bem diferentes — e com *
 são o que se procura. Os 6 laboratórios inventados ganharam tabelas de padrões variadas, com as
 mesmas armadilhas, e cerca de 1 em cada 8 com um padrão vencido.
 
-MEDIDA_PADROES
+**Medida com certificados fictícios** (150 inventados, plano inventado; o programa sabe a resposta
+certa de cada um):
+
+| Grupo | Pareceres certos | Decisão errada | Padrões todos certos |
+|---|---|---|---|
+| Digital, laboratórios conhecidos | **30 de 30** | 0 | **28 de 30** |
+| Escaneado (OCR) | **27 de 30** (3 pendentes) | 0 | 19 de 30 |
+| Laboratório nunca visto (6, um de cada vez) | 119 de 150 | 1 | 21 de 150 |
+
+<sub>Num laboratório nunca visto o modelo quase nunca acha a tabela de padrões. Por isso a
+validade não lida vira **aviso amarelo**, e o caminho é o **aprendizado com o uso** (abaixo): com
+certificados reais corrigidos da Laftec, os padrões chegam a **100 %**. A única decisão errada
+foi um certificado com padrão vencido cuja validade não foi lida: o programa aprovou, mas deixou o
+aviso amarelo na tela.</sub>
 
 ## 🌱 Aprendizado com o uso
 
