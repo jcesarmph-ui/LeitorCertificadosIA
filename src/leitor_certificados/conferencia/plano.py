@@ -28,6 +28,8 @@ class PontoDoPlano:
     minimo: float | None = None
     maximo: float | None = None
     escala: str | None = None
+    # o id da linha em pontos_plano (o sistema de calibração preenche a linha certa; etapa 13)
+    id: int | None = None
 
     def aceita(self, nominal: float, escala: str | None = None) -> bool:
         """O nominal do certificado é este ponto? Igual ao nominal ou, no intervalo, dentro
@@ -144,7 +146,7 @@ class PlanosDQ05:
         colunas = {c[1] for c in self._con.execute("PRAGMA table_info(pontos_plano)")}
         descricao = "descricao" if "descricao" in colunas else "NULL AS descricao"
         for linha in self._con.execute(
-                "SELECT valor_nominal, tolerancia_inferior, tolerancia_superior, incerteza, "
+                "SELECT id, valor_nominal, tolerancia_inferior, tolerancia_superior, incerteza, "
                 f"incerteza_nao_aplica, {descricao} FROM pontos_plano "
                 "WHERE plano_id = ? AND tipo = 'NUMERICO' AND excluido_em IS NULL "
                 "ORDER BY ordem",
@@ -160,7 +162,7 @@ class PlanosDQ05:
                 tolerancia_superior=linha["tolerancia_superior"],
                 incerteza=linha["incerteza"],
                 sem_incerteza=bool(linha["incerteza_nao_aplica"]),
-                minimo=minimo, maximo=maximo, escala=escala,
+                minimo=minimo, maximo=maximo, escala=escala, id=linha["id"],
             ))
         return Plano(codigo=codigo, nome=cabecalho["nome"], pontos=pontos,
                      faixa=self._faixa_por_codigo.get(self._chave(codigo)),

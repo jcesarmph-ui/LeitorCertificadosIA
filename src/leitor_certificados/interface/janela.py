@@ -10,7 +10,7 @@ from __future__ import annotations
 import html
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
+from PySide6.QtCore import QEvent, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QDragEnterEvent, QDropEvent, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -88,6 +88,9 @@ DICAS_COLUNAS = {
 
 
 class Janela(QMainWindow):
+    # registrado e decidido: a saída para o sistema de calibração (`saida.py`, etapa 13)
+    registrado = Signal(dict)
+
     def __init__(self, servico: Servico | None = None):
         super().__init__()
         self.servico = servico or Servico()
@@ -954,6 +957,11 @@ class Janela(QMainWindow):
             return
         self._aprovado = aprovado
         self.ultimo_pdf_aprovado = pdf
+        from ..saida import saida_para_sistema
+
+        self.ultima_saida = saida_para_sistema(
+            self.analise, self.servico.registro.obter(numero_registro), pdf)
+        self.registrado.emit(self.ultima_saida)
         self.avisar(f"Registrado (nº {numero_registro}): {decisao} por {nome} (RE {re}) em "
                     f"{data}. O PDF carimbado fica no registro (Registros → Abrir PDF).",
                     "info")
