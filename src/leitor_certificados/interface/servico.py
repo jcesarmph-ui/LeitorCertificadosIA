@@ -573,9 +573,11 @@ class Servico:
         caminho = self.pasta_registro / nome
         return caminho if caminho.exists() else None
 
-    def aprovar(self, id_: int, nome: str, re: str, data: str) -> Path:
-        """Aprovação final pelo responsável: carimba a cópia conferida (checks) com o nome,
-        o RE e a data, e o registro passa a constar APROVADO."""
+    def aprovar(self, id_: int, nome: str, re: str, data: str,
+                aprovado: bool = True) -> Path:
+        """Decisão final pelo responsável: carimba a cópia conferida com o nome, o RE e a data.
+        Aprovado: checks todos verdes e "( X ) APROVADO". Rejeitado: checks como o leitor viu
+        e "( X ) REPROVADO"."""
         from ..carimbo import carimbar_pdf
 
         r = self.registro.obter(id_)
@@ -586,13 +588,15 @@ class Servico:
             raise ValueError("este registro é de antes da aprovação existir e não tem a cópia "
                              "do PDF com os checks: abra o certificado e registre de novo")
         destino = f"aprovados/{id_:05d}_{r.certificado}"
-        base = self._verde_para_aprovar(id_, r.arquivo_conferido, r.certificado)
+        base = (self._verde_para_aprovar(id_, r.arquivo_conferido, r.certificado)
+                if aprovado else conferido)
         carimbar_pdf(base, self.pasta_registro / destino, nome.strip(), re.strip(),
-                     data.strip(), int(r.lido.get("rotacao", 0)))
+                     data.strip(), int(r.lido.get("rotacao", 0)), aprovado)
         if base != conferido:
             base.unlink(missing_ok=True)  # o passo do meio (só os checks verdes)
         self.registro.aprovar(id_, nome=nome.strip(), re=re.strip(), data=data.strip(),
-                              usuario=_usuario(), pc=_computador(), arquivo=destino)
+                              usuario=_usuario(), pc=_computador(), arquivo=destino,
+                              decisao="APROVADO" if aprovado else "REPROVADO")
         return self.pasta_registro / destino
 
     def apagar_aprovacao(self, id_: int) -> None:

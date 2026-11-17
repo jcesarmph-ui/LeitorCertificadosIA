@@ -32,6 +32,7 @@ _COLUNAS_NOVAS = {
     "aprovado_usuario": "TEXT",
     "aprovado_pc": "TEXT",
     "arquivo_aprovado": "TEXT",   # cópia do PDF com os checks e o carimbo
+    "decisao": "TEXT",            # APROVADO ou REPROVADO (decisão de quem conferiu)
 }
 
 _CRIAR = """
@@ -89,16 +90,22 @@ class Registro:
     aprovado_usuario: str | None = None
     aprovado_pc: str | None = None
     arquivo_aprovado: str | None = None
+    decisao: str | None = None
+
+    @property
+    def decidido(self) -> bool:
+        """O responsável já decidiu (aprovou ou rejeitou)."""
+        return bool(self.aprovado_por)
 
     @property
     def aprovado(self) -> bool:
         """O responsável aprovou de vez (vale mais que o parecer da IA)."""
-        return bool(self.aprovado_por)
+        return self.decidido and (self.decisao or "APROVADO") == "APROVADO"
 
     @property
     def parecer_final(self) -> str | None:
-        """O que vale: APROVADO pelo responsável ou, sem isso, o parecer da IA."""
-        return "APROVADO" if self.aprovado else self.parecer
+        """O que vale: a decisão do responsável ou, sem ela, o parecer da IA."""
+        return (self.decisao or "APROVADO") if self.decidido else self.parecer
 
     @property
     def ensina(self) -> bool:
@@ -176,20 +183,21 @@ class RegistroAnalises:
         self._executar("UPDATE analises SET arquivo_conferido = ? WHERE id = ?", (arquivo, id_))
 
     def aprovar(self, id_: int, *, nome: str, re: str, data: str, usuario: str, pc: str,
-                arquivo: str) -> None:
+                arquivo: str, decisao: str = "APROVADO") -> None:
         """Aprovação final pelo responsável: o registro passa a constar APROVADO, mesmo que a
         IA tenha dado pendente ou reprovado. O parecer da IA continua guardado."""
         self._executar(
             "UPDATE analises SET aprovado_por = ?, aprovado_re = ?, aprovado_data = ?, "
-            "aprovado_em = ?, aprovado_usuario = ?, aprovado_pc = ?, arquivo_aprovado = ? "
-            "WHERE id = ?", (nome, re, data, _agora(), usuario, pc, arquivo, id_))
+            "aprovado_em = ?, aprovado_usuario = ?, aprovado_pc = ?, arquivo_aprovado = ?, "
+            "decisao = ? WHERE id = ?",
+            (nome, re, data, _agora(), usuario, pc, arquivo, decisao, id_))
 
     def apagar_aprovacao(self, id_: int) -> None:
         """Aprovação feita sem querer: some (decisão do usuário, 2026-11-17)."""
         self._executar(
             "UPDATE analises SET aprovado_por = NULL, aprovado_re = NULL, aprovado_data = NULL, "
             "aprovado_em = NULL, aprovado_usuario = NULL, aprovado_pc = NULL, "
-            "arquivo_aprovado = NULL WHERE id = ?", (id_,))
+            "arquivo_aprovado = NULL, decisao = NULL WHERE id = ?", (id_,))
 
     def mandar_para_lixeira(self, id_: int) -> None:
         self._executar("UPDATE analises SET na_lixeira_em = ? WHERE id = ?", (_agora(), id_))

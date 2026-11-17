@@ -34,16 +34,20 @@ COLUNAS = ["Nº", "Data e hora", "Usuário", "Certificado", "Código", "Parecer"
 
 
 class PerguntaAprovacao(QDialog):
-    """Pede o nome, o RE e a data de quem aprova. Nome e RE vêm preenchidos com os da última
-    aprovação feita neste usuário do Windows."""
+    """A decisão de quem conferiu: "Aprovar certificado" ou "Rejeitar certificado", com o nome,
+    o RE e a data. Nome e RE vêm preenchidos com os da última decisão deste usuário do Windows.
+    Depois do exec(), `aprovado` diz qual dos dois foi clicado."""
 
     def __init__(self, certificado: str, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Aprovar certificado")
+        self.setWindowTitle("Registrar certificado")
+        self.aprovado = True
         self._preferencias = QSettings("LeitorCertificadosIA", "aprovacao")
         coluna = QVBoxLayout(self)
-        explica = QLabel(f"Aprovar o certificado {certificado}.\n"
-                         "O registro passa a constar APROVADO e o PDF recebe o carimbo.")
+        explica = QLabel(
+            f"Certificado {certificado}.\n"
+            "Aprovar: o PDF fica com todos os checks verdes e o carimbo ( X ) APROVADO.\n"
+            "Rejeitar: os checks ficam como o leitor viu e o carimbo ( X ) REPROVADO.")
         explica.setWordWrap(True)
         coluna.addWidget(explica)
         formulario = QFormLayout()
@@ -56,7 +60,7 @@ class PerguntaAprovacao(QDialog):
         self.data.setDisplayFormat("dd/MM/yyyy")
         formulario.addRow("Nome do responsável", self.nome)
         formulario.addRow("RE", self.re)
-        formulario.addRow("Data da aprovação", self.data)
+        formulario.addRow("Data", self.data)
         coluna.addLayout(formulario)
         self.erro = QLabel("")
         self.erro.setStyleSheet(f"color: {cor('erro_texto')};")
@@ -65,11 +69,14 @@ class PerguntaAprovacao(QDialog):
         botoes = QHBoxLayout()
         botoes.addStretch(1)
         cancelar = QPushButton("Cancelar")
-        aprovar = QPushButton("Aprovar")
+        rejeitar = QPushButton("Rejeitar certificado")
+        aprovar = QPushButton("Aprovar certificado")
         aprovar.setObjectName("principal")  # a ação principal desta caixinha
         cancelar.clicked.connect(self.reject)
-        aprovar.clicked.connect(self._conferir)
+        rejeitar.clicked.connect(lambda: self._conferir(False))
+        aprovar.clicked.connect(lambda: self._conferir(True))
         botoes.addWidget(cancelar)
+        botoes.addWidget(rejeitar)
         botoes.addWidget(aprovar)
         coluna.addLayout(botoes)
 
@@ -77,10 +84,11 @@ class PerguntaAprovacao(QDialog):
         return (self.nome.text().strip(), self.re.text().strip(),
                 self.data.date().toString("dd/MM/yyyy"))
 
-    def _conferir(self) -> None:
+    def _conferir(self, aprovado: bool = True) -> None:
+        self.aprovado = aprovado
         nome, re, _ = self.valores()
         if not nome or not re:
-            self.erro.setText("Preencha o nome e o RE de quem aprova.")
+            self.erro.setText("Preencha o nome e o RE de quem conferiu.")
             self.erro.show()
             return
         self._preferencias.setValue("nome", nome)
@@ -104,8 +112,8 @@ def detalhes(r: Registro) -> str:
               f"Registrado em {_data_br(r.data_hora)} por {r.usuario} ({r.pc})",
               f"Plano: {r.plano or '—'}    Parecer da IA: {r.parecer or '—'}",
               f"Palavras corrigidas: {r.correcoes}    Textos corrigidos: {r.textos}"]
-    if r.aprovado:
-        partes.insert(3, f"APROVADO por {r.aprovado_por} (RE {r.aprovado_re}) em "
+    if r.decidido:
+        partes.insert(3, f"{r.parecer_final} por {r.aprovado_por} (RE {r.aprovado_re}) em "
                          f"{r.aprovado_data} — clicado em {_data_br(r.aprovado_em)} por "
                          f"{r.aprovado_usuario} ({r.aprovado_pc})")
     if r.manual:
@@ -202,11 +210,11 @@ class JanelaRegistro(QDialog):
         self.botao_lixeira = QPushButton("Mandar para a Lixeira")
         self.botao_restaurar = QPushButton("Restaurar")
         self.botao_apagar = QPushButton("Apagar de vez")
-        self.botao_aprovar = QPushButton("Aprovar")
+        self.botao_aprovar = QPushButton("Aprovar ou rejeitar")
         self.botao_aprovar.setToolTip(
-            "Aprovação final pelo responsável: vale mesmo se a IA deu pendente ou reprovado. "
+            "Decisão final pelo responsável: vale mesmo se a IA deu pendente ou reprovado. "
             "Pede nome, RE e data, e carimba o PDF.")
-        self.botao_desaprovar = QPushButton("Apagar aprovação")
+        self.botao_desaprovar = QPushButton("Apagar decisão")
         self.botao_pdf = QPushButton("Abrir PDF")
         self.botao_pdf.setToolTip("O certificado com os checks da conferência (e o carimbo, "
                                   "se foi aprovado)")
@@ -249,7 +257,7 @@ class JanelaRegistro(QDialog):
         na_lixeira = self._aba() is self.aba_lixeira
         r = self._aba().escolhido()
         tem = r is not None
-        aprovado = tem and r.aprovado
+        aprovado = tem and r.decidido
         self.botao_aprovar.setVisible(not na_lixeira and self.servico is not None
                                       and not aprovado)
         self.botao_aprovar.setEnabled(tem)
@@ -287,14 +295,14 @@ class JanelaRegistro(QDialog):
         pergunta = PerguntaAprovacao(r.certificado, self)
         if pergunta.exec() != QDialog.DialogCode.Accepted:
             return
-        self.aprovar_com(*pergunta.valores())
+        self.aprovar_com(*pergunta.valores(), aprovado=pergunta.aprovado)
 
-    def aprovar_com(self, nome: str, re: str, data: str) -> None:
+    def aprovar_com(self, nome: str, re: str, data: str, aprovado: bool = True) -> None:
         r = self._aba().escolhido()
         if r is None:
             return
         try:
-            self.servico.aprovar(r.id, nome, re, data)
+            self.servico.aprovar(r.id, nome, re, data, aprovado)
         except Exception as erro:
             self._avisar(f"Não consegui aprovar: {erro}")
             return
@@ -303,9 +311,9 @@ class JanelaRegistro(QDialog):
     def apagar_aprovacao(self) -> None:
         r = self._aba().escolhido()
         if r is None or not self._confirmar(
-                "Apagar aprovação",
-                f"A aprovação do registro nº {r.id} ({r.certificado}) será apagada, junto com "
-                "o PDF carimbado. Tem certeza?"):
+                "Apagar decisão",
+                f"A decisão (aprovado/reprovado) do registro nº {r.id} ({r.certificado}) "
+                "será apagada, junto com o PDF carimbado. Tem certeza?"):
             return
         self.servico.apagar_aprovacao(r.id)
         self._recarregar(mexeu_no_treino=False)

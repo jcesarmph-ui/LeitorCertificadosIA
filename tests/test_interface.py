@@ -198,7 +198,7 @@ def test_janela_corrigir_varias_palavras_conta_pendentes(app, mundo):
     assert not janela.folha._caixas[3].selecionada  # a seleção some depois de aplicar
     # a correção só ensina depois de registrada (rascunho não conta)
     assert "(" not in janela.botao_aprender.text()
-    janela.registrar()
+    janela.registrar_com(True, "Fulano de Tal", "1234", "17/11/2026")
     assert "(" in janela.botao_aprender.text()  # mostra quantas correções esperam
     assert not janela.botao_registrar.isEnabled()  # já registrada
     janela.aplicar_rotulo([5], "fabricante")
@@ -739,7 +739,7 @@ def test_aprovacao_final_carimba_e_vale_mais_que_a_ia(app, mundo, monkeypatch):
     janela.show()
     janela.abrir(certificado)
     esperar(app, janela)
-    janela.registrar()
+    servico.registrar(janela.analise)  # registro sem decisão (como os de antes da 0.11.0)
     registro = servico.registro.listar()[0]
     conferido = servico.arquivo_do_registro(registro.arquivo_conferido)
     assert conferido is not None  # a cópia com os checks foi guardada ao registrar
@@ -756,6 +756,7 @@ def test_aprovacao_final_carimba_e_vale_mais_que_a_ia(app, mundo, monkeypatch):
     pdf = servico.arquivo_do_registro(aprovado.arquivo_aprovado)
     assert pdf is not None and len(pdfium.PdfDocument(str(pdf))) == 1
     assert "APROVADO por Fulano de Tal" in lista.aba_registro.detalhe.text()
+    assert lista.botao_desaprovar.text() == "Apagar decisão"
     assert lista.botao_desaprovar.isVisible() or not lista.isVisible()
 
     monkeypatch.setattr(JanelaRegistro, "_confirmar", lambda self, t, x: True)
@@ -799,23 +800,42 @@ def test_carimbo_cai_em_lugar_livre_embaixo():
     assert esquerda > 0.5  # do lado direito, como o carimbo de papel
 
 
-def test_aprovar_pela_tela_principal_e_ignorar_valor(app, mundo):
+def test_aprovar_ao_registrar_e_ignorar_valor(app, mundo):
     servico, _, certificado = mundo
     janela = Janela(servico)
     janela.show()
     janela.abrir(certificado)
     esperar(app, janela)
-    assert not janela.botao_aprovar.isEnabled()  # só depois de registrar
+    assert not hasattr(janela, "botao_aprovar")  # a decisão é feita dentro do Registrar
     # "Ignorar este valor": o rótulo vira "outro" e a conferência é refeita na hora
     indice = next(i for i, r in enumerate(janela.analise.rotulos) if r == "codigo")
     janela.aplicar_rotulo([indice], "outro")
     assert janela.analise.rotulos[indice] == "outro"
-    janela.registrar()
-    assert janela.botao_aprovar.isEnabled()
-    janela.aprovar_com("Fulano de Tal", "1234", "17/11/2026")
-    assert janela.botao_aprovar.text() == "Aprovado" and not janela.botao_aprovar.isEnabled()
+    janela.registrar_com(True, "Fulano de Tal", "1234", "17/11/2026")
+    assert janela.botao_registrar.text() == "Registrada"
     assert janela.ultimo_pdf_aprovado.exists()
     assert servico.registro.obter(janela._numero_registro).parecer_final == "APROVADO"
     sobras = list((servico.pasta_registro / "aprovados").glob("*_verde_*"))
     assert not sobras  # o passo do meio (só os checks verdes) é apagado
     janela.close()
+
+
+def test_rejeitar_ao_registrar(app, mundo):
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    janela.show()
+    janela.abrir(certificado)
+    esperar(app, janela)
+    janela.registrar_com(False, "Fulano de Tal", "1234", "17/11/2026")
+    r = servico.registro.obter(janela._numero_registro)
+    assert r.decidido and not r.aprovado and r.parecer_final == "REPROVADO"
+    assert r.decisao == "REPROVADO" and janela.ultimo_pdf_aprovado.exists()
+    janela.close()
+
+
+def test_carimbo_marca_o_x_na_decisao():
+    from leitor_certificados.carimbo import desenhar
+
+    aprovado = desenhar("Fulano", "1", "17/11/2026", True)
+    reprovado = desenhar("Fulano", "1", "17/11/2026", False)
+    assert aprovado.tobytes() != reprovado.tobytes()

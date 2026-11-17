@@ -34,7 +34,7 @@ def _fonte(nomes: tuple[str, ...], tamanho: int) -> ImageFont.ImageFont:
     return ImageFont.load_default(tamanho)
 
 
-def desenhar(nome: str, re: str, data: str) -> Image.Image:
+def desenhar(nome: str, re: str, data: str, aprovado: bool = True) -> Image.Image:
     """O carimbo, com o RE, o nome no VISTO e a data. Fundo branco: a marca d'água ou uma
     linha do certificado nunca aparecem por dentro (sempre limpo e fácil de ler)."""
     imagem = Image.new("RGBA", (LARGURA, ALTURA), (255, 255, 255, 255))
@@ -48,8 +48,11 @@ def desenhar(nome: str, re: str, data: str) -> Image.Image:
     d.text((LARGURA / 2, 165), "CRITICAMENTE E CONSIDERADO:", font=titulo, fill=TINTA,
            anchor="mm")
     opcao = _fonte(negrito, 58)
-    d.text((60, 275), "( X ) APROVADO", font=opcao, fill=TINTA, anchor="lm")
-    d.text((LARGURA - 60, 275), "(    ) REPROVADO", font=opcao, fill=TINTA, anchor="rm")
+    # o X fica na decisão de quem conferiu (aprovado ou reprovado)
+    d.text((60, 275), "( X ) APROVADO" if aprovado else "(    ) APROVADO", font=opcao,
+           fill=TINTA, anchor="lm")
+    d.text((LARGURA - 60, 275), "(    ) REPROVADO" if aprovado else "( X ) REPROVADO",
+           font=opcao, fill=TINTA, anchor="rm")
     y = 420
     rotulo = _fonte(negrito, 50)
     valor = _fonte(normal, 50)
@@ -148,7 +151,7 @@ def sobrepor(origem: Path | str, destino: Path | str,
 
 
 def carimbar_pdf(origem: Path | str, destino: Path | str, nome: str, re: str, data: str,
-                 rotacao: int = 0) -> Path:
+                 rotacao: int = 0, aprovado: bool = True) -> Path:
     """Grava em `destino` uma cópia do PDF com o carimbo na 1ª página, no espaço livre."""
     documento = pdfium.PdfDocument(str(origem))
     try:
@@ -158,5 +161,5 @@ def carimbar_pdf(origem: Path | str, destino: Path | str, nome: str, re: str, da
     if rotacao == 180:
         folha = folha.rotate(180)
     esquerda, topo = lugar_livre(folha)
-    return sobrepor(origem, destino, [(desenhar(nome, re, data), esquerda, topo,
+    return sobrepor(origem, destino, [(desenhar(nome, re, data, aprovado), esquerda, topo,
                                        LARGURA_NA_FOLHA)], rotacao)

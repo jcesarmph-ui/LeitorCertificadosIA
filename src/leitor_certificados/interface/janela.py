@@ -160,18 +160,12 @@ class Janela(QMainWindow):
         self.botao_aprender.clicked.connect(self.aprender)
         self.botao_registrar = QPushButton("Registrar")
         self.botao_registrar.setToolTip(
-            "Guarda esta análise no registro (ícone do relógio, no canto de cima). As correções "
-            "só ensinam o modelo depois de registradas.")
+            "Guarda esta análise no registro (ícone do relógio, no canto de cima) com a sua "
+            "decisão: aprovar ou rejeitar o certificado (nome, RE e data; o PDF ganha o "
+            "carimbo). As correções só ensinam o modelo depois de registradas.")
         self.botao_registrar.clicked.connect(self.registrar)
-        self.botao_aprovar = QPushButton("Aprovar")
-        self.botao_aprovar.setToolTip(
-            "Depois de registrar: aprovação final pelo responsável (nome, RE e data), mesmo que "
-            "o leitor tenha apontado algo ignorável. O PDF ganha o carimbo e os checks ficam "
-            "todos verdes.")
-        self.botao_aprovar.clicked.connect(self.aprovar)
         botoes.addWidget(self.botao_abrir)
         botoes.addWidget(self.botao_registrar)
-        botoes.addWidget(self.botao_aprovar)
         botoes.addWidget(self.botao_corrigir)
         botoes.addWidget(self.botao_aprender)
         botoes.addSpacing(16)
@@ -454,8 +448,6 @@ class Janela(QMainWindow):
         self.botao_registrar.setEnabled(livre and self.analise is not None
                                         and not self._registrado)
         self.botao_registrar.setText("Registrada" if self._registrado else "Registrar")
-        self.botao_aprovar.setEnabled(livre and self._registrado and not self._aprovado)
-        self.botao_aprovar.setText("Aprovado" if self._aprovado else "Aprovar")
         self.botao_aprender.setEnabled(livre)
         self.botao_aprender.setText(
             f"Aprender com as correções ({self._pendentes})" if self._pendentes
@@ -860,7 +852,16 @@ class Janela(QMainWindow):
             self.aprender()
 
     def registrar(self) -> None:
+        """Registrar = decidir: a caixinha pede "Aprovar" ou "Rejeitar" com nome, RE e data."""
         if self.analise is None or self.ocupado or self._registrado:
+            return
+        pergunta = PerguntaAprovacao(self.analise.caminho.name, self)
+        if pergunta.exec() != QDialog.DialogCode.Accepted:
+            return  # cancelou: nada é registrado
+        self.registrar_com(pergunta.aprovado, *pergunta.valores())
+
+    def registrar_com(self, aprovado: bool, nome: str, re: str, data: str) -> None:
+        if self.analise is None:
             return
         try:
             numero_registro = self.servico.registrar(self.analise)
@@ -873,27 +874,19 @@ class Janela(QMainWindow):
         self._pendentes += self._rascunho
         self._rascunho = 0
         self._atualizar_botoes()
-        self.avisar(f"Análise registrada (nº {numero_registro}).", "info")
-
-    def aprovar(self) -> None:
-        if not self._registrado or self._numero_registro is None or self.analise is None:
-            return
-        pergunta = PerguntaAprovacao(self.analise.caminho.name, self)
-        if pergunta.exec() != QDialog.DialogCode.Accepted:
-            return
-        self.aprovar_com(*pergunta.valores())
-
-    def aprovar_com(self, nome: str, re: str, data: str) -> None:
+        decisao = "APROVADO" if aprovado else "REPROVADO"
         try:
-            pdf = self.servico.aprovar(self._numero_registro, nome, re, data)
+            pdf = self.servico.aprovar(numero_registro, nome, re, data, aprovado)
         except Exception as erro:
-            self.avisar(f"Não consegui aprovar: {erro}", "erro")
+            self.avisar(f"Análise registrada (nº {numero_registro}), mas não consegui carimbar "
+                        f"o PDF: {erro}. Dá para decidir pelo registro (ícone do relógio).",
+                        "erro")
             return
-        self._aprovado = True
-        self._atualizar_botoes()
-        self.avisar(f"Certificado APROVADO por {nome} (RE {re}) em {data}. O PDF carimbado "
-                    "fica no registro (ícone do relógio → Abrir PDF).", "info")
+        self._aprovado = aprovado
         self.ultimo_pdf_aprovado = pdf
+        self.avisar(f"Registrado (nº {numero_registro}): {decisao} por {nome} (RE {re}) em "
+                    f"{data}. O PDF carimbado fica no registro (ícone do relógio → Abrir PDF).",
+                    "info")
 
     def marcar_padroes_calibrados(self, ligado: bool) -> None:
         if self.analise is None:
