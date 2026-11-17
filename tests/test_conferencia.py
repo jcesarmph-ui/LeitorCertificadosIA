@@ -406,3 +406,24 @@ def test_goniometro_aparece_em_graus_e_minutos_na_tela():
     assert graus_minutos(-1 / 60) == "-0°01'"
     assert graus_minutos(14 + 59 / 60) == "14°59'"
     assert graus_minutos(0.0) == "0°00'" and graus_minutos(None) == "—"
+
+
+def test_durometro_escala_sem_o_w_e_ponto_em_intervalo():
+    """Ensinado pelo usuário (2026-11-17): o plano do durômetro é um intervalo numa escala
+    ("67 a 80 HR15T"); o padrão do certificado tem de estar dentro dele; o "W" do laboratório
+    é ignorado."""
+    from leitor_certificados.conferencia.extracao import escala_de_dureza
+    from leitor_certificados.conferencia.plano import PontoDoPlano, intervalo_da_descricao
+
+    assert escala_de_dureza("HR15TW") == "HR15T"
+    assert escala_de_dureza("HRBW") == "HRB"
+    assert escala_de_dureza("hrc") == "HRC"
+    assert escala_de_dureza("75,0") is None
+    assert intervalo_da_descricao("1º ponto 67 a 80 HR15T") == (67.0, 80.0, "HR15T")
+    assert intervalo_da_descricao("3º ponto 85 a 100HRB") == (85.0, 100.0, "HRB")
+    assert intervalo_da_descricao("ponto 25 mm") is None
+    hrb = PontoDoPlano(None, -3.0, 3.0, None, minimo=60, maximo=80, escala="HRB")
+    assert hrb.aceita(66.3, "HRB")
+    assert not hrb.aceita(61.7, "HRC")  # mesmo número, outra escala: é outro ponto
+    assert not hrb.aceita(85.0, "HRB")
+    assert hrb.aceita(66.3)  # sem escala lida, vale só o intervalo

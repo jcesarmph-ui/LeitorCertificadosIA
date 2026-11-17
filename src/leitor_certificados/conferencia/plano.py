@@ -18,11 +18,45 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class PontoDoPlano:
-    nominal: float
+    nominal: float | None  # None quando o ponto é um intervalo (durômetro)
     tolerancia_inferior: float | None
     tolerancia_superior: float | None
     incerteza: float | None  # a do plano é só sugestão: a que vale é a do certificado
     sem_incerteza: bool = False  # "U não se aplica"
+    # durômetro: o ponto é um intervalo numa escala ("67 a 80 HR15T"); o padrão do
+    # certificado tem de estar dentro dele (ensinado pelo usuário, 2026-11-17)
+    minimo: float | None = None
+    maximo: float | None = None
+    escala: str | None = None
+
+    def aceita(self, nominal: float, escala: str | None = None) -> bool:
+        """O nominal do certificado é este ponto? Igual ao nominal ou, no intervalo, dentro
+        dele e na mesma escala (sem escala lida, só o intervalo)."""
+        if self.nominal is not None:
+            return abs(self.nominal - nominal) <= 1e-6 * max(1.0, abs(nominal))
+        if self.minimo is None or self.maximo is None:
+            return False
+        if escala and self.escala and escala != self.escala:
+            return False
+        return self.minimo - 1e-9 <= nominal <= self.maximo + 1e-9
+
+
+_INTERVALO = re.compile(r"(\d+(?:[.,]\d+)?)\s*a\s*(\d+(?:[.,]\d+)?)\s*(HR\s?\w+)",
+                        re.IGNORECASE)
+
+
+def intervalo_da_descricao(descricao: str | None) -> tuple[float, float, str] | None:
+    """"1º ponto 67 a 80 HR15T" → (67, 80, "HR15T"); None se não for desse jeito."""
+    from .extracao import escala_de_dureza
+
+    achou = _INTERVALO.search(descricao or "")
+    if not achou:
+        return None
+    escala = escala_de_dureza(achou.group(3))
+    if escala is None:
+        return None
+    return (float(achou.group(1).replace(",", ".")), float(achou.group(2).replace(",", ".")),
+            escala)
 
 
 @dataclass
@@ -106,22 +140,28 @@ class PlanosDQ05:
         ).fetchone()
         if cabecalho is None:
             return None
-        pontos = [
-            PontoDoPlano(
+        pontos = []
+        colunas = {c[1] for c in self._con.execute("PRAGMA table_info(pontos_plano)")}
+        descricao = "descricao" if "descricao" in colunas else "NULL AS descricao"
+        for linha in self._con.execute(
+                "SELECT valor_nominal, tolerancia_inferior, tolerancia_superior, incerteza, "
+                f"incerteza_nao_aplica, {descricao} FROM pontos_plano "
+                "WHERE plano_id = ? AND tipo = 'NUMERICO' AND excluido_em IS NULL "
+                "ORDER BY ordem",
+                (plano_id,)):
+            intervalo = (intervalo_da_descricao(linha["descricao"])
+                         if linha["valor_nominal"] is None else None)
+            if linha["valor_nominal"] is None and intervalo is None:
+                continue  # sem número nem intervalo: não há o que conferir
+            minimo, maximo, escala = intervalo or (None, None, None)
+            pontos.append(PontoDoPlano(
                 nominal=linha["valor_nominal"],
                 tolerancia_inferior=linha["tolerancia_inferior"],
                 tolerancia_superior=linha["tolerancia_superior"],
                 incerteza=linha["incerteza"],
                 sem_incerteza=bool(linha["incerteza_nao_aplica"]),
-            )
-            for linha in self._con.execute(
-                "SELECT valor_nominal, tolerancia_inferior, tolerancia_superior, incerteza, "
-                "incerteza_nao_aplica FROM pontos_plano "
-                "WHERE plano_id = ? AND tipo = 'NUMERICO' AND excluido_em IS NULL "
-                "AND valor_nominal IS NOT NULL ORDER BY ordem",
-                (plano_id,),
-            )
-        ]
+                minimo=minimo, maximo=maximo, escala=escala,
+            ))
         return Plano(codigo=codigo, nome=cabecalho["nome"], pontos=pontos,
                      faixa=self._faixa_por_codigo.get(self._chave(codigo)),
                      cadastro=dict(self._cadastro_por_codigo.get(self._chave(codigo), {})))

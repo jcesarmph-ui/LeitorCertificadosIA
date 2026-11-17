@@ -695,8 +695,8 @@ def unidade_dos_pontos(analise: Analise | None) -> str:
     if analise is None:
         return ""
     c = analise.conferencia
-    if c and any(p.lido.graus_minutos for p in c.pontos):
-        return ""
+    if c and any(p.lido.graus_minutos or p.lido.escala for p in c.pontos):
+        return ""  # em graus o ° já vem no valor; no durômetro cada ponto tem a sua escala
     textos = [analise.manual.get("resolucao"), analise.manual.get("faixa"),
               analise.campos.get("resolucao"), analise.campos.get("faixa")]
     if c:
@@ -716,7 +716,8 @@ def descrever_pontos(conferencia: Conferencia | None,
         return []
     # a unidade junto de cada valor, para a tabela, a dica e o quadrinho (pedido do usuário,
     # 2026-11-17); em graus o ° já vem no próprio valor
-    unidade = unidade_dos_pontos(analise)
+    unidade_geral = unidade_dos_pontos(analise)
+    unidade = unidade_geral
 
     def com(texto: str) -> str:
         vazio = ("", "—", "fora do plano")
@@ -729,6 +730,7 @@ def descrever_pontos(conferencia: Conferencia | None,
         # goniômetro em graus°minutos': mostra igual ao certificado (pedido do usuário,
         # 2026-11-16); a tolerância é a do plano, como está no cadastro
         fmt = graus_minutos if p.lido.graus_minutos else numero
+        unidade = p.lido.escala or unidade_geral  # durômetro: a escala da linha (HR15T…)
         faixa = texto_erro_com_incerteza(p, fmt)
         tol = (descrever_tolerancia(p.plano.tolerancia_inferior, p.plano.tolerancia_superior)
                if p.plano else "fora do plano")

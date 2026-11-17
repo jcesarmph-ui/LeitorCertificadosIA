@@ -720,7 +720,7 @@ def test_unidade_em_graus_decimais_fica_grudada():
 
     from leitor_certificados.interface.servico import unidade_dos_pontos
 
-    ponto = SimpleNamespace(lido=SimpleNamespace(graus_minutos=False))
+    ponto = SimpleNamespace(lido=SimpleNamespace(graus_minutos=False, escala=None))
     conferencia = SimpleNamespace(pontos=[ponto], faixa_certificado="0° a 360°",
                                   cadastro={}, faixa_plano=None)
     analise = SimpleNamespace(conferencia=conferencia, manual={}, campos={})

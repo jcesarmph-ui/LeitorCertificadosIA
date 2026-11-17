@@ -42,7 +42,7 @@ class PerguntaAprovacao(QDialog):
         self.setWindowTitle("Aprovar certificado")
         self._preferencias = QSettings("LeitorCertificadosIA", "aprovacao")
         coluna = QVBoxLayout(self)
-        explica = QLabel(f"Aprovar de vez o certificado {certificado}.\n"
+        explica = QLabel(f"Aprovar o certificado {certificado}.\n"
                          "O registro passa a constar APROVADO e o PDF recebe o carimbo.")
         explica.setWordWrap(True)
         coluna.addWidget(explica)
