@@ -651,3 +651,25 @@ def test_pontos_mostram_a_unidade_no_titulo_das_colunas(app, mundo):
     assert "Nominal (mm)" in titulos and "Erro ± U (mm)" in titulos
     assert "Resultado" in titulos  # coluna de texto fica sem unidade
     janela.close()
+
+
+def test_arrastar_pdf_para_cima_da_folha_abre_o_certificado(app, mundo):
+    from PySide6.QtCore import QMimeData, QPointF, QUrl
+    from PySide6.QtGui import QDragEnterEvent, QDropEvent
+
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    janela.show()
+    abertos = []
+    janela.abrir = abertos.append  # só confere que chegou; a análise é testada em outro lugar
+    dados = QMimeData()
+    dados.setUrls([QUrl.fromLocalFile(str(certificado))])
+    entrar = QDragEnterEvent(QPoint(20, 20), Qt.DropAction.CopyAction, dados,
+                             Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+    QApplication.sendEvent(janela.folha.viewport(), entrar)
+    assert entrar.isAccepted()  # o cursor mostra que pode soltar ali
+    soltar = QDropEvent(QPointF(20, 20), Qt.DropAction.CopyAction, dados,
+                        Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+    QApplication.sendEvent(janela.folha.viewport(), soltar)  # a folha engolia o arquivo
+    assert abertos == [certificado]
+    janela.close()

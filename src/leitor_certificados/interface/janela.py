@@ -10,10 +10,11 @@ from __future__ import annotations
 import html
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QDragEnterEvent, QDropEvent, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QComboBox,
     QFileDialog,
     QFrame,
@@ -102,6 +103,7 @@ class Janela(QMainWindow):
         self._registrado = False  # a análise aberta já foi registrada?
         self.setWindowTitle(f"Leitor de Certificados — v{__version__}")
         self.setAcceptDrops(True)
+        QApplication.instance().installEventFilter(self)  # arrastar o PDF (ver eventFilter)
         self._montar()
         self.avisar("Abra um certificado para começar.", "dica")
 
@@ -923,15 +925,41 @@ class Janela(QMainWindow):
         self.tabela.clearSelection()
 
     # ================================================================== arrastar e soltar
-    def dragEnterEvent(self, evento: QDragEnterEvent) -> None:
-        urls = evento.mimeData().urls()
+    # arrastar o PDF: vale em qualquer ponto da janela. A folha (QGraphicsView) e os campos
+    # aceitam "soltar" por conta própria e engoliam o arquivo; por isso o filtro abaixo pega o
+    # PDF antes de qualquer peça da tela.
+    @staticmethod
+    def _pdf_arrastado(evento) -> Path | None:
+        urls = evento.mimeData().urls() if evento.mimeData() else []
         if len(urls) == 1 and urls[0].toLocalFile().lower().endswith(".pdf"):
+            return Path(urls[0].toLocalFile())
+        return None
+
+    def eventFilter(self, objeto, evento) -> bool:
+        tipo = evento.type()
+        if tipo in (QEvent.Type.DragEnter, QEvent.Type.DragMove, QEvent.Type.Drop):
+            if (isinstance(objeto, QWidget) and objeto.window() is self
+                    and self._pdf_arrastado(evento) is not None):
+                if tipo == QEvent.Type.Drop:
+                    self.dropEvent(evento)
+                else:
+                    evento.acceptProposedAction()
+                return True
+        return super().eventFilter(objeto, evento)
+
+    def dragEnterEvent(self, evento: QDragEnterEvent) -> None:
+        if self._pdf_arrastado(evento) is not None:
             evento.acceptProposedAction()
 
     def dropEvent(self, evento: QDropEvent) -> None:
-        self.abrir(Path(evento.mimeData().urls()[0].toLocalFile()))
+        caminho = self._pdf_arrastado(evento)
+        if caminho is None:
+            return
+        evento.acceptProposedAction()
+        self.abrir(caminho)
 
     def closeEvent(self, evento) -> None:
+        QApplication.instance().removeEventFilter(self)
         # espera o trabalho em segundo plano acabar, para não derrubar uma thread no meio
         for tarefa in list(self._tarefas):
             if tarefa.isRunning():
