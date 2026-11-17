@@ -94,7 +94,9 @@ class Janela(QMainWindow):
         self._vez = 0  # muda a cada trabalho novo ou cancelado: resultado de vez antiga é jogado
         self._anterior: Analise | None = None  # para voltar se a análise for cancelada
         self.quadro: QuadroPonto | None = None
-        self._pendentes = 0  # correções feitas e ainda não aprendidas pelo modelo
+        self._pendentes = 0  # correções registradas e ainda não aprendidas pelo modelo
+        self._rascunho = 0  # correções desta análise que ainda não foram registradas
+        self._registrado = False  # a análise aberta já foi registrada?
         self.setWindowTitle(f"Leitor de Certificados — v{__version__}")
         self.setAcceptDrops(True)
         self._montar()
@@ -149,7 +151,13 @@ class Janela(QMainWindow):
             "Treina o modelo de novo com os certificados fictícios e com os reais que você "
             "corrigiu (os reais pesam 5 vezes mais), e confere o certificado aberto outra vez.")
         self.botao_aprender.clicked.connect(self.aprender)
+        self.botao_registrar = QPushButton("Registrar")
+        self.botao_registrar.setToolTip(
+            "Guarda esta análise no registro (ícone do relógio, no canto de cima). As correções "
+            "só ensinam o modelo depois de registradas.")
+        self.botao_registrar.clicked.connect(self.registrar)
         botoes.addWidget(self.botao_abrir)
+        botoes.addWidget(self.botao_registrar)
         botoes.addWidget(self.botao_corrigir)
         botoes.addWidget(self.botao_aprender)
         botoes.addSpacing(16)
@@ -416,6 +424,9 @@ class Janela(QMainWindow):
         self.botao_abrir.setText("Analisar outro" if self.analise is not None
                                  else "Abrir certificado")
         self.botao_corrigir.setEnabled(livre and self.analise is not None)
+        self.botao_registrar.setEnabled(livre and self.analise is not None
+                                        and not self._registrado)
+        self.botao_registrar.setText("Registrada" if self._registrado else "Registrar")
         self.botao_aprender.setEnabled(livre)
         self.botao_aprender.setText(
             f"Aprender com as correções ({self._pendentes})" if self._pendentes
@@ -500,7 +511,9 @@ class Janela(QMainWindow):
             self.avisar(f"Não consegui abrir {Path(caminho).name}: {erro}", "erro")
             return
         self._anterior = self.analise
+        self._anterior_estado = (self._registrado, self._rascunho)
         self.analise = None
+        self._registrado, self._rascunho = False, 0
         self.botao_corrigir.setChecked(False)
         self._limpar_painel()
         self.folha.mostrar_imagem(previa)
@@ -522,6 +535,7 @@ class Janela(QMainWindow):
         self.folha.parar_brilho()
         anterior, self._anterior = self._anterior, None
         if anterior is not None:
+            self._registrado, self._rascunho = self._anterior_estado
             self.mostrar_analise(anterior)
         else:
             self.folha.mostrar_mensagem("Abra um certificado (PDF) ou arraste o arquivo para cá")
@@ -769,11 +783,30 @@ class Janela(QMainWindow):
             return
         self.folha.limpar_selecao()  # repinta com os rótulos novos
         if mudaram:
-            self._pendentes += mudaram
-            self._atualizar_botoes()
+            self._rascunho += mudaram
+            self._corrigiu()
         self.avisar(
             f"{len(indices)} palavra(s) marcada(s) como “{ROTULOS[rotulo]}”. "
-            "Quando terminar, clique em Aprender com as correções.", "info")
+            "Quando terminar, clique em Registrar.", "info")
+
+    def _corrigiu(self) -> None:
+        """Corrigir de novo depois de registrar: dá para registrar outra vez."""
+        self._registrado = False
+        self._atualizar_botoes()
+
+    def registrar(self) -> None:
+        if self.analise is None or self.ocupado or self._registrado:
+            return
+        try:
+            numero_registro = self.servico.registrar(self.analise)
+        except Exception as erro:
+            self.avisar(f"Não consegui registrar: {erro}", "erro")
+            return
+        self._registrado = True
+        self._pendentes += self._rascunho
+        self._rascunho = 0
+        self._atualizar_botoes()
+        self.avisar(f"Análise registrada (nº {numero_registro}).", "info")
 
     def _mostrar_valor_manual(self) -> None:
         campo = self.campo_manual.currentData()
@@ -792,6 +825,7 @@ class Janela(QMainWindow):
         except Exception as erro:
             self.avisar(f"Não consegui usar o valor digitado: {erro}", "erro")
             return
+        self._corrigiu()
         self.mostrar_analise(self.analise)
         nome = CAMPOS_MANUAIS[campo]
         self.avisar(f"{nome}: usando “{valor}” (digitado)." if valor
@@ -847,6 +881,7 @@ class Janela(QMainWindow):
         except Exception as erro:
             self.avisar(f"Não consegui corrigir o texto: {erro}", "erro")
             return
+        self._corrigiu()
         self.mostrar_analise(self.analise)
         self.avisar(f"Texto corrigido: lido “{lido}” → “{texto.strip()}”. A conferência foi "
                     "refeita." if ficou else f"Voltou ao texto lido: “{lido}”.", "info")

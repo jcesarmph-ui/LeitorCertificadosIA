@@ -196,7 +196,13 @@ def test_janela_corrigir_varias_palavras_conta_pendentes(app, mundo):
     janela.aplicar_rotulo([3, 4], "fabricante")
     assert janela.analise.rotulos[3] == "fabricante"
     assert not janela.folha._caixas[3].selecionada  # a seleção some depois de aplicar
+    # a correção só ensina depois de registrada (rascunho não conta)
+    assert "(" not in janela.botao_aprender.text()
+    janela.registrar()
     assert "(" in janela.botao_aprender.text()  # mostra quantas correções esperam
+    assert not janela.botao_registrar.isEnabled()  # já registrada
+    janela.aplicar_rotulo([5], "fabricante")
+    assert janela.botao_registrar.isEnabled()  # corrigiu de novo: registra outra vez
     janela.close()
 
 
