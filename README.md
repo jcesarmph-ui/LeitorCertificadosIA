@@ -306,6 +306,9 @@ não der para comparar, aparece um aviso amarelo — o parecer continua vindo da
   rolando.
 - O modelo continua olhando **cada folha separada**, do jeito que aprendeu.
 - No PDF registrado, cada check vai para a **folha certa**.
+- **Padrões pela tabela**: o programa acha a coluna "Validade" e só precisa saber **quantos
+  padrões há** (uma linha por padrão) e se **cada validade está em dia** na data da calibração;
+  o código do padrão não importa. Entende também validades como "fev/30" e "02/30".
 
 ```mermaid
 flowchart LR
