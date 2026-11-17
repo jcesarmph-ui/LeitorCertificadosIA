@@ -294,3 +294,115 @@ def test_plano_traz_o_cadastro_do_instrumento(mundo):
     assert plano.cadastro["tipo"] == cert["tipo"]
     assert plano.cadastro["fabricante"] == cert["fabricante"]
     assert plano.cadastro["codigo"] == cert["codigo"]
+
+
+# --- conferência de conta (decisão do usuário, 2026-11-16) ---------------------------------------
+
+def _goniometro(tmp_path, linhas):
+    """Plano de goniômetro ± 0,25 e certificado com a coluna Erro Máximo."""
+    from leitor_certificados.conferencia.extracao import CertificadoLido, PontoLido
+
+    banco = tmp_path / "planos.db"
+    criar_banco_de_planos(banco, [{
+        "id": "g", "tipo": "Goniômetro", "codigo": "GN-0001", "faixa_min": 0, "faixa_max": 360,
+        "pontos": [{"nominal": n, "erro": 0.0, "incerteza": 0.07} for n, *_ in linhas]}])
+    con = sqlite3.connect(banco)
+    con.execute("UPDATE pontos_plano SET tolerancia_inferior = -0.25, tolerancia_superior = 0.25")
+    con.commit()
+    con.close()
+    lido = CertificadoLido("GN-0001", [
+        PontoLido(n, enc, erro, u, (0, 0, 1, 1), numeros, erro_maximo=em, criterio=0.25)
+        for n, enc, erro, u, em, numeros in linhas], **PADRAO_EM_DIA)
+    planos = PlanosDQ05(banco)
+    try:
+        return conferir(lido, planos)
+    finally:
+        planos.fechar()
+
+
+def test_erro_escrito_como_nominal_menos_encontrado_e_aceito(tmp_path):
+    """Goniômetro real: Instrumento 15,00, Padrão 15,07, Erro −0,07 (Instrumento − Padrão).
+    Antes isso virava "colunas trocadas" e o programa escolhia o Quadrante como erro."""
+    numeros = (15.0, 15.07, -0.07, 0.07, 2.0, 2.0, 0.14, 0.25)
+    resultado = _goniometro(tmp_path, [(15.0, 15.07, -0.07, 0.07, 0.14, numeros)])
+    assert resultado.resultado == Resultado.APROVADO, resultado.avisos
+    assert resultado.pontos[0].erro == -0.07
+    assert not any("conta" in a for a in resultado.avisos)
+
+
+def test_numeros_que_nao_fecham_a_conta_nao_sao_avaliados(tmp_path):
+    """O modelo pôs o Quadrante (2) no lugar do erro: |2| + 0,07 ≠ 0,12 e nenhuma troca de
+    colunas fecha a conta → não avaliado (PENDENTE), nunca REPROVADO."""
+    numeros = (0.0, 2.0, 2.0, 0.07, 0.12, 0.25)
+    resultado = _goniometro(tmp_path, [(0.0, 2.0, 2.0, 0.07, 0.12, numeros)])
+    assert resultado.resultado == Resultado.PENDENTE
+    assert resultado.pontos[0].avaliacao.resultado == Resultado.NAO_AVALIADO
+    assert any("não fecham a conta" in a for a in resultado.avisos)
+
+
+def test_angulo_em_graus_e_minutos_vira_graus_decimais():
+    """Goniômetro: "14°59'" é 14 graus e 59 minutos (decisão do usuário, 2026-11-16)."""
+    from leitor_certificados.conferencia.extracao import para_numero
+
+    assert para_numero("90°00'") == 90.0
+    assert abs(para_numero("14°59'") - (14 + 59 / 60)) < 1e-8
+    assert abs(para_numero("-0°01'") + 1 / 60) < 1e-8
+    assert abs(para_numero("0°04'") - 4 / 60) < 1e-8
+    assert para_numero("90°") is None  # sem os minutos não é o formato do goniômetro
+
+
+def test_codigo_com_menos_zeros_acha_o_instrumento(tmp_path):
+    """"GON-02" no certificado acha "GON-002" do cadastro (decisão do usuário, 2026-11-16), mas
+    só quando não há dois instrumentos possíveis."""
+    banco = tmp_path / "planos.db"
+    pontos = [{"nominal": 0.0, "erro": 0.0, "incerteza": 0.07}]
+    criar_banco_de_planos(banco, [
+        {"id": "a", "tipo": "Goniômetro", "codigo": "GON-002", "faixa_min": 0, "faixa_max": 360,
+         "pontos": pontos},
+        {"id": "b", "tipo": "Paquímetro", "codigo": "PAQ-007", "faixa_min": 0, "faixa_max": 150,
+         "pontos": pontos},
+        {"id": "c", "tipo": "Paquímetro", "codigo": "PAQ-0007", "faixa_min": 0, "faixa_max": 150,
+         "pontos": pontos}])
+    planos = PlanosDQ05(banco)
+    try:
+        assert planos.conhece("GON-02") and planos.plano_do_instrumento("GON-02") is not None
+        assert not planos.conhece("GON-20")
+        assert not planos.conhece("PAQ-7")  # dois possíveis: não escolhe
+    finally:
+        planos.fechar()
+
+
+def test_duvida_entre_instrumentos_desempata_pelos_pontos_do_plano(tmp_path):
+    """"PAQ-7" pode ser PAQ-007 ou PAQ-0007: vale o único cujo plano tem os pontos do
+    certificado (ideia do usuário, 2026-11-16); se os dois servem, fica pendente."""
+    from leitor_certificados.conferencia.extracao import CertificadoLido, PontoLido
+
+    banco = tmp_path / "planos.db"
+    criar_banco_de_planos(banco, [
+        {"id": "b", "tipo": "Paquímetro", "codigo": "PAQ-007", "faixa_min": 0, "faixa_max": 150,
+         "pontos": [{"nominal": v, "erro": 0.0, "incerteza": 0.01} for v in (0.0, 50.0, 150.0)]},
+        {"id": "c", "tipo": "Paquímetro", "codigo": "PAQ-0007", "faixa_min": 0, "faixa_max": 300,
+         "pontos": [{"nominal": v, "erro": 0.0, "incerteza": 0.01} for v in (0.0, 100.0, 300.0)]}])
+
+    def ler(nominais):
+        return CertificadoLido("PAQ-7", [PontoLido(v, v, 0.0, 0.01, (0, 0, 1, 1))
+                                         for v in nominais], **PADRAO_EM_DIA)
+
+    planos = PlanosDQ05(banco)
+    try:
+        assert conferir(ler((0.0, 100.0, 300.0)), planos).codigo == "PAQ0007"
+        assert conferir(ler((0.0, 50.0, 150.0)), planos).codigo == "PAQ007"
+        assert conferir(ler((0.0,)), planos).resultado == Resultado.PENDENTE  # os dois servem
+    finally:
+        planos.fechar()
+
+
+def test_goniometro_aparece_em_graus_e_minutos_na_tela():
+    """Pedido do usuário (2026-11-16): ver 90°00', erro 0°04' — igual ao certificado."""
+    from leitor_certificados.interface.servico import graus_minutos
+
+    assert graus_minutos(90.0) == "90°00'"
+    assert graus_minutos(4 / 60) == "0°04'"
+    assert graus_minutos(-1 / 60) == "-0°01'"
+    assert graus_minutos(14 + 59 / 60) == "14°59'"
+    assert graus_minutos(0.0) == "0°00'" and graus_minutos(None) == "—"

@@ -266,6 +266,23 @@ não der para comparar, aparece um aviso amarelo — o parecer continua vindo da
   certeza — e, para o nominal, o que existe no plano.
 </details>
 
+<details>
+<summary><b>Novidades da versão 0.9.0: conferência de conta e goniômetro</b></summary>
+
+- **O número só vale se fecha a conta**: o erro tem de bater com "encontrado − nominal" (em
+  qualquer um dos dois sinais — há laboratório que escreve "Instrumento − Padrão") e, quando o
+  certificado traz "Erro Máximo", |erro| + U tem de dar esse valor. Se não fecha nem trocando as
+  colunas, o ponto fica **não avaliado** e o parecer **pendente**: o programa nunca aprova nem
+  reprova com um número que não fecha. Isso corrigiu um goniômetro que saía **reprovado por
+  engano** (o número do quadrante, 1-2-3-4, tinha entrado no lugar do erro).
+- **Graus e minutos**: "14°59'" é lido como ângulo; a conta é feita em graus e a tela mostra igual
+  ao certificado (90°00', erro 0°04').
+- **Código com menos zeros** ("GON-02" × "GON-002") acha o instrumento; se houver dúvida entre
+  dois, vale o único cujo plano tem **os mesmos pontos nominais** do certificado.
+- O programa **treina de novo sozinho** quando o modelo salvo ficou para trás das correções.
+- Muitos avisos ganham **rolagem própria** e não escondem mais a tabela de pontos.
+</details>
+
 | Prova (150 certificados fictícios) | Pareceres certos | Pendentes | Decisão errada |
 |---|---|---|---|
 | Digital, certificados novos | 30 de 30 | 0 | 0 |
@@ -311,7 +328,7 @@ validade não lida vira **aviso amarelo e parecer PENDENTE**: o programa prefere
 a aprovar sem saber. Numa 1ª versão ele só avisava, e um certificado com padrão vencido saiu
 aprovado (119 de 150 certos, **1 decisão errada**); com a regra nova, **nenhuma decisão errada**.
 O caminho para tirar os pendentes é o **aprendizado com o uso** (abaixo): com certificados reais
-corrigidos da Laftec, os padrões chegam a **100 %**.</sub>
+corrigidos do laboratório principal, os padrões chegam a **100 %**.</sub>
 
 ## 🌱 Aprendizado com o uso
 
@@ -340,16 +357,58 @@ colunas deixado de fora, o modelo acerta **100 %** delas aprendendo **só com os
 os essenciais, só com fictícios, subiram de **70,2 % para 83,7 %**
 ([ADR 0009](docs/decisoes/0009-erro-maximo-e-criterio-de-aceitacao.md)).
 
-### 🧪 A prova de que ele aprende (0.8.0, 5 certificados reais)
+### 🧪 A prova de que ele aprende (0.9.0, 11 certificados reais)
+
+A pergunta é simples: **quanto mais certificados reais corrigidos, mais ele acerta num certificado
+que nunca viu?** Para responder sem trapaça, cada certificado real é **escondido** do treino e
+usado só como prova; o modelo treina com 0, 1, 2, 4, 8 e 10 dos outros reais e lê o escondido.
+Isso é repetido para cada um e tirada a média.
+
+Quase todos os certificados do dia a dia vêm de um mesmo laboratório — paquímetros, escala,
+válvula de segurança, goniômetros (um deles em graus e minutos) e um escaneado —, por isso ele
+vem primeiro:
+
+| Reais corrigidos no treino | **Essenciais certos** | **Padrões certos** | "Falsos" |
+|---|---|---|---|
+| nenhum (só fictícios) | 77,4 % | 74,8 % | 18 |
+| 1 | 84,5 % | 93,5 % | 11 |
+| 2 | 88,2 % | 99,7 % | 8 |
+| 4 | 91,1 % | **100 %** | 4 |
+| 8 | 94,4 % | **100 %** | 2 |
+| 10 | **96,2 %** | **100 %** | **1** |
+
+<sub>Média de 9 certificados reais desse laboratório, cada um escondido do treino (até 6
+combinações sorteadas por quantidade). Só os números vão para o GitHub.</sub>
+
+```mermaid
+xychart-beta
+    title "Essenciais certos x certificados reais corrigidos"
+    x-axis ["0", "1", "2", "4", "8", "10"]
+    y-axis "acerto (%)" 70 --> 100
+    line [77.4, 84.5, 88.2, 91.1, 94.4, 96.2]
+```
+
+Nos laboratórios que aparecem pouco (um certificado de cada) a curva também sobe: balanças
+**69,6 % → 82,6 %** e durômetro **76,9 % → 94,9 %** nos essenciais. Média dos 11 reais:
+**76,6 % → 94,9 %**.
+
+Os primeiros reais dão o maior salto; depois a curva continua subindo, mais devagar. Um exemplo do
+que um único certificado ensina: o goniômetro em **graus e minutos** ("14°59'"), escondido do
+treino, ia de **11 %** com os outros reais; depois que o modelo ganhou a pista "graus e minutos é
+um número", foi para **100 %**.
+
+<details>
+<summary>📜 A prova na versão 0.8.0 (5 certificados reais)</summary>
+
 
 A pergunta é simples: **quanto mais certificados reais corrigidos, mais ele acerta num certificado
 que nunca viu?** Para responder sem trapaça, cada certificado real é **escondido** do treino e
 usado só como prova; o modelo treina com 0, 1, 2, 3 e 4 dos outros reais e lê o escondido. Isso é
 repetido para cada um dos 5 e tirada a média.
 
-A **Laftec** é o laboratório de quase todos os certificados do dia a dia, por isso vem primeiro:
+Quase todos os certificados do dia a dia vêm de um mesmo laboratório, por isso ele vem primeiro:
 
-| Reais corrigidos no treino | **Essenciais certos — Laftec** | **Padrões certos — Laftec** | "Falsos" — Laftec |
+| Reais corrigidos no treino | **Essenciais certos** | **Padrões certos** | "Falsos" |
 |---|---|---|---|
 | nenhum (só fictícios) | 85,0 % | 87,4 % | 18 |
 | 1 | 91,5 % | 93,8 % | 10 |
@@ -357,12 +416,12 @@ A **Laftec** é o laboratório de quase todos os certificados do dia a dia, por 
 | 3 | 98,2 % | **100 %** | 3 |
 | 4 | **100 %** | **100 %** | 3 |
 
-<sub>Média de 3 certificados Laftec reais (2 digitais e 1 escaneado), cada um escondido do treino. Como são do mesmo laboratório, um ajuda o
+<sub>Média de 3 certificados reais desse laboratório (2 digitais e 1 escaneado), cada um escondido do treino. Como são do mesmo laboratório, um ajuda o
 outro — é exatamente o que acontece no uso. Só os números vão para o GitHub.</sub>
 
 ```mermaid
 xychart-beta
-    title "Laftec: essenciais certos x certificados reais corrigidos"
+    title "Essenciais certos x certificados reais corrigidos"
     x-axis ["0", "1", "2", "3", "4"]
     y-axis "acerto (%)" 80 --> 100
     line [85.0, 91.5, 95.0, 98.2, 100]
@@ -373,6 +432,8 @@ Nos laboratórios que aparecem pouco a curva também sobe, mais devagar: balanç
 Achar os padrões desses dois ainda é fraco (cada um tem um jeito próprio de escrever a tabela e só
 há um certificado de cada) — por isso, quando não lê a validade, o programa avisa em amarelo e deixa
 o parecer **PENDENTE**, em vez de aprovar sozinho.
+
+</details>
 
 > [!NOTE]
 > Medir também achou um defeito na leitura: o carimbo "ESTE CERTIFICADO FOI ANALISADO" enganava a
@@ -402,10 +463,11 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Etapa 2 — Leitura do PDF: texto direto e OCR (palavras com posição e confiança)
 - [x] Etapa 3 — Machine learning: encontrar os campos; acerto medido em treino × teste e em laboratório que o modelo nunca viu
 - [x] Etapa 4 — Conferência com o plano: erro ± U dentro da tolerância (parecer só quando há certeza)
-- [x] Aprendizado com o uso — o modelo aprende com certificados reais corrigidos (acerto nos essenciais: 70 % → 92 %; na 0.8.0, Laftec 85 % → 100 %)
+- [x] Aprendizado com o uso — o modelo aprende com certificados reais corrigidos (acerto nos essenciais: 70 % → 92 %; na 0.8.0, laboratório principal 85 % → 100 %)
 - [x] Interface — abrir, ver os checks, corrigir e reaprender pela tela
 - [x] Colunas "Erro Máximo" e "Critério de aceitação", comparador cadastro × certificado e Erro ± U igual ao do sistema de calibração (0.7.0)
 - [x] Validade dos padrões — conferir que cada padrão usado estava válido no dia da calibração (0.8.0)
+- [x] Conferência de conta e goniômetro — o número só vale se fecha a conta; graus e minutos lidos e mostrados como no certificado (0.9.0)
 - [ ] Registro de cada análise — quem, quando, o que foi lido e corrigido (rastreabilidade)
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
 - [ ] Previsão da deriva — prever quando cada instrumento sai da tolerância e sugerir a periodicidade de calibração

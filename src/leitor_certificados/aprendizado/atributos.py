@@ -26,6 +26,23 @@ import unicodedata
 from ..leitura import Pagina, Palavra
 
 _NUMERO = re.compile(r"^[+\-−]?\d+(?:[.,]\d+)?$")
+# ângulo do goniômetro em graus°minutos' ("14°59'"): para o modelo, é um número como outro
+# qualquer (etapa 9; pedido do usuário, 2026-11-16) — vira o decimal "14,98" nas pistas
+_GRAUS_MINUTOS = re.compile(r"^([+\-−]?)(\d+)°(\d{1,2})['’′]?$")
+
+
+def _graus_minutos(texto: str) -> float | None:
+    m = _GRAUS_MINUTOS.match(texto.strip())
+    if not m:
+        return None
+    graus = int(m[2]) + int(m[3]) / 60
+    return -graus if m[1] else graus
+
+
+def _como_numero(texto: str) -> str:
+    """O texto como o modelo deve enxergá-lo: "14°59'" → "14,983"; o resto fica igual."""
+    v = _graus_minutos(texto)
+    return texto if v is None else f"{v:.3f}".replace(".", ",")
 
 
 def _normalizar(texto: str) -> str:
@@ -36,7 +53,7 @@ def _normalizar(texto: str) -> str:
 
 def _forma(texto: str) -> str:
     """O "jeito" do texto: dígitos viram d, letras viram a/A, o resto fica. Repetições somem."""
-    f = re.sub(r"\d", "d", texto)
+    f = re.sub(r"\d", "d", _como_numero(texto))
     f = re.sub(r"[a-zà-ÿ]", "a", f)
     f = re.sub(r"[A-ZÀ-ß]", "A", f)
     return re.sub(r"(.)\1+", r"\1\1", f)
@@ -61,14 +78,14 @@ def _trincas(texto: str) -> set[str]:
 
 def _valor(texto: str) -> float | None:
     """O número escrito na palavra (com vírgula ou ponto decimal), ou None se não for número."""
-    t = texto.strip()
+    t = _como_numero(texto).strip()
     if not _NUMERO.match(t):
         return None
     return float(t.replace("−", "-").replace(",", "."))
 
 
 def _casas(texto: str) -> int:
-    t = texto.strip().replace(",", ".")
+    t = _como_numero(texto).strip().replace(",", ".")
     return len(t.split(".")[1]) if "." in t else 0
 
 
@@ -191,6 +208,7 @@ def atributos_da_pagina(pagina: Pagina) -> list[dict[str, float | str]]:
             "tem_traco": float("-" in texto),
             "tem_pct": float("%" in texto),
             "tem_grau": float("°" in texto),
+            "graus_minutos": float(_graus_minutos(texto) is not None),
             "tem_dois_pontos": float(":" in texto),
             "x": p.centro[0],
             "y": p.centro[1],
