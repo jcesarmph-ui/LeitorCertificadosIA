@@ -149,11 +149,14 @@ def _ponto_do_plano(plano: Plano, nominal: float, usados: set[int],
     return (livres or iguais or [None])[0]
 
 
-def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
+def conferir(certificado: CertificadoLido, planos: PlanosDQ05,
+             padroes_calibrados: bool = False) -> Conferencia:
     """Confere os pontos com o plano e a validade dos padrões (decisões do usuário, 2026-11-16):
     padrão vencido no dia da calibração deixa PENDENTE um parecer que seria APROVADO; se os
     pontos reprovam, continua REPROVADO. Sempre dizendo o motivo (em `erros`). Validade não lida
-    também deixa PENDENTE (aviso amarelo dizendo o que conferir)."""
+    também deixa PENDENTE (aviso amarelo dizendo o que conferir), a não ser que a pessoa
+    marque `padroes_calibrados` (os padrões vêm em outro certificado; pedido do usuário,
+    2026-11-17). Padrão VENCIDO continua valendo: a marca não esconde isso."""
     conferencia = _conferir_pontos(certificado, planos)
     fora = [p.lido.nominal for p in conferencia.pontos
             if p.avaliacao.resultado == Resultado.REPROVADO]
@@ -174,6 +177,8 @@ def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
         else:
             sufixo = ""
         conferencia.erros += [e + sufixo for e in padroes.erros]
+    elif padroes.falta_conferir and padroes_calibrados:
+        conferencia.avisos = [a for a in conferencia.avisos if a not in padroes.avisos]
     elif padroes.falta_conferir and conferencia.resultado == Resultado.APROVADO:
         conferencia.resultado = Resultado.PENDENTE
         conferencia.avisos.append("parecer pendente: os pontos passam, mas a validade dos "

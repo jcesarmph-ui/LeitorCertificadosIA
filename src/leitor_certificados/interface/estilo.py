@@ -95,6 +95,8 @@ QLabel#titulo {{
 QLabel#versao {{ color: {t['dica']}; font-size: 11pt; }}
 QToolButton#botaoRegistro {{ background: transparent; border: 1px solid {t['contorno']};
     border-radius: 6px; padding: 3px; }}
+QPushButton#padroesCalibrados:checked {{ background: #43a047; color: #ffffff;
+    border: 1px solid #43a047; font-weight: bold; }}
 QToolButton#botaoRegistro:hover {{ background: {t['selecao']}; }}
 QToolButton#botaoRegistro:pressed {{ background: {t['pressionado']}; }}
 QLabel#dica {{ color: {t['dica']}; font-style: italic; }}

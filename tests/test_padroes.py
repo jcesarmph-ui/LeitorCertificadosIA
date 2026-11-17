@@ -206,3 +206,32 @@ def test_modelo_acha_os_padroes_em_certificados_novos(tmp_path):
         certos += (len(r.padroes) == len(situacoes) and r.data_calibracao is not None
                    and [p.situacao == SituacaoPadrao.VENCIDO for p in r.padroes] == situacoes)
     assert certos >= 8, f"{certos} de {total} certificados com os padrões certos"
+
+
+def test_padroes_calibrados_tira_o_pendente_mas_nao_esconde_o_vencido(tmp_path):
+    """Botão "PADRÕES CALIBRADOS" (pedido do usuário, 2026-11-17): os padrões vêm em outro
+    certificado. A falta da validade deixa de deixar pendente; padrão vencido continua."""
+    banco = tmp_path / "planos.db"
+    pontos = [{"nominal": v, "erro": 0.0, "incerteza": 0.01} for v in (0.0, 50.0)]
+    criar_banco_de_planos(banco, [{"id": "c1", "tipo": "Paquímetro", "codigo": "PQ-0001",
+                                   "faixa_min": 0, "faixa_max": 50, "pontos": pontos}])
+    con = sqlite3.connect(banco)
+    con.execute("UPDATE pontos_plano SET tolerancia_inferior = -0.05, tolerancia_superior = 0.05")
+    con.commit()
+    con.close()
+    lidos = [PontoLido(v, v, 0.0, 0.01, (0, 0, 1, 1)) for v in (0.0, 50.0)]
+
+    def com(padroes):
+        return CertificadoLido("PQ-0001", lidos, data_calibracao="20/07/2026", padroes=tuple(
+            PadraoLido(c, v, (0, 0, 1, 1)) for c, v in padroes))
+
+    planos = PlanosDQ05(banco)
+    try:
+        sem_tabela = conferir(com([]), planos)
+        marcado = conferir(com([]), planos, padroes_calibrados=True)
+        vencido = conferir(com([("P-2", "06/2026")]), planos, padroes_calibrados=True)
+    finally:
+        planos.fechar()
+    assert sem_tabela.resultado == Resultado.PENDENTE
+    assert marcado.resultado == Resultado.APROVADO and not marcado.avisos
+    assert vencido.resultado == Resultado.PENDENTE and vencido.erros

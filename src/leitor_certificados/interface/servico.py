@@ -311,7 +311,7 @@ def gravar_correcao(pastas: Pastas, analise: Analise, indices: list[int], rotulo
 def gravar_manual(pastas: Pastas, analise: Analise, campo: str, valor: str) -> None:
     """Guarda um valor digitado à mão (chave `manual` do `.palavras.json`). Valor vazio apaga.
     Não entra no treino: serve só para a conferência deste certificado."""
-    if campo not in CAMPOS_MANUAIS:
+    if campo not in CAMPOS_MANUAIS and campo != "padroes_calibrados":
         raise ValueError(f"campo que não se digita à mão: {campo}")
     dados = _ler_arquivo(pastas, analise.caminho)
     manual = dict(dados.get("manual", {}))
@@ -470,7 +470,9 @@ class Servico:
         # O banco é aberto aqui, na mesma thread que o usa (o SQLite não deixa trocar de thread)
         planos = PlanosDQ05(self.pastas.banco)
         try:
-            analise.conferencia = conferir(certificado, planos)
+            analise.conferencia = conferir(
+                certificado, planos,
+                padroes_calibrados=analise.manual.get("padroes_calibrados") == "sim")
         except Exception as erro:  # a tela nunca cai por causa de um certificado estranho
             analise.avisos.append(f"Não consegui conferir com o plano: {erro}")
         finally:

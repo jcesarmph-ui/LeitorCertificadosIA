@@ -364,6 +364,19 @@ class Janela(QMainWindow):
         self.tabela_padroes.setStyleSheet("QTableWidget { font-size: 11pt; } "
                                           "QHeaderView::section { font-size: 11pt; }")
         pdlay.addWidget(self.tabela_padroes, 1)
+        # os padrões vêm em outro certificado (ex.: durômetro): a pessoa marca e a falta da
+        # validade no certificado deixa de deixar pendente (pedido do usuário, 2026-11-17)
+        self.botao_padroes = QPushButton("PADRÕES CALIBRADOS")
+        self.botao_padroes.setObjectName("padroesCalibrados")
+        self.botao_padroes.setCheckable(True)
+        self.botao_padroes.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.botao_padroes.setToolTip(
+            "Ligue quando os padrões vierem em outro certificado e estiverem calibrados: a "
+            "falta da validade dos padrões neste certificado deixa de deixar o parecer "
+            "pendente. Padrão vencido continua sendo apontado. Fica guardado no registro.")
+        self.botao_padroes.toggled.connect(self.marcar_padroes_calibrados)
+        self.botao_padroes.hide()
+        pdlay.addWidget(self.botao_padroes)
         self.sem_padroes = QLabel("")  # "nenhum padrão encontrado" (só ocupa lugar com texto)
         self.sem_padroes.setWordWrap(True)
         self.sem_padroes.hide()
@@ -550,6 +563,10 @@ class Janela(QMainWindow):
 
     def mostrar_analise(self, analise: Analise) -> None:
         self.analise = analise
+        self.botao_padroes.blockSignals(True)  # só mostra o estado guardado, sem regravar
+        self.botao_padroes.setChecked(analise.manual.get("padroes_calibrados") == "sim")
+        self.botao_padroes.blockSignals(False)
+        self.botao_padroes.setVisible(analise.conferencia is not None)
         self._anterior = None
         self.linhas = descrever_pontos(analise.conferencia, analise)
         self.padroes = descrever_padroes(analise.conferencia)
@@ -686,9 +703,15 @@ class Janela(QMainWindow):
                 self.tabela_padroes.setItem(r, c, celula)
         self.tabela_padroes.setVisible(bool(self.padroes))
         vazio = lidos is not None and not lidos.padroes
-        self.sem_padroes.setText("Nenhum padrão encontrado no certificado: validade dos padrões "
-                                 "não conferida." if vazio else "")
-        self.sem_padroes.setStyleSheet(f"color: {cor('aviso_texto')};")
+        calibrados = analise.manual.get("padroes_calibrados") == "sim"
+        if calibrados:  # marcado pela pessoa: os padrões estão em outro certificado
+            texto, tinta = ("Padrões em outro certificado, marcados como calibrados.",
+                            cor("texto"))
+        else:
+            texto, tinta = ("Nenhum padrão encontrado no certificado: validade dos padrões "
+                            "não conferida.", cor("aviso_texto"))
+        self.sem_padroes.setText(texto if vazio else "")
+        self.sem_padroes.setStyleSheet(f"color: {tinta};")
         self.sem_padroes.setVisible(vazio)
 
     def _pintar_marca(self, item: ItemComparado) -> None:
@@ -820,6 +843,21 @@ class Janela(QMainWindow):
         self._rascunho = 0
         self._atualizar_botoes()
         self.avisar(f"Análise registrada (nº {numero_registro}).", "info")
+
+    def marcar_padroes_calibrados(self, ligado: bool) -> None:
+        if self.analise is None:
+            return
+        try:
+            gravar_manual(self.servico.pastas, self.analise, "padroes_calibrados",
+                          "sim" if ligado else "")
+            self.servico.reconferir(self.analise)
+        except Exception as erro:
+            self.avisar(f"Não consegui marcar os padrões: {erro}", "erro")
+            return
+        self._corrigiu()
+        self.mostrar_analise(self.analise)
+        self.avisar("Padrões calibrados (em outro certificado): marcado." if ligado
+                    else "Padrões calibrados: desmarcado.", "info")
 
     def _mostrar_valor_manual(self) -> None:
         campo = self.campo_manual.currentData()
