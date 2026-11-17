@@ -52,6 +52,7 @@ from .estilo import (
 )
 from .folha import FolhaView, tipo_do_rotulo
 from .icones import icone
+from .janela_registro import JanelaRegistro
 from .legenda import icone_do_rotulo
 from .quadro import QuadroPonto
 from .servico import (
@@ -133,6 +134,7 @@ class Janela(QMainWindow):
         self.botao_registro.setIconSize(QSize(26, 26))
         self.botao_registro.setToolTip("Registro das análises")
         self.botao_registro.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.botao_registro.clicked.connect(self.abrir_registro)
         canto = QHBoxLayout()
         canto.addStretch(1)
         canto.addWidget(self.botao_registro, 0, Qt.AlignmentFlag.AlignTop)
@@ -803,6 +805,15 @@ class Janela(QMainWindow):
         """Corrigir de novo depois de registrar: dá para registrar outra vez."""
         self._registrado = False
         self._atualizar_botoes()
+
+    def abrir_registro(self) -> None:
+        """A janelinha do registro. Ao fechar, se algo mudou o que ensina o modelo (ida ou
+        volta da Lixeira), ele aprende de novo em segundo plano."""
+        janela = JanelaRegistro(self.servico.registro, self)
+        janela.exec()
+        if janela.mexeu and not self.ocupado and self.servico.precisa_aprender():
+            self.avisar("O registro mudou: o modelo está aprendendo de novo.", "dica")
+            self.aprender()
 
     def registrar(self) -> None:
         if self.analise is None or self.ocupado or self._registrado:

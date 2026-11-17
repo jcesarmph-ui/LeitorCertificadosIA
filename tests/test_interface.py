@@ -673,3 +673,41 @@ def test_arrastar_pdf_para_cima_da_folha_abre_o_certificado(app, mundo):
     QApplication.sendEvent(janela.folha.viewport(), soltar)  # a folha engolia o arquivo
     assert abertos == [certificado]
     janela.close()
+
+
+def test_janela_do_registro_lixeira_restaurar_e_apagar(app, mundo, monkeypatch, tmp_path):
+    from PySide6.QtWidgets import QMessageBox
+
+    from leitor_certificados.interface.janela_registro import JanelaRegistro
+    from leitor_certificados.registro import RegistroAnalises
+
+    registro = RegistroAnalises(tmp_path / "registro.db")
+    for n in (1, 2):
+        registro.registrar(
+            usuario="ana", pc="PC-1", certificado=f"cert_{n}.pdf", chave=f"cert_{n}",
+            sha256="x", codigo=f"MC-{n}", plano="Plano", parecer="APROVADO",
+            motivos={"erros": [], "avisos": []}, lido={}, correcoes=n, textos=0, manual={},
+            marcacao=None, versao_programa="0", versao_modelo="0")
+    janela = JanelaRegistro(registro)
+    assert janela.aba_registro.tabela.rowCount() == 2
+    assert not janela.botao_lixeira.isEnabled()  # nada escolhido
+    janela.aba_registro.tabela.selectRow(0)
+    assert "cert_2.pdf" in janela.aba_registro.detalhe.text()  # o mais novo primeiro
+    # responde "Sim" à pergunta "Apagar pode tirar esse aprendizado. Tem certeza?"
+    monkeypatch.setattr(JanelaRegistro, "_confirmar", lambda self, t, x: True)
+    janela.mandar_para_lixeira()
+    assert janela.aba_registro.tabela.rowCount() == 1 and janela.mexeu
+    janela.abas.setCurrentWidget(janela.aba_lixeira)
+    assert janela.botao_restaurar.isVisible() or not janela.isVisible()
+    janela.aba_lixeira.tabela.selectRow(0)
+    janela.restaurar()
+    assert janela.aba_registro.tabela.rowCount() == 2
+    janela.abas.setCurrentWidget(janela.aba_registro)
+    janela.aba_registro.tabela.selectRow(0)
+    janela.mandar_para_lixeira()
+    janela.abas.setCurrentWidget(janela.aba_lixeira)
+    janela.aba_lixeira.tabela.selectRow(0)
+    janela.apagar_de_vez()
+    assert janela.aba_lixeira.tabela.rowCount() == 0
+    assert len(registro.listar()) == 1
+    assert QMessageBox  # (a caixa de pergunta de verdade não abre no teste)
