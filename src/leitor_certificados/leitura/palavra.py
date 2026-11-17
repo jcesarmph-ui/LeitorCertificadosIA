@@ -26,6 +26,8 @@ class Pagina:
     origem: str  # "digital" ou "ocr"
     palavras: list[Palavra] = field(default_factory=list)
     rotacao: int = 0  # graus que a folha foi girada para ficar em pé (0 ou 180)
+    # as folhas do PDF que estão aqui (0 = a 1ª), uma embaixo da outra (etapa 12)
+    folhas: tuple[int, ...] = (0,)
 
     def texto_na_caixa(self, caixa: list[float] | tuple[float, ...], folga: float = 0.0) -> str:
         """Junta, na ordem de leitura, as palavras cujo centro está dentro da caixa."""

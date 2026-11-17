@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.11.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-0.12.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -297,6 +297,31 @@ não der para comparar, aparece um aviso amarelo — o parecer continua vindo da
 </details>
 
 <details>
+<summary><b>Novidades da versão 0.12.0: certificado com mais de uma folha</b></summary>
+
+- **Lê só as folhas necessárias**: a 1ª sempre; outra folha só entra se trouxer **pontos ou
+  padrões** que faltaram (ex.: a lista de padrões na folha 2). Folha só com notas, observações ou
+  assinatura fica de fora, e o OCR (lento) nem roda nela.
+- As folhas usadas aparecem **uma embaixo da outra** na tela; cabe uma folha, e as outras ficam
+  rolando.
+- O modelo continua olhando **cada folha separada**, do jeito que aprendeu.
+- No PDF registrado, cada check vai para a **folha certa**.
+- **Padrões pela tabela**: o programa acha a coluna "Validade" e só precisa saber **quantos
+  padrões há** (uma linha por padrão) e se **cada validade está em dia** na data da calibração;
+  o código do padrão não importa. Entende também validades como "fev/30" e "02/30".
+
+```mermaid
+flowchart LR
+    F1[Folha 1] --> P{Faltou ponto<br/>ou padrão?}
+    P -- não --> C[Conferir]
+    P -- sim --> F2[Próxima folha]
+    F2 --> T{Traz o que<br/>faltou?}
+    T -- sim --> J[Junta embaixo] --> P
+    T -- não --> P
+```
+</details>
+
+<details>
 <summary><b>Novidades da versão 0.11.0: aprovação final com carimbo digital</b></summary>
 
 - **O leitor aponta, a pessoa decide**: o programa analisa e avisa toda não conformidade (conta
@@ -505,7 +530,7 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Conferência de conta e goniômetro — o número só vale se fecha a conta; graus e minutos lidos e mostrados como no certificado (0.9.0)
 - [x] Registro de cada análise — quem, quando, o que foi lido e corrigido, com Lixeira; a correção só ensina depois de registrada (0.10.0)
 - [x] Aprovação final pelo responsável, com carimbo digital e os checks no PDF (0.11.0)
-- [ ] PDF com mais de uma folha — ler só as folhas necessárias
+- [x] PDF com mais de uma folha — ler só as folhas necessárias (0.12.0)
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
 - [ ] Previsão da deriva — prever quando cada instrumento sai da tolerância e sugerir a periodicidade de calibração
 

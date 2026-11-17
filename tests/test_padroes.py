@@ -235,3 +235,47 @@ def test_padroes_calibrados_tira_o_pendente_mas_nao_esconde_o_vencido(tmp_path):
     assert sem_tabela.resultado == Resultado.PENDENTE
     assert marcado.resultado == Resultado.APROVADO and not marcado.avisos
     assert vencido.resultado == Resultado.PENDENTE and vencido.erros
+
+
+# ---------------------------------------------------------------- tabela por regra (2026-11-17)
+
+def test_validade_com_mes_pelo_nome_e_ano_curto():
+    from leitor_certificados.conferencia.padroes import ler_validade
+
+    assert str(ler_validade("fev/30").ate) == "2030-02-28"
+    assert str(ler_validade("set/29").ate) == "2029-09-30"
+    assert str(ler_validade("02/30").ate) == "2030-02-28"
+    assert ler_validade("100") is None
+
+
+def _linha(y, textos_x):
+    from leitor_certificados.leitura.palavra import Palavra
+
+    return [Palavra(t, (x, y, x + 0.05, y + 0.01)) for t, x in textos_x]
+
+
+def test_tabela_conta_os_padroes_e_pega_a_validade_de_cada_um():
+    from leitor_certificados.conferencia.tabela_padroes import ler_tabela_padroes
+    from leitor_certificados.leitura import Pagina
+
+    colunas = [0.05, 0.25, 0.40, 0.55, 0.70, 0.85]
+    cab = ["Descrição", "Modelo", "Certificado", "Rastreabilidade", "Identificação", "Validade"]
+    palavras = _linha(0.18, zip(cab, colunas, strict=True))
+    palavras += _linha(0.195, [("Description", 0.05), ("Validity", 0.85), ("Model", 0.25)])
+    y = 0.22
+    for validade in ["fev/30", "mai/30", "set/29"]:
+        palavras += _linha(y, [("Bloco", 0.05), ("HT", 0.25), ("123", 0.40), ("RBC", 0.55),
+                               ("PR-1", 0.70), (validade, 0.85)])
+        palavras += _linha(y + 0.011, [("Hardness", 0.05)])  # a descrição em inglês
+        y += 0.022
+    palavras += _linha(y + 0.06, [("INFORMAÇÕES", 0.30), ("DA", 0.40), ("CALIBRAÇÃO", 0.55)])
+    tabela = ler_tabela_padroes(Pagina("digital", palavras))
+    assert [v for v, _ in tabela] == ["fev/30", "mai/30", "set/29"]  # 3 padrões, sem o resto
+
+
+def test_validade_do_certificado_com_dois_pontos_nao_e_tabela():
+    from leitor_certificados.conferencia.tabela_padroes import ler_tabela_padroes
+    from leitor_certificados.leitura import Pagina
+
+    palavras = _linha(0.1, [("Validade:", 0.1), ("12/2027", 0.2)])
+    assert ler_tabela_padroes(Pagina("digital", palavras)) is None

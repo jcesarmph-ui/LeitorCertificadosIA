@@ -531,7 +531,9 @@ class FolhaView(QGraphicsView):
             return None
         largura = max(self.viewport().width() - 4, 50)
         altura = max(self.viewport().height() - 4, 50)
-        return min(largura / retangulo.width(), altura / retangulo.height())
+        # várias folhas (uma embaixo da outra): cabe UMA folha; as outras, rolando
+        return min(largura / retangulo.width(),
+                   altura / (retangulo.height() / self.quantas_folhas()))
 
     # Zoom máximo: as menores letras da folha ficam com esta altura na tela (em pixels).
     ALTURA_LETRA_MAXIMA = 20
@@ -561,14 +563,22 @@ class FolhaView(QGraphicsView):
         retangulo = self._cena.sceneRect()
         self.resetTransform()
         self.scale(escala, escala)
-        self.centerOn(retangulo.center())
+        n = self.quantas_folhas()
+        # a 1ª folha no centro (com várias, as outras ficam embaixo, rolando)
+        self.centerOn(retangulo.center().x(), retangulo.top() + retangulo.height() / n / 2)
         self._ajustado = True
+
+    def quantas_folhas(self) -> int:
+        """Quantas folhas do PDF estão na imagem (uma embaixo da outra)."""
+        if self._analise is not None and self._imagem is self._analise.imagem:
+            return max(len(self._analise.pagina.folhas), 1)
+        return 1
 
     def razao_da_folha(self) -> float:
         """Altura ÷ largura da página aberta (A4 = 1,414 enquanto não há página)."""
         if self._imagem is not None:
             largura, altura = self._imagem.size
-            return altura / largura
+            return altura / largura / self.quantas_folhas()  # a medida de UMA folha
         return 297 / 210
 
     def resizeEvent(self, evento) -> None:

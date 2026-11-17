@@ -19,6 +19,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 
 from ..leitura import Pagina
+from ..leitura.folhas import separar
 from .atributos import atributos_da_pagina
 from .rotulos import OUTRO, rotular
 
@@ -38,9 +39,11 @@ def treinar_com_rotulos(paginas: list[Pagina], rotulos_por_pagina: list[list[str
     respostas: list[str] = []
     peso_de_cada: list[float] = []
     for n, (pagina, rotulos) in enumerate(zip(paginas, rotulos_por_pagina, strict=True)):
-        pistas += atributos_da_pagina(pagina)
-        respostas += rotulos
-        peso_de_cada += [pesos[n] if pesos else 1.0] * len(rotulos)
+        # folha comprida (várias folhas do PDF): aprende uma folha de cada vez
+        for folha, indices in separar(pagina):
+            pistas += atributos_da_pagina(folha)
+            respostas += [rotulos[i] for i in indices]
+            peso_de_cada += [pesos[n] if pesos else 1.0] * len(indices)
     modelo = Pipeline([
         ("pistas", DictVectorizer()),
         ("classificador", LogisticRegression(C=20, max_iter=2000)),
@@ -53,11 +56,17 @@ def prever(modelo: Pipeline, pagina: Pagina) -> list[tuple[str, float]]:
     """(rótulo, certeza) para cada palavra da página."""
     if not pagina.palavras:
         return []
-    probabilidades = modelo.predict_proba(atributos_da_pagina(pagina))
-    classes = modelo.classes_
-    melhores = probabilidades.argmax(axis=1)
-    return [(str(classes[m]), float(linha[m]))
-            for m, linha in zip(melhores, probabilidades, strict=True)]
+    resultado: list[tuple[str, float]] = [("outro", 0.0)] * len(pagina.palavras)
+    # folha comprida: o modelo olha uma folha de cada vez, na medida dela (aprendeu assim)
+    for folha, indices in separar(pagina):
+        if not folha.palavras:
+            continue
+        probabilidades = modelo.predict_proba(atributos_da_pagina(folha))
+        classes = modelo.classes_
+        melhores = probabilidades.argmax(axis=1)
+        for i, m, linha in zip(indices, melhores, probabilidades, strict=True):
+            resultado[i] = (str(classes[m]), float(linha[m]))
+    return resultado
 
 
 # Limiar de certeza (medido em 2026-11-12, scripts/medir_aprendizado.py e ADR 0007): abaixo disto
@@ -91,7 +100,9 @@ def ler_campos(modelo: Pipeline, pagina: Pagina,
             linhas: list[list[str]] = []
             y_anterior = None
             for p in palavras:
-                if y_anterior is None or abs(p.centro[1] - y_anterior) > 0.008:
+                # 0,008 da altura de uma folha (na folha comprida, cada folha é 1/n)
+                if (y_anterior is None
+                        or abs(p.centro[1] - y_anterior) > 0.008 / len(pagina.folhas)):
                     linhas.append([])
                 linhas[-1].append(p.texto)
                 y_anterior = p.centro[1]
