@@ -68,6 +68,9 @@ from .servico import (
     gravar_correcao,
     gravar_manual,
     gravar_texto,
+    ignoradas,
+    ignorar_pendencia,
+    pendencias,
     renderizar_folha,
 )
 from .tarefas import Tarefa
@@ -305,7 +308,16 @@ class Janela(QMainWindow):
         self.rolagem_motivo.setFrameShape(QFrame.Shape.NoFrame)
         self.rolagem_motivo.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.rolagem_motivo.setMaximumHeight(140)
-        self.rolagem_motivo.setWidget(self.motivo)
+        # os problemas (vermelho) no texto de cima; embaixo, cada pendência amarela com o
+        # botão "IGNORAR PENDÊNCIA" (pedido do usuário, 2026-11-17)
+        caixa_motivos = QWidget()
+        self.lista_motivos = QVBoxLayout(caixa_motivos)
+        self.lista_motivos.setContentsMargins(0, 0, 0, 0)
+        self.lista_motivos.setSpacing(2)
+        self.lista_motivos.addWidget(self.motivo)
+        self.lista_motivos.addStretch(1)  # as linhas ficam juntas, em cima
+        self.linhas_pendencia: list[tuple[str, QLabel, QPushButton]] = []
+        self.rolagem_motivo.setWidget(caixa_motivos)
         self.rolagem_motivo.hide()
         play.addWidget(self.rolagem_motivo)
         lay.addWidget(parecer)
@@ -595,6 +607,10 @@ class Janela(QMainWindow):
         self.parecer.setStyleSheet(f"background: {cor('campo')}; color: {cor('dica')};")
         self.motivo.setText("")
         self.motivo.hide()
+        for _, rotulo, _botao in self.linhas_pendencia:
+            rotulo.parentWidget().hide()  # some já (o deleteLater só apaga depois)
+            rotulo.parentWidget().deleteLater()
+        self.linhas_pendencia = []
         self.rolagem_motivo.hide()
         for valor in [*self.campos.values(), *self.campos_cadastro.values()]:
             valor.setText("—")
@@ -622,22 +638,24 @@ class Janela(QMainWindow):
         fundo, letra, texto = estilos.get(resultado, (AMARELO, "#000000", "PENDENTE"))
         self.parecer.setText(texto)
         self.parecer.setStyleSheet(f"background: {fundo}; color: {letra};")
-        motivos = list(analise.avisos) + (list(conferencia.avisos) if conferencia else [])
-        for p in (conferencia.pontos if conferencia else []):
-            motivos += [f"ponto {p.lido.nominal:g}: {a}" for a in p.avisos]
-        # avisos sempre aparecem (ex.: faixa diferente do plano avisa mesmo com "Aprovado")
         # o motivo do problema (pontos fora, padrão vencido) em vermelho e primeiro; o resto é
-        # aviso (amarelo). Sempre aparecem, mesmo com "Aprovado"
+        # pendência (amarelo), sempre à vista, mesmo com "Aprovado"
         erros = list(conferencia.erros) if conferencia else []
-        motivos = list(dict.fromkeys(m for m in motivos if m not in erros))  # sem repetidos
-        linhas = ([(m, cor("erro_texto"), "bold") for m in erros]
-                  + [(m, cor("aviso_texto"), "normal") for m in motivos])
         self.motivo.setText("<br>".join(
-            f'<span style="color: {tinta}; font-weight: {peso};">• {html.escape(m)}</span>'
-            for m, tinta, peso in linhas))
+            f'<span style="color: {cor("erro_texto")}; font-weight: bold;">'
+            f"• {html.escape(m)}</span>" for m in erros))
         self.motivo.setStyleSheet("")
-        self.motivo.setVisible(bool(linhas))
-        self.rolagem_motivo.setVisible(bool(linhas))  # sem texto, não ocupa lugar
+        self.motivo.setVisible(bool(erros))
+        self._preencher_pendencias(analise)
+        tem = bool(erros or self.linhas_pendencia)
+        self.rolagem_motivo.setVisible(tem)  # sem texto, não ocupa lugar
+        # só a altura do que está escrito (até 140; passou disso, rola)
+        largura = max(self.rolagem_motivo.viewport().width(), 400)
+        altura = (self.motivo.heightForWidth(largura) if erros else 0) + sum(
+            max(rotulo.heightForWidth(largura - botao.sizeHint().width() - 12),
+                botao.sizeHint().height()) + 4
+            for _, rotulo, botao in self.linhas_pendencia)
+        self.rolagem_motivo.setFixedHeight(min(140, max(altura, 20)))
         self.campos["plano"].setText(
             (conferencia.plano_nome if conferencia and conferencia.plano_nome else None)
             or "sem plano no cadastro")
@@ -661,6 +679,53 @@ class Janela(QMainWindow):
             self._pintar_marca(item)
         self._preencher_padroes(analise)
         self._preencher_tabela()
+
+    def _preencher_pendencias(self, analise: Analise) -> None:
+        """Uma linha por pendência amarela, com o botão "IGNORAR PENDÊNCIA". Ignorada: fica
+        cinza e riscada, e o botão vira "Considerar de novo"."""
+        for _, rotulo, _botao in self.linhas_pendencia:
+            rotulo.parentWidget().hide()  # some já (o deleteLater só apaga depois)
+            rotulo.parentWidget().deleteLater()
+        self.linhas_pendencia = []
+        fora = set(ignoradas(analise))
+        for texto in pendencias(analise):
+            linha = QWidget()
+            lay = QHBoxLayout(linha)
+            lay.setContentsMargins(0, 0, 0, 0)
+            rotulo = QLabel(f"• {texto}")
+            rotulo.setWordWrap(True)
+            botao = QPushButton()
+            botao.setCursor(Qt.CursorShape.PointingHandCursor)
+            botao.setStyleSheet("font-size: 9pt; padding: 1px 8px;")
+            if texto in fora:
+                rotulo.setStyleSheet(f"color: {cor('dica')}; text-decoration: line-through;")
+                rotulo.setToolTip("Pendência ignorada: conta como aprovada (fica no registro)")
+                botao.setText("Considerar de novo")
+            else:
+                rotulo.setStyleSheet(f"color: {cor('aviso_texto')};")
+                botao.setText("IGNORAR PENDÊNCIA")
+                botao.setToolTip("Esta pendência não importa: conta como aprovada e fica "
+                                 "anotada no registro (auditoria)")
+            botao.clicked.connect(
+                lambda _=False, t=texto, i=texto not in fora: self.ignorar_pendencia(t, i))
+            lay.addWidget(rotulo, 1)
+            lay.addWidget(botao, 0, Qt.AlignmentFlag.AlignVCenter)
+            self.lista_motivos.insertWidget(self.lista_motivos.count() - 1, linha)
+            self.linhas_pendencia.append((texto, rotulo, botao))
+
+    def ignorar_pendencia(self, texto: str, ignorar: bool = True) -> None:
+        if self.analise is None:
+            return
+        try:
+            ignorar_pendencia(self.servico.pastas, self.analise, texto, ignorar)
+            self.servico.reconferir(self.analise)
+        except Exception as erro:
+            self.avisar(f"Não consegui ignorar a pendência: {erro}", "erro")
+            return
+        self._corrigiu()
+        self.mostrar_analise(self.analise)
+        self.avisar(f"Pendência ignorada: {texto}" if ignorar
+                    else f"Pendência considerada de novo: {texto}", "info")
 
     def _preencher_padroes(self, analise: Analise) -> None:
         """A caixa "Padrões": a data da calibração e cada padrão com a sua situação."""

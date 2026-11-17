@@ -309,10 +309,47 @@ def gravar_correcao(pastas: Pastas, analise: Analise, indices: list[int], rotulo
     return mudaram
 
 
+IGNORADAS = "pendencias_ignoradas"  # chave do `manual`: uma pendência ignorada por linha
+
+
+def pendencias(analise: Analise) -> list[str]:
+    """As pendências amarelas da lista de motivos (sem os problemas vermelhos), na ordem da
+    tela e sem repetidas."""
+    c = analise.conferencia
+    motivos = list(analise.avisos) + (list(c.avisos) if c else [])
+    for p in (c.pontos if c else []):
+        motivos += [f"ponto {p.lido.nominal:g}: {a}" for a in p.avisos]
+    erros = set(c.erros) if c else set()
+    return list(dict.fromkeys(m for m in motivos if m not in erros))
+
+
+def ignoradas(analise: Analise) -> list[str]:
+    return [t for t in analise.manual.get(IGNORADAS, "").split("\n") if t]
+
+
+def ignorar_pendencia(pastas: Pastas, analise: Analise, texto: str,
+                      ignorar: bool = True) -> None:
+    """"IGNORAR PENDÊNCIA": a pessoa diz que a pendência não importa (fica guardado no
+    registro, para a auditoria). `ignorar=False` volta a considerar."""
+    lista = [t for t in ignoradas(analise) if t != texto] + ([texto] if ignorar else [])
+    gravar_manual(pastas, analise, IGNORADAS, "\n".join(lista))
+
+
+def aplicar_ignoradas(analise: Analise) -> None:
+    """Parecer PENDENTE sem problema vermelho e com todas as pendências ignoradas conta como
+    APROVADO (pedido do usuário, 2026-11-17)."""
+    c = analise.conferencia
+    if c is None or c.resultado != Resultado.PENDENTE or c.erros:
+        return
+    fora = set(ignoradas(analise))
+    if fora and all(m in fora for m in pendencias(analise)):
+        c.resultado = Resultado.APROVADO
+
+
 def gravar_manual(pastas: Pastas, analise: Analise, campo: str, valor: str) -> None:
     """Guarda um valor digitado à mão (chave `manual` do `.palavras.json`). Valor vazio apaga.
     Não entra no treino: serve só para a conferência deste certificado."""
-    if campo not in CAMPOS_MANUAIS and campo != "padroes_calibrados":
+    if campo not in CAMPOS_MANUAIS and campo not in ("padroes_calibrados", IGNORADAS):
         raise ValueError(f"campo que não se digita à mão: {campo}")
     dados = _ler_arquivo(pastas, analise.caminho)
     manual = dict(dados.get("manual", {}))
@@ -484,6 +521,7 @@ class Servico:
             analise.avisos.append(f"Não consegui conferir com o plano: {erro}")
         finally:
             planos.fechar()
+        aplicar_ignoradas(analise)
 
     # -- registro (etapa 10) --------------------------------------------------------------
     @property
@@ -508,7 +546,8 @@ class Servico:
             plano=c.plano_nome if c else None,
             parecer=c.resultado.value if c else None,
             motivos={"erros": list(c.erros) if c else [],
-                     "avisos": (list(c.avisos) if c else []) + list(analise.avisos)},
+                     "avisos": (list(c.avisos) if c else []) + list(analise.avisos),
+                     "ignoradas": ignoradas(analise)},
             lido=_o_que_foi_lido(analise), correcoes=correcoes, textos=textos,
             manual=dict(analise.manual), marcacao=marcacao,
             versao_programa=__version__, versao_modelo=self.versao_do_modelo())

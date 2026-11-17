@@ -839,3 +839,33 @@ def test_carimbo_marca_o_x_na_decisao():
     aprovado = desenhar("Fulano", "1", "17/11/2026", True)
     reprovado = desenhar("Fulano", "1", "17/11/2026", False)
     assert aprovado.tobytes() != reprovado.tobytes()
+
+
+def test_ignorar_pendencia_na_lista_de_motivos(app, mundo):
+    from leitor_certificados.conferencia.avaliacao import Resultado
+    from leitor_certificados.interface.servico import aplicar_ignoradas, pendencias
+
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    janela.show()
+    janela.abrir(certificado)
+    esperar(app, janela)
+    janela.analise.avisos.append("Aviso de teste")
+    janela.mostrar_analise(janela.analise)
+    linha = next(x for x in janela.linhas_pendencia if x[0] == "Aviso de teste")
+    assert linha[2].text() == "IGNORAR PENDÊNCIA"
+    janela.ignorar_pendencia("Aviso de teste")
+    linha = next(x for x in janela.linhas_pendencia if x[0] == "Aviso de teste")
+    assert linha[2].text() == "Considerar de novo"  # dá para voltar atrás
+    # todas as pendências ignoradas e nenhum problema vermelho: conta como aprovado
+    analise = janela.analise
+    for texto in pendencias(analise):
+        janela.ignorar_pendencia(texto)
+    if analise.conferencia is not None and not analise.conferencia.erros:
+        analise.conferencia.resultado = Resultado.PENDENTE
+        aplicar_ignoradas(analise)
+        assert analise.conferencia.resultado == Resultado.APROVADO
+    janela.registrar_com(True, "Fulano de Tal", "1234", "17/11/2026")
+    r = servico.registro.obter(janela._numero_registro)
+    assert "Aviso de teste" in r.motivos["ignoradas"]  # fica no registro (auditoria)
+    janela.close()
