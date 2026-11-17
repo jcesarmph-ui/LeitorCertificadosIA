@@ -30,6 +30,8 @@ class Interruptor(QAbstractButton):
     def paintEvent(self, _evento) -> None:
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if not self.isEnabled():
+            p.setOpacity(0.45)  # travado: mais apagado, mas mostra se está ligado ou não
         y = (self.height() - ALTURA_TRILHO) / 2
         trilho = QRectF(2, y, LARGURA_TRILHO, ALTURA_TRILHO)
         ligado = self.isChecked()

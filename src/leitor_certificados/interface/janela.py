@@ -377,10 +377,11 @@ class Janela(QMainWindow):
         # validade no certificado deixa de deixar pendente (pedido do usuário, 2026-11-17)
         # liga/desliga: começa desligado; ligado, a bolinha vai para a direita e fica verde
         self.botao_padroes = Interruptor("PADRÕES CALIBRADOS")
-        self.botao_padroes.setToolTip(
+        self._dica_padroes = (
             "Ligue quando os padrões vierem em outro certificado e estiverem calibrados: a "
             "falta da validade dos padrões neste certificado deixa de deixar o parecer "
             "pendente. Padrão vencido continua sendo apontado. Fica guardado no registro.")
+        self.botao_padroes.setToolTip(self._dica_padroes)
         self.botao_padroes.toggled.connect(self.marcar_padroes_calibrados)
         self.botao_padroes.hide()
         pdlay.addWidget(self.botao_padroes)
@@ -573,9 +574,22 @@ class Janela(QMainWindow):
 
     def mostrar_analise(self, analise: Analise) -> None:
         self.analise = analise
-        self.botao_padroes.blockSignals(True)  # só mostra o estado guardado, sem regravar
-        self.botao_padroes.setChecked(analise.manual.get("padroes_calibrados") == "sim")
+        # só dá para ligar quando algum padrão não aparece ou não foi lido (pedido de
+        # 2026-11-17). Todos em dia: travado e ligado (mostra que estão calibrados).
+        # Algum vencido: travado e desligado (o vencido continua valendo).
+        pd = analise.conferencia.padroes if analise.conferencia else None
+        vencido = bool(pd and pd.algum_vencido)
+        pode = bool(pd and pd.falta_conferir and not vencido)
+        em_dia = bool(pd and pd.padroes and not pd.falta_conferir and not vencido)
+        self.botao_padroes.blockSignals(True)  # só mostra o estado, sem regravar
+        self.botao_padroes.setChecked(
+            em_dia or (pode and analise.manual.get("padroes_calibrados") == "sim"))
         self.botao_padroes.blockSignals(False)
+        self.botao_padroes.setEnabled(pode)
+        self.botao_padroes.setToolTip(
+            "Os padrões do certificado estão todos em dia." if em_dia
+            else "Há padrão vencido: ele continua sendo apontado." if vencido
+            else self._dica_padroes)
         self.botao_padroes.setVisible(analise.conferencia is not None)
         self._anterior = None
         self.linhas = descrever_pontos(analise.conferencia, analise)

@@ -940,3 +940,21 @@ def test_pontos_na_folha_2_entram_e_os_checks_vao_para_ela(app, mundo, tmp_path)
     folha2 = conferido[1].render(scale=0.5).to_pil().tobytes()
     assert folha2 != original[1].render(scale=0.5).to_pil().tobytes()  # os checks na folha 2
     janela.close()
+
+
+def test_padroes_calibrados_so_libera_quando_falta_conferir(app, mundo):
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    janela.show()
+    janela.abrir(certificado)
+    esperar(app, janela)
+    pd = janela.analise.conferencia.padroes
+    if pd.padroes and not pd.falta_conferir and not pd.algum_vencido:
+        # todos em dia: travado e ligado, mostrando que estão calibrados
+        assert not janela.botao_padroes.isEnabled() and janela.botao_padroes.isChecked()
+    # sem padrões no certificado: liberado para a pessoa ligar
+    janela.analise.conferencia.padroes.padroes.clear()
+    janela.analise.conferencia.padroes.avisos.append("padrões não encontrados")
+    janela.mostrar_analise(janela.analise)
+    assert janela.botao_padroes.isEnabled() and not janela.botao_padroes.isChecked()
+    janela.close()
