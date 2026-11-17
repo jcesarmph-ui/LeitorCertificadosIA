@@ -35,8 +35,9 @@ def _fonte(nomes: tuple[str, ...], tamanho: int) -> ImageFont.ImageFont:
 
 
 def desenhar(nome: str, re: str, data: str) -> Image.Image:
-    """O carimbo (fundo transparente), com o RE, o nome no VISTO e a data."""
-    imagem = Image.new("RGBA", (LARGURA, ALTURA), (0, 0, 0, 0))
+    """O carimbo, com o RE, o nome no VISTO e a data. Fundo branco: a marca d'água ou uma
+    linha do certificado nunca aparecem por dentro (sempre limpo e fácil de ler)."""
+    imagem = Image.new("RGBA", (LARGURA, ALTURA), (255, 255, 255, 255))
     d = ImageDraw.Draw(imagem)
     negrito = ("arialbd.ttf", "DejaVuSans-Bold.ttf")
     normal = ("arial.ttf", "DejaVuSans.ttf")
@@ -75,14 +76,21 @@ def lugar_livre(pagina: Image.Image, largura: float = LARGURA_NA_FOLHA) -> tuple
     para a esquerda, o primeiro retângulo do tamanho do carimbo sem tinta. Sem lugar livre,
     fica no canto de baixo à direita, acima da margem.
     """
-    cinza = pagina.convert("L")
-    escala = 200 / cinza.width  # imagem pequena: rápido e suficiente
-    peq = cinza.resize((200, max(1, round(cinza.height * escala))))
-    lw, lh = peq.size
+    import numpy as np
+
+    cinza = np.asarray(pagina.convert("L"))
+    # a página em blocos pequenos (1/200 da largura); cada
+    # bloco guarda o pixel MAIS ESCURO dele, para uma linha fina não sumir ao diminuir.
+    bloco = max(1, cinza.shape[1] // 200)
+    alto, largo = cinza.shape[0] // bloco, cinza.shape[1] // bloco
+    cinza = cinza[:alto * bloco, :largo * bloco]
+    escuro = cinza.reshape(alto, bloco, largo, bloco).min(axis=(1, 3))
+    lw, lh = largo, alto
     cw = round(lw * largura)
     ch = round(cw * ALTURA / LARGURA)
     margem = round(lw * 0.04)
-    tinta = [[1 if peq.getpixel((x, y)) < 200 else 0 for x in range(lw)] for y in range(lh)]
+    # tinta = mais escuro que a marca d'água clara dos laboratórios
+    tinta = (escuro < 170).astype(int).tolist()
     # soma acumulada 2D: conta a tinta de um retângulo de uma vez
     soma = [[0] * (lw + 1) for _ in range(lh + 1)]
     for y in range(lh):
