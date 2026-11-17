@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -52,7 +53,7 @@ from .estilo import (
 )
 from .folha import FolhaView, tipo_do_rotulo
 from .icones import icone
-from .janela_registro import JanelaRegistro
+from .janela_registro import JanelaRegistro, PerguntaAprovacao
 from .legenda import icone_do_rotulo
 from .quadro import QuadroPonto
 from .servico import (
@@ -67,6 +68,9 @@ from .servico import (
     gravar_correcao,
     gravar_manual,
     gravar_texto,
+    ignoradas,
+    ignorar_pendencia,
+    pendencias,
     renderizar_folha,
 )
 from .tarefas import Tarefa
@@ -99,6 +103,8 @@ class Janela(QMainWindow):
         self._pendentes = 0  # correções registradas e ainda não aprendidas pelo modelo
         self._rascunho = 0  # correções desta análise que ainda não foram registradas
         self._registrado = False  # a análise aberta já foi registrada?
+        self._numero_registro: int | None = None
+        self._aprovado = False
         self.setWindowTitle(f"Leitor de Certificados — v{__version__}")
         self.setAcceptDrops(True)
         QApplication.instance().installEventFilter(self)  # arrastar o PDF (ver eventFilter)
@@ -157,8 +163,9 @@ class Janela(QMainWindow):
         self.botao_aprender.clicked.connect(self.aprender)
         self.botao_registrar = QPushButton("Registrar")
         self.botao_registrar.setToolTip(
-            "Guarda esta análise no registro (ícone do relógio, no canto de cima). As correções "
-            "só ensinam o modelo depois de registradas.")
+            "Guarda esta análise no registro (ícone do relógio, no canto de cima) com a sua "
+            "decisão: aprovar ou rejeitar o certificado (nome, RE e data; o PDF ganha o "
+            "carimbo). As correções só ensinam o modelo depois de registradas.")
         self.botao_registrar.clicked.connect(self.registrar)
         botoes.addWidget(self.botao_abrir)
         botoes.addWidget(self.botao_registrar)
@@ -301,7 +308,16 @@ class Janela(QMainWindow):
         self.rolagem_motivo.setFrameShape(QFrame.Shape.NoFrame)
         self.rolagem_motivo.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.rolagem_motivo.setMaximumHeight(140)
-        self.rolagem_motivo.setWidget(self.motivo)
+        # os problemas (vermelho) no texto de cima; embaixo, cada pendência amarela com o
+        # botão "IGNORAR PENDÊNCIA" (pedido do usuário, 2026-11-17)
+        caixa_motivos = QWidget()
+        self.lista_motivos = QVBoxLayout(caixa_motivos)
+        self.lista_motivos.setContentsMargins(0, 0, 0, 0)
+        self.lista_motivos.setSpacing(2)
+        self.lista_motivos.addWidget(self.motivo)
+        self.lista_motivos.addStretch(1)  # as linhas ficam juntas, em cima
+        self.linhas_pendencia: list[tuple[str, QLabel, QPushButton]] = []
+        self.rolagem_motivo.setWidget(caixa_motivos)
         self.rolagem_motivo.hide()
         play.addWidget(self.rolagem_motivo)
         lay.addWidget(parecer)
@@ -364,6 +380,19 @@ class Janela(QMainWindow):
         self.tabela_padroes.setStyleSheet("QTableWidget { font-size: 11pt; } "
                                           "QHeaderView::section { font-size: 11pt; }")
         pdlay.addWidget(self.tabela_padroes, 1)
+        # os padrões vêm em outro certificado (ex.: durômetro): a pessoa marca e a falta da
+        # validade no certificado deixa de deixar pendente (pedido do usuário, 2026-11-17)
+        self.botao_padroes = QPushButton("PADRÕES CALIBRADOS")
+        self.botao_padroes.setObjectName("padroesCalibrados")
+        self.botao_padroes.setCheckable(True)
+        self.botao_padroes.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.botao_padroes.setToolTip(
+            "Ligue quando os padrões vierem em outro certificado e estiverem calibrados: a "
+            "falta da validade dos padrões neste certificado deixa de deixar o parecer "
+            "pendente. Padrão vencido continua sendo apontado. Fica guardado no registro.")
+        self.botao_padroes.toggled.connect(self.marcar_padroes_calibrados)
+        self.botao_padroes.hide()
+        pdlay.addWidget(self.botao_padroes)
         self.sem_padroes = QLabel("")  # "nenhum padrão encontrado" (só ocupa lugar com texto)
         self.sem_padroes.setWordWrap(True)
         self.sem_padroes.hide()
@@ -515,9 +544,11 @@ class Janela(QMainWindow):
             self.avisar(f"Não consegui abrir {Path(caminho).name}: {erro}", "erro")
             return
         self._anterior = self.analise
-        self._anterior_estado = (self._registrado, self._rascunho)
+        self._anterior_estado = (self._registrado, self._rascunho, self._numero_registro,
+                                 self._aprovado)
         self.analise = None
         self._registrado, self._rascunho = False, 0
+        self._numero_registro, self._aprovado = None, False
         self.botao_corrigir.setChecked(False)
         self._limpar_painel()
         self.folha.mostrar_imagem(previa)
@@ -539,7 +570,8 @@ class Janela(QMainWindow):
         self.folha.parar_brilho()
         anterior, self._anterior = self._anterior, None
         if anterior is not None:
-            self._registrado, self._rascunho = self._anterior_estado
+            (self._registrado, self._rascunho, self._numero_registro,
+             self._aprovado) = self._anterior_estado
             self.mostrar_analise(anterior)
         else:
             self.folha.mostrar_mensagem("Abra um certificado (PDF) ou arraste o arquivo para cá")
@@ -550,6 +582,10 @@ class Janela(QMainWindow):
 
     def mostrar_analise(self, analise: Analise) -> None:
         self.analise = analise
+        self.botao_padroes.blockSignals(True)  # só mostra o estado guardado, sem regravar
+        self.botao_padroes.setChecked(analise.manual.get("padroes_calibrados") == "sim")
+        self.botao_padroes.blockSignals(False)
+        self.botao_padroes.setVisible(analise.conferencia is not None)
         self._anterior = None
         self.linhas = descrever_pontos(analise.conferencia, analise)
         self.padroes = descrever_padroes(analise.conferencia)
@@ -571,6 +607,10 @@ class Janela(QMainWindow):
         self.parecer.setStyleSheet(f"background: {cor('campo')}; color: {cor('dica')};")
         self.motivo.setText("")
         self.motivo.hide()
+        for _, rotulo, _botao in self.linhas_pendencia:
+            rotulo.parentWidget().hide()  # some já (o deleteLater só apaga depois)
+            rotulo.parentWidget().deleteLater()
+        self.linhas_pendencia = []
         self.rolagem_motivo.hide()
         for valor in [*self.campos.values(), *self.campos_cadastro.values()]:
             valor.setText("—")
@@ -598,22 +638,24 @@ class Janela(QMainWindow):
         fundo, letra, texto = estilos.get(resultado, (AMARELO, "#000000", "PENDENTE"))
         self.parecer.setText(texto)
         self.parecer.setStyleSheet(f"background: {fundo}; color: {letra};")
-        motivos = list(analise.avisos) + (list(conferencia.avisos) if conferencia else [])
-        for p in (conferencia.pontos if conferencia else []):
-            motivos += [f"ponto {p.lido.nominal:g}: {a}" for a in p.avisos]
-        # avisos sempre aparecem (ex.: faixa diferente do plano avisa mesmo com "Aprovado")
         # o motivo do problema (pontos fora, padrão vencido) em vermelho e primeiro; o resto é
-        # aviso (amarelo). Sempre aparecem, mesmo com "Aprovado"
+        # pendência (amarelo), sempre à vista, mesmo com "Aprovado"
         erros = list(conferencia.erros) if conferencia else []
-        motivos = list(dict.fromkeys(m for m in motivos if m not in erros))  # sem repetidos
-        linhas = ([(m, cor("erro_texto"), "bold") for m in erros]
-                  + [(m, cor("aviso_texto"), "normal") for m in motivos])
         self.motivo.setText("<br>".join(
-            f'<span style="color: {tinta}; font-weight: {peso};">• {html.escape(m)}</span>'
-            for m, tinta, peso in linhas))
+            f'<span style="color: {cor("erro_texto")}; font-weight: bold;">'
+            f"• {html.escape(m)}</span>" for m in erros))
         self.motivo.setStyleSheet("")
-        self.motivo.setVisible(bool(linhas))
-        self.rolagem_motivo.setVisible(bool(linhas))  # sem texto, não ocupa lugar
+        self.motivo.setVisible(bool(erros))
+        self._preencher_pendencias(analise)
+        tem = bool(erros or self.linhas_pendencia)
+        self.rolagem_motivo.setVisible(tem)  # sem texto, não ocupa lugar
+        # só a altura do que está escrito (até 140; passou disso, rola)
+        largura = max(self.rolagem_motivo.viewport().width(), 400)
+        altura = (self.motivo.heightForWidth(largura) if erros else 0) + sum(
+            max(rotulo.heightForWidth(largura - botao.sizeHint().width() - 12),
+                botao.sizeHint().height()) + 4
+            for _, rotulo, botao in self.linhas_pendencia)
+        self.rolagem_motivo.setFixedHeight(min(140, max(altura, 20)))
         self.campos["plano"].setText(
             (conferencia.plano_nome if conferencia and conferencia.plano_nome else None)
             or "sem plano no cadastro")
@@ -637,6 +679,53 @@ class Janela(QMainWindow):
             self._pintar_marca(item)
         self._preencher_padroes(analise)
         self._preencher_tabela()
+
+    def _preencher_pendencias(self, analise: Analise) -> None:
+        """Uma linha por pendência amarela, com o botão "IGNORAR PENDÊNCIA". Ignorada: fica
+        cinza e riscada, e o botão vira "Considerar de novo"."""
+        for _, rotulo, _botao in self.linhas_pendencia:
+            rotulo.parentWidget().hide()  # some já (o deleteLater só apaga depois)
+            rotulo.parentWidget().deleteLater()
+        self.linhas_pendencia = []
+        fora = set(ignoradas(analise))
+        for texto in pendencias(analise):
+            linha = QWidget()
+            lay = QHBoxLayout(linha)
+            lay.setContentsMargins(0, 0, 0, 0)
+            rotulo = QLabel(f"• {texto}")
+            rotulo.setWordWrap(True)
+            botao = QPushButton()
+            botao.setCursor(Qt.CursorShape.PointingHandCursor)
+            botao.setStyleSheet("font-size: 9pt; padding: 1px 8px;")
+            if texto in fora:
+                rotulo.setStyleSheet(f"color: {cor('dica')}; text-decoration: line-through;")
+                rotulo.setToolTip("Pendência ignorada: conta como aprovada (fica no registro)")
+                botao.setText("Considerar de novo")
+            else:
+                rotulo.setStyleSheet(f"color: {cor('aviso_texto')};")
+                botao.setText("IGNORAR PENDÊNCIA")
+                botao.setToolTip("Esta pendência não importa: conta como aprovada e fica "
+                                 "anotada no registro (auditoria)")
+            botao.clicked.connect(
+                lambda _=False, t=texto, i=texto not in fora: self.ignorar_pendencia(t, i))
+            lay.addWidget(rotulo, 1)
+            lay.addWidget(botao, 0, Qt.AlignmentFlag.AlignVCenter)
+            self.lista_motivos.insertWidget(self.lista_motivos.count() - 1, linha)
+            self.linhas_pendencia.append((texto, rotulo, botao))
+
+    def ignorar_pendencia(self, texto: str, ignorar: bool = True) -> None:
+        if self.analise is None:
+            return
+        try:
+            ignorar_pendencia(self.servico.pastas, self.analise, texto, ignorar)
+            self.servico.reconferir(self.analise)
+        except Exception as erro:
+            self.avisar(f"Não consegui ignorar a pendência: {erro}", "erro")
+            return
+        self._corrigiu()
+        self.mostrar_analise(self.analise)
+        self.avisar(f"Pendência ignorada: {texto}" if ignorar
+                    else f"Pendência considerada de novo: {texto}", "info")
 
     def _preencher_padroes(self, analise: Analise) -> None:
         """A caixa "Padrões": a data da calibração e cada padrão com a sua situação."""
@@ -686,9 +775,15 @@ class Janela(QMainWindow):
                 self.tabela_padroes.setItem(r, c, celula)
         self.tabela_padroes.setVisible(bool(self.padroes))
         vazio = lidos is not None and not lidos.padroes
-        self.sem_padroes.setText("Nenhum padrão encontrado no certificado: validade dos padrões "
-                                 "não conferida." if vazio else "")
-        self.sem_padroes.setStyleSheet(f"color: {cor('aviso_texto')};")
+        calibrados = analise.manual.get("padroes_calibrados") == "sim"
+        if calibrados:  # marcado pela pessoa: os padrões estão em outro certificado
+            texto, tinta = ("Padrões em outro certificado, marcados como calibrados.",
+                            cor("texto"))
+        else:
+            texto, tinta = ("Nenhum padrão encontrado no certificado: validade dos padrões "
+                            "não conferida.", cor("aviso_texto"))
+        self.sem_padroes.setText(texto if vazio else "")
+        self.sem_padroes.setStyleSheet(f"color: {tinta};")
         self.sem_padroes.setVisible(vazio)
 
     def _pintar_marca(self, item: ItemComparado) -> None:
@@ -770,6 +865,14 @@ class Janela(QMainWindow):
         if self.analise is None:
             return
         menu = QMenu(self)
+        # o atalho mais usado: um número que não tem nada a ver com a análise (ex.: um "100"
+        # perdido no rodapé que virou padrão) — vira "Outro (não é dado)" e sai da conferência
+        ignorar = menu.addAction("Ignorar este valor")
+        ignorar.setData("outro")
+        fonte = ignorar.font()
+        fonte.setBold(True)
+        ignorar.setFont(fonte)
+        menu.addSeparator()
         for rotulo, nome in ROTULOS.items():
             acao = menu.addAction(icone_do_rotulo(rotulo), nome)  # a cor ao lado do nome
             acao.setData(rotulo)
@@ -787,6 +890,12 @@ class Janela(QMainWindow):
             return
         self.folha.limpar_selecao()  # repinta com os rótulos novos
         if mudaram:
+            # confere de novo na hora: o que mudou de rótulo entra ou sai da conferência
+            try:
+                self.servico.recalcular(self.analise)
+            except Exception as erro:
+                self.avisar(f"Não consegui conferir de novo: {erro}", "erro")
+            self.mostrar_analise(self.analise)
             self._rascunho += mudaram
             self._corrigiu()
         self.avisar(
@@ -801,14 +910,23 @@ class Janela(QMainWindow):
     def abrir_registro(self) -> None:
         """A janelinha do registro. Ao fechar, se algo mudou o que ensina o modelo (ida ou
         volta da Lixeira), ele aprende de novo em segundo plano."""
-        janela = JanelaRegistro(self.servico.registro, self)
+        janela = JanelaRegistro(self.servico.registro, self, self.servico)
         janela.exec()
         if janela.mexeu and not self.ocupado and self.servico.precisa_aprender():
             self.avisar("O registro mudou: o modelo está aprendendo de novo.", "dica")
             self.aprender()
 
     def registrar(self) -> None:
+        """Registrar = decidir: a caixinha pede "Aprovar" ou "Rejeitar" com nome, RE e data."""
         if self.analise is None or self.ocupado or self._registrado:
+            return
+        pergunta = PerguntaAprovacao(self.analise.caminho.name, self)
+        if pergunta.exec() != QDialog.DialogCode.Accepted:
+            return  # cancelou: nada é registrado
+        self.registrar_com(pergunta.aprovado, *pergunta.valores())
+
+    def registrar_com(self, aprovado: bool, nome: str, re: str, data: str) -> None:
+        if self.analise is None:
             return
         try:
             numero_registro = self.servico.registrar(self.analise)
@@ -816,10 +934,39 @@ class Janela(QMainWindow):
             self.avisar(f"Não consegui registrar: {erro}", "erro")
             return
         self._registrado = True
+        self._numero_registro = numero_registro
+        self._aprovado = False
         self._pendentes += self._rascunho
         self._rascunho = 0
         self._atualizar_botoes()
-        self.avisar(f"Análise registrada (nº {numero_registro}).", "info")
+        decisao = "APROVADO" if aprovado else "REPROVADO"
+        try:
+            pdf = self.servico.aprovar(numero_registro, nome, re, data, aprovado)
+        except Exception as erro:
+            self.avisar(f"Análise registrada (nº {numero_registro}), mas não consegui carimbar "
+                        f"o PDF: {erro}. Dá para decidir pelo registro (ícone do relógio).",
+                        "erro")
+            return
+        self._aprovado = aprovado
+        self.ultimo_pdf_aprovado = pdf
+        self.avisar(f"Registrado (nº {numero_registro}): {decisao} por {nome} (RE {re}) em "
+                    f"{data}. O PDF carimbado fica no registro (ícone do relógio → Abrir PDF).",
+                    "info")
+
+    def marcar_padroes_calibrados(self, ligado: bool) -> None:
+        if self.analise is None:
+            return
+        try:
+            gravar_manual(self.servico.pastas, self.analise, "padroes_calibrados",
+                          "sim" if ligado else "")
+            self.servico.reconferir(self.analise)
+        except Exception as erro:
+            self.avisar(f"Não consegui marcar os padrões: {erro}", "erro")
+            return
+        self._corrigiu()
+        self.mostrar_analise(self.analise)
+        self.avisar("Padrões calibrados (em outro certificado): marcado." if ligado
+                    else "Padrões calibrados: desmarcado.", "info")
 
     def _mostrar_valor_manual(self) -> None:
         campo = self.campo_manual.currentData()

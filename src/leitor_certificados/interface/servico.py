@@ -23,6 +23,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import socket
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -308,10 +309,47 @@ def gravar_correcao(pastas: Pastas, analise: Analise, indices: list[int], rotulo
     return mudaram
 
 
+IGNORADAS = "pendencias_ignoradas"  # chave do `manual`: uma pendência ignorada por linha
+
+
+def pendencias(analise: Analise) -> list[str]:
+    """As pendências amarelas da lista de motivos (sem os problemas vermelhos), na ordem da
+    tela e sem repetidas."""
+    c = analise.conferencia
+    motivos = list(analise.avisos) + (list(c.avisos) if c else [])
+    for p in (c.pontos if c else []):
+        motivos += [f"ponto {p.lido.nominal:g}: {a}" for a in p.avisos]
+    erros = set(c.erros) if c else set()
+    return list(dict.fromkeys(m for m in motivos if m not in erros))
+
+
+def ignoradas(analise: Analise) -> list[str]:
+    return [t for t in analise.manual.get(IGNORADAS, "").split("\n") if t]
+
+
+def ignorar_pendencia(pastas: Pastas, analise: Analise, texto: str,
+                      ignorar: bool = True) -> None:
+    """"IGNORAR PENDÊNCIA": a pessoa diz que a pendência não importa (fica guardado no
+    registro, para a auditoria). `ignorar=False` volta a considerar."""
+    lista = [t for t in ignoradas(analise) if t != texto] + ([texto] if ignorar else [])
+    gravar_manual(pastas, analise, IGNORADAS, "\n".join(lista))
+
+
+def aplicar_ignoradas(analise: Analise) -> None:
+    """Parecer PENDENTE sem problema vermelho e com todas as pendências ignoradas conta como
+    APROVADO (pedido do usuário, 2026-11-17)."""
+    c = analise.conferencia
+    if c is None or c.resultado != Resultado.PENDENTE or c.erros:
+        return
+    fora = set(ignoradas(analise))
+    if fora and all(m in fora for m in pendencias(analise)):
+        c.resultado = Resultado.APROVADO
+
+
 def gravar_manual(pastas: Pastas, analise: Analise, campo: str, valor: str) -> None:
     """Guarda um valor digitado à mão (chave `manual` do `.palavras.json`). Valor vazio apaga.
     Não entra no treino: serve só para a conferência deste certificado."""
-    if campo not in CAMPOS_MANUAIS:
+    if campo not in CAMPOS_MANUAIS and campo not in ("padroes_calibrados", IGNORADAS):
         raise ValueError(f"campo que não se digita à mão: {campo}")
     dados = _ler_arquivo(pastas, analise.caminho)
     manual = dict(dados.get("manual", {}))
@@ -442,8 +480,14 @@ class Servico:
         """Lê de novo os campos e os pontos (com os textos corrigidos à mão) e confere. Rápido:
         não refaz o OCR, por isso pode rodar direto na tela depois de uma correção de texto."""
         pagina = analise.pagina_corrigida()
-        analise.campos = ml.ler_campos(self.modelo, pagina)
-        analise.certificado = montar_certificado(self.modelo, pagina)
+        # o rótulo que a pessoa corrigiu vale mais que o palpite do modelo (com certeza total):
+        # "Ignorar este valor" tira o número da conferência na hora, sem esperar o treino
+        previsoes = ml.prever(self.modelo, pagina)
+        for i in analise.corrigidas:
+            if i < len(previsoes) and i < len(analise.rotulos):
+                previsoes[i] = (analise.rotulos[i], 1.0)
+        analise.campos = ml.ler_campos(self.modelo, pagina, previsoes)
+        analise.certificado = montar_certificado(self.modelo, pagina, previsoes=previsoes)
         self.reconferir(analise)
 
     def reconferir(self, analise: Analise) -> None:
@@ -470,11 +514,14 @@ class Servico:
         # O banco é aberto aqui, na mesma thread que o usa (o SQLite não deixa trocar de thread)
         planos = PlanosDQ05(self.pastas.banco)
         try:
-            analise.conferencia = conferir(certificado, planos)
+            analise.conferencia = conferir(
+                certificado, planos,
+                padroes_calibrados=analise.manual.get("padroes_calibrados") == "sim")
         except Exception as erro:  # a tela nunca cai por causa de um certificado estranho
             analise.avisos.append(f"Não consegui conferir com o plano: {erro}")
         finally:
             planos.fechar()
+        aplicar_ignoradas(analise)
 
     # -- registro (etapa 10) --------------------------------------------------------------
     @property
@@ -499,13 +546,106 @@ class Servico:
             plano=c.plano_nome if c else None,
             parecer=c.resultado.value if c else None,
             motivos={"erros": list(c.erros) if c else [],
-                     "avisos": (list(c.avisos) if c else []) + list(analise.avisos)},
+                     "avisos": (list(c.avisos) if c else []) + list(analise.avisos),
+                     "ignoradas": ignoradas(analise)},
             lido=_o_que_foi_lido(analise), correcoes=correcoes, textos=textos,
             manual=dict(analise.manual), marcacao=marcacao,
             versao_programa=__version__, versao_modelo=self.versao_do_modelo())
         # registrado: o rascunho já é oficial
         arquivo_de_correcoes(self.pastas, analise.caminho).unlink(missing_ok=True)
+        # a cópia do PDF com os checks, para o auditor ver o que foi conferido (etapa 11)
+        try:
+            self.registro.guardar_conferido(numero_registro,
+                                            self._guardar_conferido(numero_registro, analise))
+        except Exception:  # sem a cópia o registro continua valendo; só não dá para aprovar
+            pass
         return numero_registro
+
+    @property
+    def pasta_registro(self) -> Path:
+        return self.pastas.registro.parent
+
+    def _guardar_conferido(self, numero_registro: int, analise: Analise) -> str:
+        from ..carimbo import sobrepor
+        from .folha_conferida import desenhar_marcas, marcas_da_analise
+
+        nome = f"conferidos/{numero_registro:05d}_{analise.caminho.name}"
+        largura, altura = analise.imagem.size
+        lista = marcas_da_analise(analise)
+        marcas = desenhar_marcas(lista, altura / largura)
+        sobrepor(analise.caminho, self.pasta_registro / nome, [(marcas, 0, 0, 1)],
+                 analise.pagina.rotacao)
+        # para a aprovação: o PDF original e onde fica cada check (para redesenhar tudo verde)
+        original = self.pasta_registro / f"originais/{numero_registro:05d}_{analise.caminho.name}"
+        original.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(analise.caminho, original)
+        (self.pasta_registro / (nome + ".marcas.json")).write_text(json.dumps(
+            {"proporcao": altura / largura, "rotacao": analise.pagina.rotacao,
+             "marcas": [{"caixa": list(m.caixa), "faixa": m.faixa} for m in lista]}),
+            encoding="utf-8")
+        return nome
+
+    def _verde_para_aprovar(self, id_: int, conferido_nome: str, certificado: str) -> Path:
+        """Na aprovação, todos os checks ficam verdes: o responsável julgou que o que o leitor
+        apontou é ignorável (pedido do usuário, 2026-11-17). Sem o original guardado (registro
+        antigo), usa a cópia conferida como está."""
+        from ..carimbo import sobrepor
+        from .estilo import VERDE
+        from .folha_conferida import Marca, desenhar_marcas
+
+        conferido = self.pasta_registro / conferido_nome
+        original = self.pasta_registro / f"originais/{id_:05d}_{certificado}"
+        arquivo_marcas = self.pasta_registro / (conferido_nome + ".marcas.json")
+        if not (original.exists() and arquivo_marcas.exists()):
+            return conferido
+        dados = json.loads(arquivo_marcas.read_text(encoding="utf-8"))
+        verdes = [Marca(tuple(m["caixa"]), VERDE, "✓", m["faixa"]) for m in dados["marcas"]]
+        destino = self.pasta_registro / f"aprovados/{id_:05d}_verde_{certificado}"
+        sobrepor(original, destino, [(desenhar_marcas(verdes, dados["proporcao"]), 0, 0, 1)],
+                 int(dados.get("rotacao", 0)))
+        return destino
+
+    def arquivo_do_registro(self, nome: str | None) -> Path | None:
+        """O caminho de um PDF guardado pelo registro (conferido ou aprovado), se existe."""
+        if not nome:
+            return None
+        caminho = self.pasta_registro / nome
+        return caminho if caminho.exists() else None
+
+    def aprovar(self, id_: int, nome: str, re: str, data: str,
+                aprovado: bool = True) -> Path:
+        """Decisão final pelo responsável: carimba a cópia conferida com o nome, o RE e a data.
+        Aprovado: checks todos verdes e "( X ) APROVADO". Rejeitado: checks como o leitor viu
+        e "( X ) REPROVADO"."""
+        from ..carimbo import carimbar_pdf
+
+        r = self.registro.obter(id_)
+        if r is None:
+            raise ValueError("registro não encontrado")
+        conferido = self.arquivo_do_registro(r.arquivo_conferido)
+        if conferido is None:
+            raise ValueError("este registro é de antes da aprovação existir e não tem a cópia "
+                             "do PDF com os checks: abra o certificado e registre de novo")
+        destino = f"aprovados/{id_:05d}_{r.certificado}"
+        base = (self._verde_para_aprovar(id_, r.arquivo_conferido, r.certificado)
+                if aprovado else conferido)
+        carimbar_pdf(base, self.pasta_registro / destino, nome.strip(), re.strip(),
+                     data.strip(), int(r.lido.get("rotacao", 0)), aprovado)
+        if base != conferido:
+            base.unlink(missing_ok=True)  # o passo do meio (só os checks verdes)
+        self.registro.aprovar(id_, nome=nome.strip(), re=re.strip(), data=data.strip(),
+                              usuario=_usuario(), pc=_computador(), arquivo=destino,
+                              decisao="APROVADO" if aprovado else "REPROVADO")
+        return self.pasta_registro / destino
+
+    def apagar_aprovacao(self, id_: int) -> None:
+        r = self.registro.obter(id_)
+        if r is None:
+            return
+        arquivo = self.arquivo_do_registro(r.arquivo_aprovado)
+        self.registro.apagar_aprovacao(id_)
+        if arquivo is not None:
+            arquivo.unlink(missing_ok=True)
 
 
 def _usuario() -> str:
@@ -536,7 +676,8 @@ def _o_que_foi_lido(analise: Analise) -> dict:
               for linha in descrever_pontos(analise.conferencia)]
     padroes = [{"codigo": p.codigo, "validade": p.validade, "situacao": p.situacao.value}
                for p in descrever_padroes(analise.conferencia)]
-    return {"campos": dict(analise.campos), "pontos": pontos, "padroes": padroes}
+    return {"campos": dict(analise.campos), "pontos": pontos, "padroes": padroes,
+            "rotacao": analise.pagina.rotacao}
 
 
 # ---------------------------------------------------------------- texto para a tela
@@ -638,8 +779,8 @@ def unidade_dos_pontos(analise: Analise | None) -> str:
     if analise is None:
         return ""
     c = analise.conferencia
-    if c and any(p.lido.graus_minutos for p in c.pontos):
-        return ""
+    if c and any(p.lido.graus_minutos or p.lido.escala for p in c.pontos):
+        return ""  # em graus o ° já vem no valor; no durômetro cada ponto tem a sua escala
     textos = [analise.manual.get("resolucao"), analise.manual.get("faixa"),
               analise.campos.get("resolucao"), analise.campos.get("faixa")]
     if c:
@@ -659,7 +800,8 @@ def descrever_pontos(conferencia: Conferencia | None,
         return []
     # a unidade junto de cada valor, para a tabela, a dica e o quadrinho (pedido do usuário,
     # 2026-11-17); em graus o ° já vem no próprio valor
-    unidade = unidade_dos_pontos(analise)
+    unidade_geral = unidade_dos_pontos(analise)
+    unidade = unidade_geral
 
     def com(texto: str) -> str:
         vazio = ("", "—", "fora do plano")
@@ -672,6 +814,7 @@ def descrever_pontos(conferencia: Conferencia | None,
         # goniômetro em graus°minutos': mostra igual ao certificado (pedido do usuário,
         # 2026-11-16); a tolerância é a do plano, como está no cadastro
         fmt = graus_minutos if p.lido.graus_minutos else numero
+        unidade = p.lido.escala or unidade_geral  # durômetro: a escala da linha (HR15T…)
         faixa = texto_erro_com_incerteza(p, fmt)
         tol = (descrever_tolerancia(p.plano.tolerancia_inferior, p.plano.tolerancia_superior)
                if p.plano else "fora do plano")

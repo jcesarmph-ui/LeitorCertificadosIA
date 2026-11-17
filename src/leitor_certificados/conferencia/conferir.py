@@ -121,7 +121,7 @@ def reatribuir(lido: PontoLido, plano: Plano) -> PontoLido | None:
     uma única atribuição possível."""
     achadas: list[PontoLido] = []
     for i, candidato in enumerate(lido.numeros):
-        if not any(_mesmo_nominal(p.nominal, candidato) for p in plano.pontos):
+        if not any(p.aceita(candidato, lido.escala) for p in plano.pontos):
             continue
         resto = [(j, x) for j, x in enumerate(lido.numeros) if j != i]
         for (ja, e), (jb, r) in ((a, b) for a in resto for b in resto if a[0] != b[0]):
@@ -138,20 +138,25 @@ def reatribuir(lido: PontoLido, plano: Plano) -> PontoLido | None:
     return achadas[0] if len(unicas) == 1 else None
 
 
-def _ponto_do_plano(plano: Plano, nominal: float, usados: set[int]) -> int | None:
-    """O ponto do plano com este nominal. O plano pode repetir o nominal (ex.: goniômetro com
-    0° e 90° em cada quadrante): os repetidos são casados **na ordem**, o 1º do certificado com
-    o 1º do plano, o 2º com o 2º… Só se todos já foram usados, volta ao primeiro."""
-    iguais = [i for i, p in enumerate(plano.pontos) if _mesmo_nominal(p.nominal, nominal)]
+def _ponto_do_plano(plano: Plano, nominal: float, usados: set[int],
+                    escala: str | None = None) -> int | None:
+    """O ponto do plano com este nominal (ou, no durômetro, o intervalo da mesma escala que
+    contém o padrão). O plano pode repetir o nominal (ex.: goniômetro com 0° e 90° em cada
+    quadrante): os repetidos são casados **na ordem**, o 1º do certificado com o 1º do plano,
+    o 2º com o 2º… Só se todos já foram usados, volta ao primeiro."""
+    iguais = [i for i, p in enumerate(plano.pontos) if p.aceita(nominal, escala)]
     livres = [i for i in iguais if i not in usados]
     return (livres or iguais or [None])[0]
 
 
-def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
+def conferir(certificado: CertificadoLido, planos: PlanosDQ05,
+             padroes_calibrados: bool = False) -> Conferencia:
     """Confere os pontos com o plano e a validade dos padrões (decisões do usuário, 2026-11-16):
     padrão vencido no dia da calibração deixa PENDENTE um parecer que seria APROVADO; se os
     pontos reprovam, continua REPROVADO. Sempre dizendo o motivo (em `erros`). Validade não lida
-    também deixa PENDENTE (aviso amarelo dizendo o que conferir)."""
+    também deixa PENDENTE (aviso amarelo dizendo o que conferir), a não ser que a pessoa
+    marque `padroes_calibrados` (os padrões vêm em outro certificado; pedido do usuário,
+    2026-11-17). Padrão VENCIDO continua valendo: a marca não esconde isso."""
     conferencia = _conferir_pontos(certificado, planos)
     fora = [p.lido.nominal for p in conferencia.pontos
             if p.avaliacao.resultado == Resultado.REPROVADO]
@@ -172,6 +177,8 @@ def conferir(certificado: CertificadoLido, planos: PlanosDQ05) -> Conferencia:
         else:
             sufixo = ""
         conferencia.erros += [e + sufixo for e in padroes.erros]
+    elif padroes.falta_conferir and padroes_calibrados:
+        conferencia.avisos = [a for a in conferencia.avisos if a not in padroes.avisos]
     elif padroes.falta_conferir and conferencia.resultado == Resultado.APROVADO:
         conferencia.resultado = Resultado.PENDENTE
         conferencia.avisos.append("parecer pendente: os pontos passam, mas a validade dos "
@@ -190,8 +197,7 @@ def _desempatar_pelos_pontos(certificado: CertificadoLido, planos: PlanosDQ05,
     servem = []
     for chave in candidatos:
         plano = planos.plano_do_instrumento(chave)
-        if plano and all(any(_mesmo_nominal(n, q.nominal) for q in plano.pontos)
-                         for n in nominais):
+        if plano and all(any(q.aceita(n) for q in plano.pontos) for n in nominais):
             servem.append(chave)
     return servem[0] if len(servem) == 1 else None
 
@@ -216,11 +222,11 @@ def _conferir_pontos(certificado: CertificadoLido, planos: PlanosDQ05) -> Confer
     resultados: list[Resultado] = []
     achados: set[int] = set()
     for lido in certificado.pontos:
-        ponto_plano = _ponto_do_plano(plano, lido.nominal, achados)
+        ponto_plano = _ponto_do_plano(plano, lido.nominal, achados, lido.escala)
         if ponto_plano is None:
             # o modelo marcou mais de um número como nominal: vale o que existe no plano
             for outro in lido.nominais:
-                if (i := _ponto_do_plano(plano, outro, achados)) is not None:
+                if (i := _ponto_do_plano(plano, outro, achados, lido.escala)) is not None:
                     lido, ponto_plano = dataclasses.replace(lido, nominal=outro), i
                     break
         erro, avisos = _erro_do_ponto(lido)
@@ -228,7 +234,7 @@ def _conferir_pontos(certificado: CertificadoLido, planos: PlanosDQ05) -> Confer
             novo = reatribuir(lido, plano)
             if novo is not None:
                 lido = novo
-                ponto_plano = _ponto_do_plano(plano, lido.nominal, achados)
+                ponto_plano = _ponto_do_plano(plano, lido.nominal, achados, lido.escala)
                 erro, avisos = _erro_do_ponto(lido)
                 avisos = [*avisos, "colunas reatribuídas com ajuda do plano"]
         if avisos and ponto_plano is not None:
@@ -267,6 +273,8 @@ def _conferir_pontos(certificado: CertificadoLido, planos: PlanosDQ05) -> Confer
     for i, p in enumerate(plano.pontos):
         if i not in achados:
             resultados.append(Resultado.NAO_INFORMADO)
-            conferencia.avisos.append(f"ponto {p.nominal:g} do plano não está no certificado")
+            nome = (f"{p.nominal:g}" if p.nominal is not None
+                    else f"{p.minimo:g} a {p.maximo:g} {p.escala}")
+            conferencia.avisos.append(f"ponto {nome} do plano não está no certificado")
     conferencia.resultado = resultado_geral(resultados)
     return conferencia

@@ -39,6 +39,17 @@ def para_numero(texto: str) -> float | None:
     return float(t) if _NUMERO.match(t) else None
 
 
+_ESCALA = re.compile(r"HR\s?(\d{2}\s?[TN]|[A-HK]|[TN])W?", re.IGNORECASE)
+
+
+def escala_de_dureza(texto: str) -> str | None:
+    """A escala de dureza escrita no texto, do jeito da empresa: "HR15TW" → "HR15T",
+    "HRBW" → "HRB", "hrc" → "HRC". O "W" (esfera de carboneto) que o laboratório põe é
+    ignorado (o usuário: "nós aqui não usamos"). None se não houver escala."""
+    achou = _ESCALA.search(texto.replace(" ", ""))
+    return ("HR" + achou.group(1).replace(" ", "")).upper() if achou else None
+
+
 @dataclass(frozen=True)
 class PontoLido:
     nominal: float
@@ -54,6 +65,8 @@ class PontoLido:
     nominais: tuple[float, ...] = ()
     # a linha veio em graus°minutos' (goniômetro): a tela mostra assim, sem converter
     graus_minutos: bool = False
+    # escala de dureza da linha (durômetro: "HR15T", "HRB", "HRC"), sem o "W" do laboratório
+    escala: str | None = None
 
 
 @dataclass(frozen=True)
@@ -130,11 +143,12 @@ def montar_padroes(pagina: Pagina, rotulos: list[str]) -> tuple[PadraoLido, ...]
     return tuple(padroes)
 
 
-def montar_certificado(modelo: Pipeline, pagina: Pagina,
-                       limiar: float = LIMIAR_CERTEZA) -> CertificadoLido:
+def montar_certificado(modelo: Pipeline, pagina: Pagina, limiar: float = LIMIAR_CERTEZA,
+                       previsoes: list[tuple[str, float]] | None = None) -> CertificadoLido:
     """Usa o modelo para achar o código do instrumento e os pontos da tabela. Palavras com
-    certeza abaixo do `limiar` não entram (ficam como "outro")."""
-    previsoes = com_limiar(prever(modelo, pagina), limiar)
+    certeza abaixo do `limiar` não entram (ficam como "outro"). `previsoes` já prontas (com as
+    correções da pessoa no lugar do palpite) evitam perguntar ao modelo de novo."""
+    previsoes = com_limiar(previsoes or prever(modelo, pagina), limiar)
     codigo_palavras = [
         p for p, (rotulo, _) in zip(pagina.palavras, previsoes, strict=True) if rotulo == "codigo"
     ]
@@ -188,6 +202,8 @@ def montar_certificado(modelo: Pipeline, pagina: Pagina,
             criterio=para_numero(valores.get("criterio", "")),
             graus_minutos=any(_GRAUS_MINUTOS.match("".join(p.texto.split()).replace("−", "-"))
                               for p in da_linha),
+            escala=next((e for p in sorted(linha, key=lambda q: q.caixa[0])
+                         if (e := escala_de_dureza(p.texto))), None),
         ))
     ordem = sorted(pagina.palavras, key=lambda p: (round(p.centro[1], 2), p.caixa[0]))
     data_palavras = sorted(
