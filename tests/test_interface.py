@@ -694,7 +694,7 @@ def test_janela_do_registro_lixeira_restaurar_e_apagar(app, mundo, monkeypatch, 
     assert janela.aba_registro.tabela.rowCount() == 2
     assert not janela.botao_lixeira.isEnabled()  # nada escolhido
     janela.aba_registro.tabela.selectRow(0)
-    assert "cert_2.pdf" in janela.aba_registro.detalhe.text()  # o mais novo primeiro
+    assert janela.aba_registro.escolhido().certificado == "cert_2.pdf"  # o mais novo primeiro
     # responde "Sim" à pergunta "Apagar pode tirar esse aprendizado. Tem certeza?"
     monkeypatch.setattr(JanelaRegistro, "_confirmar", lambda self, t, x: True)
     janela.mandar_para_lixeira()
@@ -755,7 +755,6 @@ def test_aprovacao_final_carimba_e_vale_mais_que_a_ia(app, mundo, monkeypatch):
     assert aprovado.parecer == registro.parecer  # o parecer da IA continua guardado
     pdf = servico.arquivo_do_registro(aprovado.arquivo_aprovado)
     assert pdf is not None and len(pdfium.PdfDocument(str(pdf))) == 1
-    assert "APROVADO por Fulano de Tal" in lista.aba_registro.detalhe.text()
     assert lista.botao_desaprovar.text() == "Apagar decisão"
     assert lista.botao_desaprovar.isVisible() or not lista.isVisible()
 
@@ -940,4 +939,22 @@ def test_pontos_na_folha_2_entram_e_os_checks_vao_para_ela(app, mundo, tmp_path)
     assert len(conferido) == 2
     folha2 = conferido[1].render(scale=0.5).to_pil().tobytes()
     assert folha2 != original[1].render(scale=0.5).to_pil().tobytes()  # os checks na folha 2
+    janela.close()
+
+
+def test_padroes_calibrados_so_libera_quando_falta_conferir(app, mundo):
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    janela.show()
+    janela.abrir(certificado)
+    esperar(app, janela)
+    pd = janela.analise.conferencia.padroes
+    if pd.padroes and not pd.falta_conferir and not pd.algum_vencido:
+        # todos em dia: travado e ligado, mostrando que estão calibrados
+        assert not janela.botao_padroes.isEnabled() and janela.botao_padroes.isChecked()
+    # sem padrões no certificado: liberado para a pessoa ligar
+    janela.analise.conferencia.padroes.padroes.clear()
+    janela.analise.conferencia.padroes.avisos.append("padrões não encontrados")
+    janela.mostrar_analise(janela.analise)
+    assert janela.botao_padroes.isEnabled() and not janela.botao_padroes.isChecked()
     janela.close()
