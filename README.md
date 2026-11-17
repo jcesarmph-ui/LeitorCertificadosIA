@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.10.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-0.11.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -296,6 +296,24 @@ não der para comparar, aparece um aviso amarelo — o parecer continua vindo da
 - **Arrastar o PDF** funciona em qualquer ponto da janela, inclusive em cima da folha.
 </details>
 
+<details>
+<summary><b>Novidades da versão 0.11.0: aprovação final com carimbo digital</b></summary>
+
+- **O leitor aponta, a pessoa decide**: o programa analisa e avisa toda não conformidade (conta
+  que não fecha, padrão fora do intervalo do plano); se o problema for ignorável, o responsável
+  **aprova** pelo registro, informando nome, RE (matrícula) e data.
+- **Carimbo digital** no lugar do carimbo de papel: o mesmo texto ("ESTE CERTIFICADO FOI ANALISADO
+  CRITICAMENTE E CONSIDERADO: ( X ) APROVADO"), em alta definição, colocado sozinho num espaço
+  em branco da página. O PDF original nunca é alterado: o carimbo vai numa cópia.
+- **Os checks da conferência no PDF**: ao registrar, o programa guarda uma cópia do certificado
+  com os mesmos ✓ da tela (informações do instrumento, validade dos padrões e cada ponto), para a
+  auditoria ver exatamente o que foi conferido.
+- O registro guarda o **parecer da IA e a aprovação** separados (quem aprovou, quando, em qual
+  computador); uma aprovação feita sem querer pode ser apagada.
+- **Durômetro**: o ponto do plano pode ser um **intervalo numa escala** ("67 a 80 HR15T"); o
+  padrão do certificado tem de estar dentro dele, e cada valor aparece com a sua escala.
+</details>
+
 | Prova (150 certificados fictícios) | Pareceres certos | Pendentes | Decisão errada |
 |---|---|---|---|
 | Digital, certificados novos | 30 de 30 | 0 | 0 |
@@ -482,6 +500,7 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Validade dos padrões — conferir que cada padrão usado estava válido no dia da calibração (0.8.0)
 - [x] Conferência de conta e goniômetro — o número só vale se fecha a conta; graus e minutos lidos e mostrados como no certificado (0.9.0)
 - [x] Registro de cada análise — quem, quando, o que foi lido e corrigido, com Lixeira; a correção só ensina depois de registrada (0.10.0)
+- [x] Aprovação final pelo responsável, com carimbo digital e os checks no PDF (0.11.0)
 - [ ] PDF com mais de uma folha — ler só as folhas necessárias
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
 - [ ] Previsão da deriva — prever quando cada instrumento sai da tolerância e sugerir a periodicidade de calibração
