@@ -66,11 +66,14 @@ from .servico import (
     gravar_manual,
     gravar_texto,
     renderizar_folha,
+    unidade_dos_pontos,
 )
 from .tarefas import Tarefa
 
 COLUNAS = ["Nominal", "Encontrado", "Erro", "U", "Erro ± U", "Tolerância", "Critério",
            "Resultado"]
+COLUNAS_COM_UNIDADE = {"Nominal", "Encontrado", "Erro", "U", "Erro ± U", "Tolerância",
+                       "Critério"}
 COLUNAS_PADROES = ["Padrão", "Validade", "Situação"]
 DICAS_COLUNAS = {
     "U": "Incerteza expandida de medição, informada no certificado",
@@ -717,6 +720,11 @@ class Janela(QMainWindow):
 
     def _preencher_tabela(self) -> None:
         self.tabela.setRowCount(len(self.linhas))
+        # a unidade no título das colunas de valores (pedido do usuário, 2026-11-17)
+        unidade = unidade_dos_pontos(self.analise)
+        for n, nome in enumerate(COLUNAS):
+            com = f"{nome} ({unidade})" if unidade and nome in COLUNAS_COM_UNIDADE else nome
+            self.tabela.horizontalHeaderItem(n).setText(com)
         for r, linha in enumerate(self.linhas):
             valores = [linha.nominal, linha.encontrado, linha.erro, linha.incerteza,
                        linha.erro_mais_u, linha.tolerancia, linha.criterio or "—",

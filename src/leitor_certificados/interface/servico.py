@@ -22,6 +22,7 @@ import getpass
 import hashlib
 import json
 import os
+import re
 import socket
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -624,6 +625,32 @@ def texto_erro_com_incerteza(p: PontoConferido, fmt=numero) -> str:
     if final is None:
         return "—"
     return f"± {fmt(final.valor)}" if final.dos_dois_lados else fmt(final.valor)
+
+
+_UNIDADE = re.compile(r"\d\s*(mm|µm|μm|um|cm|kgf\.?\s?m|kgf|N\.?\s?m|kPa|MPa|bar|psi|g|kg|N|m)"
+                      r"(?![A-Za-zÀ-ú])")
+
+
+def unidade_dos_pontos(analise: Analise | None) -> str:
+    """A unidade dos valores dos pontos (ex.: "mm"), pelo que o certificado diz na faixa ou
+    na resolução; se não achar, pelo cadastro. "" quando não se sabe (ou quando é em graus:
+    aí o ° já aparece em cada valor)."""
+    if analise is None:
+        return ""
+    c = analise.conferencia
+    if c and any(p.lido.graus_minutos for p in c.pontos):
+        return ""
+    textos = [analise.manual.get("resolucao"), analise.manual.get("faixa"),
+              analise.campos.get("resolucao"), analise.campos.get("faixa")]
+    if c:
+        textos += [c.faixa_certificado, c.cadastro.get("resolucao"), c.cadastro.get("faixa"),
+                   c.faixa_plano]
+    for texto in textos:
+        achou = _UNIDADE.search(str(texto or ""))
+        if achou:
+            unidade = achou.group(1).replace(" ", "")
+            return "µm" if unidade in ("um", "μm") else unidade
+    return ""
 
 
 def descrever_pontos(conferencia: Conferencia | None,

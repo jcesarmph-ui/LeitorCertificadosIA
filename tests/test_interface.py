@@ -638,3 +638,16 @@ def test_caixa_padroes_mostra_cada_padrao_e_o_vencido_fica_amarelo(app, mundo):
     assert janela.tabela_padroes.item(1, 2).background().color().name() == FAIXA_FORA.lower()
     assert janela.tabela_padroes.item(2, 2).background().color().name() == AMARELO.lower()
     janela.close()
+
+
+def test_pontos_mostram_a_unidade_no_titulo_das_colunas(app, mundo):
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    janela.show()
+    janela.abrir(certificado)
+    esperar(app, janela)
+    tabela = janela.tabela
+    titulos = [tabela.horizontalHeaderItem(n).text() for n in range(tabela.columnCount())]
+    assert "Nominal (mm)" in titulos and "Erro ± U (mm)" in titulos
+    assert "Resultado" in titulos  # coluna de texto fica sem unidade
+    janela.close()
