@@ -300,16 +300,20 @@ não der para comparar, aparece um aviso amarelo — o parecer continua vindo da
 <summary><b>Novidades da versão 0.11.0: aprovação final com carimbo digital</b></summary>
 
 - **O leitor aponta, a pessoa decide**: o programa analisa e avisa toda não conformidade (conta
-  que não fecha, padrão fora do intervalo do plano); se o problema for ignorável, o responsável
-  **aprova** pelo registro, informando nome, RE (matrícula) e data.
+  que não fecha, padrão fora do intervalo do plano) e o responsável decide **ao registrar**:
+  **Aprovar certificado** ou **Rejeitar certificado**, informando nome, RE (matrícula) e data.
 - **Carimbo digital** no lugar do carimbo de papel: o mesmo texto ("ESTE CERTIFICADO FOI ANALISADO
-  CRITICAMENTE E CONSIDERADO: ( X ) APROVADO"), em alta definição, colocado sozinho num espaço
-  em branco da página. O PDF original nunca é alterado: o carimbo vai numa cópia.
+  CRITICAMENTE E CONSIDERADO: ( X ) APROVADO" ou "( X ) REPROVADO"), em alta definição, colocado
+  sozinho num espaço em branco da página. Aprovado: todos os checks ficam verdes; reprovado: os
+  checks ficam como o leitor viu. O PDF original nunca é alterado: o carimbo vai numa cópia.
 - **Os checks da conferência no PDF**: ao registrar, o programa guarda uma cópia do certificado
   com os mesmos ✓ da tela (informações do instrumento, validade dos padrões e cada ponto), para a
   auditoria ver exatamente o que foi conferido.
 - O registro guarda o **parecer da IA e a aprovação** separados (quem aprovou, quando, em qual
-  computador); uma aprovação feita sem querer pode ser apagada.
+  computador); uma decisão feita sem querer pode ser apagada.
+- **Ignorar pendência**: cada aviso amarelo tem o botão "IGNORAR PENDÊNCIA"; com todas ignoradas
+  (e nenhum problema vermelho), o pendente conta como aprovado. O que foi ignorado fica no
+  registro, e dá para voltar atrás.
 - **Durômetro**: o ponto do plano pode ser um **intervalo numa escala** ("67 a 80 HR15T"); o
   padrão do certificado tem de estar dentro dele, e cada valor aparece com a sua escala.
 </details>
