@@ -640,16 +640,18 @@ def test_caixa_padroes_mostra_cada_padrao_e_o_vencido_fica_amarelo(app, mundo):
     janela.close()
 
 
-def test_pontos_mostram_a_unidade_no_titulo_das_colunas(app, mundo):
+def test_pontos_mostram_a_unidade_em_cada_valor(app, mundo):
     servico, _, certificado = mundo
     janela = Janela(servico)
     janela.show()
     janela.abrir(certificado)
     esperar(app, janela)
-    tabela = janela.tabela
-    titulos = [tabela.horizontalHeaderItem(n).text() for n in range(tabela.columnCount())]
-    assert "Nominal (mm)" in titulos and "Erro ± U (mm)" in titulos
-    assert "Resultado" in titulos  # coluna de texto fica sem unidade
+    linha = janela.linhas[0]
+    for valor in (linha.nominal, linha.encontrado, linha.erro, linha.incerteza,
+                  linha.erro_mais_u, linha.tolerancia):
+        assert valor.endswith(" mm"), valor
+    assert janela.tabela.item(0, 0).text().endswith(" mm")
+    assert " mm" in linha.dica()  # a dica e o quadrinho usam os mesmos textos
     janela.close()
 
 
@@ -711,3 +713,17 @@ def test_janela_do_registro_lixeira_restaurar_e_apagar(app, mundo, monkeypatch, 
     assert janela.aba_lixeira.tabela.rowCount() == 0
     assert len(registro.listar()) == 1
     assert QMessageBox  # (a caixa de pergunta de verdade não abre no teste)
+
+
+def test_unidade_em_graus_decimais_fica_grudada():
+    from types import SimpleNamespace
+
+    from leitor_certificados.interface.servico import unidade_dos_pontos
+
+    ponto = SimpleNamespace(lido=SimpleNamespace(graus_minutos=False))
+    conferencia = SimpleNamespace(pontos=[ponto], faixa_certificado="0° a 360°",
+                                  cadastro={}, faixa_plano=None)
+    analise = SimpleNamespace(conferencia=conferencia, manual={}, campos={})
+    assert unidade_dos_pontos(analise) == "°"
+    ponto.lido.graus_minutos = True  # em graus e minutos o ° já vem em cada valor
+    assert unidade_dos_pontos(analise) == ""

@@ -627,7 +627,7 @@ def texto_erro_com_incerteza(p: PontoConferido, fmt=numero) -> str:
     return f"± {fmt(final.valor)}" if final.dos_dois_lados else fmt(final.valor)
 
 
-_UNIDADE = re.compile(r"\d\s*(mm|µm|μm|um|cm|kgf\.?\s?m|kgf|N\.?\s?m|kPa|MPa|bar|psi|g|kg|N|m)"
+_UNIDADE = re.compile(r"\d\s*(°|mm|µm|μm|um|cm|kgf\.?\s?m|kgf|N\.?\s?m|kPa|MPa|bar|psi|g|kg|N|m)"
                       r"(?![A-Za-zÀ-ú])")
 
 
@@ -657,6 +657,15 @@ def descrever_pontos(conferencia: Conferencia | None,
                      analise: Analise | None = None) -> list[LinhaPonto]:
     if conferencia is None:
         return []
+    # a unidade junto de cada valor, para a tabela, a dica e o quadrinho (pedido do usuário,
+    # 2026-11-17); em graus o ° já vem no próprio valor
+    unidade = unidade_dos_pontos(analise)
+
+    def com(texto: str) -> str:
+        vazio = ("", "—", "fora do plano")
+        espaco = "" if unidade == "°" else " "  # 12,5° (grau grudado no número)
+        return f"{texto}{espaco}{unidade}" if unidade and texto not in vazio else texto
+
     linhas = []
     for p in conferencia.pontos:
         av: Avaliacao = p.avaliacao
@@ -669,12 +678,13 @@ def descrever_pontos(conferencia: Conferencia | None,
         if p.plano and p.lido.graus_minutos and tol != "—":  # plano em graus decimais
             tol = " a ".join(f"{lado}°" for lado in tol.split(" a "))
         linhas.append(LinhaPonto(
-            nominal=fmt(p.lido.nominal), encontrado=fmt(p.lido.encontrado),
-            erro=fmt(p.erro), incerteza=fmt(p.lido.incerteza), erro_mais_u=faixa,
-            tolerancia=tol, resultado=av.resultado, motivo=av.motivo or "",
+            nominal=com(fmt(p.lido.nominal)), encontrado=com(fmt(p.lido.encontrado)),
+            erro=com(fmt(p.erro)), incerteza=com(fmt(p.lido.incerteza)),
+            erro_mais_u=com(faixa), tolerancia=com(tol),
+            resultado=av.resultado, motivo=av.motivo or "",
             caixa=p.lido.caixa, avisos=list(p.avisos),
             certezas=_certezas_da_linha(analise, p.lido.caixa) if analise else {},
-            criterio=(descrever_criterio(p.lido.criterio)
+            criterio=(com(descrever_criterio(p.lido.criterio))
                       if p.lido.criterio is not None else ""),
             criterio_diferente=p.criterio == SituacaoCriterio.DIFERENTE))
     return linhas
