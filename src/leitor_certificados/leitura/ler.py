@@ -16,6 +16,31 @@ from .digital import ler_pagina_digital, tem_texto
 from .palavra import Pagina
 
 
+def quantas_folhas(caminho: Path | str) -> int:
+    documento = pdfium.PdfDocument(str(caminho))
+    try:
+        return len(documento)
+    finally:
+        documento.close()
+
+
+def ler_folha(caminho: Path | str, numero: int) -> Pagina:
+    """Lê só uma folha (0 = a 1ª): o OCR, que é lento, só roda na folha que precisa."""
+    documento = pdfium.PdfDocument(str(caminho))
+    try:
+        pagina = documento[numero]
+        if tem_texto(pagina):
+            lida = ler_pagina_digital(pagina)
+        else:
+            from .ocr import ler_pagina_ocr  # só carrega o OCR se precisar
+
+            lida = ler_pagina_ocr(pagina)
+        lida.folhas = (numero,)
+        return lida
+    finally:
+        documento.close()
+
+
 def ler_pdf(caminho: Path | str) -> list[Pagina]:
     documento = pdfium.PdfDocument(str(caminho))
     try:

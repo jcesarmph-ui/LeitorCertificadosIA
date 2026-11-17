@@ -869,3 +869,75 @@ def test_ignorar_pendencia_na_lista_de_motivos(app, mundo):
     r = servico.registro.obter(janela._numero_registro)
     assert "Aviso de teste" in r.motivos["ignoradas"]  # fica no registro (auditoria)
     janela.close()
+
+
+# ---------------------------------------------------------------- etapa 12: várias folhas
+
+def _juntar_com_notas(certificado, destino, notas_antes: bool):
+    """Um PDF de 2 folhas: o certificado fictício e uma folha só com notas."""
+    import pypdfium2 as pdfium
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    notas = destino.with_name("notas.pdf")
+    c = canvas.Canvas(str(notas), pagesize=A4)
+    for k, texto in enumerate(["NOTAS", "1 - A calibração seguiu o procedimento interno.",
+                               "2 - Este certificado vale só para o instrumento descrito."]):
+        c.drawString(72, 760 - 24 * k, texto)
+    c.save()
+    novo = pdfium.PdfDocument.new()
+    partes = [notas, certificado] if notas_antes else [certificado, notas]
+    for parte in partes:
+        novo.import_pages(pdfium.PdfDocument(str(parte)))
+    novo.save(str(destino))
+    return destino
+
+
+def test_juntar_e_separar_folhas_voltam_ao_mesmo():
+    from leitor_certificados.leitura import Pagina
+    from leitor_certificados.leitura.folhas import juntar, separar
+    from leitor_certificados.leitura.palavra import Palavra
+
+    a = Pagina("digital", [Palavra("A", (0.1, 0.2, 0.2, 0.25))])
+    b = Pagina("digital", [Palavra("B", (0.3, 0.6, 0.4, 0.65))])
+    junta = juntar([a, b], [0, 2])
+    assert junta.folhas == (0, 2)
+    assert junta.palavras[1].caixa[1] == (1 + 0.6) / 2  # a 2ª folha fica embaixo
+    (f1, i1), (f2, i2) = separar(junta)
+    assert i1 == [0] and i2 == [1]
+    assert f2.palavras[0].caixa == pytest.approx(b.palavras[0].caixa)  # medida da folha
+
+
+def test_folha_so_com_notas_fica_de_fora(mundo, tmp_path):
+    servico, _, certificado = mundo
+    pdf = _juntar_com_notas(certificado, tmp_path / "cert_e_notas.pdf", notas_antes=False)
+    analise = servico.analisar(pdf)
+    assert analise.pagina.folhas == (0,)  # a folha de notas não é lida na análise
+    assert analise.imagem.size == servico.analisar(certificado).imagem.size
+
+
+def test_pontos_na_folha_2_entram_e_os_checks_vao_para_ela(app, mundo, tmp_path):
+    import pypdfium2 as pdfium
+
+    servico, _, certificado = mundo
+    sozinho = servico.analisar(certificado)
+    pdf = _juntar_com_notas(certificado, tmp_path / "notas_e_cert.pdf", notas_antes=True)
+    analise = servico.analisar(pdf)
+    assert analise.pagina.folhas == (0, 1)  # a 1ª sempre; a 2ª porque tem os pontos
+    assert analise.imagem.height == 2 * sozinho.imagem.height  # uma embaixo da outra
+    assert len(analise.certificado.pontos) == len(sozinho.certificado.pontos)
+    assert analise.conferencia.resultado == sozinho.conferencia.resultado
+    # na tela: cabe UMA folha (a medida de uma folha, não da folha comprida)
+    janela = Janela(servico)
+    janela.show()
+    janela.abrir(pdf)
+    esperar(app, janela)
+    assert abs(janela.folha.razao_da_folha() - sozinho.imagem.height / sozinho.imagem.width) < 0.01
+    janela.registrar_com(True, "Fulano de Tal", "1234", "17/11/2026")
+    r = servico.registro.obter(janela._numero_registro)
+    conferido = pdfium.PdfDocument(str(servico.arquivo_do_registro(r.arquivo_conferido)))
+    original = pdfium.PdfDocument(str(pdf))
+    assert len(conferido) == 2
+    folha2 = conferido[1].render(scale=0.5).to_pil().tobytes()
+    assert folha2 != original[1].render(scale=0.5).to_pil().tobytes()  # os checks na folha 2
+    janela.close()

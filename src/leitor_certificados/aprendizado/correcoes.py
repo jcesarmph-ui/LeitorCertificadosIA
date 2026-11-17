@@ -34,7 +34,8 @@ def marcacao_de_dados(dados: dict) -> tuple[Pagina, list[str]]:
     """O mesmo que `carregar_marcacao`, para a folha corrigida guardada no registro."""
     palavras = [Palavra(i.get("texto_certo") or i["texto"], tuple(i["caixa"]), i["confianca"])
                 for i in dados["palavras"]]
-    pagina = Pagina(dados["origem"], palavras, dados.get("rotacao", 0))
+    pagina = Pagina(dados["origem"], palavras, dados.get("rotacao", 0),
+                    tuple(dados.get("folhas", [0])))
     return pagina, [i["certo"] for i in dados["palavras"]]
 
 

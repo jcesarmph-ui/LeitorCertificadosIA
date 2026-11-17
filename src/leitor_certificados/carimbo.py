@@ -117,7 +117,8 @@ def lugar_livre(pagina: Image.Image, largura: float = LARGURA_NA_FOLHA) -> tuple
 
 
 def sobrepor(origem: Path | str, destino: Path | str,
-             camadas: list[tuple[Image.Image, float, float, float]], rotacao: int = 0) -> Path:
+             camadas: list[tuple[Image.Image, float, float, float]], rotacao: int = 0,
+             folhas: tuple[int, ...] = (0,)) -> Path:
     """Grava em `destino` uma cópia do PDF com imagens por cima da 1ª página.
 
     Cada camada é (imagem, esquerda, topo, largura), em fração da página EM PÉ (como a tela a
@@ -125,29 +126,46 @@ def sobrepor(origem: Path | str, destino: Path | str,
     para baixo) a imagem e o lugar são virados, para cair no lugar certo do PDF original.
     """
     destino = Path(destino)
+    if len(folhas) > 1:
+        # camada da folha comprida (a página inteira, como os checks): um pedaço em cada folha
+        from .leitura.folhas import cortar
+
+        por_folha: list[list[tuple[int, tuple]]] = []
+        for figura, esquerda, topo, largura in camadas:
+            if (esquerda, topo, largura) != (0, 0, 1):
+                raise ValueError("em várias folhas só vale camada da página inteira")
+            por_folha += [[(f, (pedaco, 0, 0, 1))]
+                          for f, pedaco in zip(folhas, cortar(figura, len(folhas)), strict=True)]
+    else:
+        por_folha = [[(folhas[0], c) for c in camadas]]
     documento = pdfium.PdfDocument(str(origem))
     try:
-        pagina = documento[0]
-        largura_pt, altura_pt = pagina.get_size()
-        for figura, esquerda, topo, largura in camadas:
-            w = largura_pt * largura
-            h = w * figura.height / figura.width
-            if rotacao == 180:
-                figura = figura.rotate(180)
-                esquerda = 1 - esquerda - largura
-                topo = 1 - topo - h / altura_pt
-            imagem = pdfium.PdfImage.new(documento)
-            imagem.set_bitmap(pdfium.PdfBitmap.from_pil(figura))
-            # no PDF o y cresce para cima: a base da imagem fica em altura − topo − h
-            imagem.set_matrix(pdfium.PdfMatrix().scale(w, h).translate(
-                esquerda * largura_pt, altura_pt - topo * altura_pt - h))
-            pagina.insert_obj(imagem)
-        pagina.gen_content()
+        for grupo in por_folha:
+            _sobrepor_na_folha(documento, grupo, rotacao)
         destino.parent.mkdir(parents=True, exist_ok=True)
         documento.save(str(destino))
     finally:
         documento.close()
     return destino
+
+
+def _sobrepor_na_folha(documento, grupo: list[tuple[int, tuple]], rotacao: int) -> None:
+    for numero, (figura, esquerda, topo, largura) in grupo:
+        pagina = documento[numero]
+        largura_pt, altura_pt = pagina.get_size()
+        w = largura_pt * largura
+        h = w * figura.height / figura.width
+        if rotacao == 180:
+            figura = figura.rotate(180)
+            esquerda = 1 - esquerda - largura
+            topo = 1 - topo - h / altura_pt
+        imagem = pdfium.PdfImage.new(documento)
+        imagem.set_bitmap(pdfium.PdfBitmap.from_pil(figura))
+        # no PDF o y cresce para cima: a base da imagem fica em altura − topo − h
+        imagem.set_matrix(pdfium.PdfMatrix().scale(w, h).translate(
+            esquerda * largura_pt, altura_pt - topo * altura_pt - h))
+        pagina.insert_obj(imagem)
+        pagina.gen_content()
 
 
 def carimbar_pdf(origem: Path | str, destino: Path | str, nome: str, re: str, data: str,

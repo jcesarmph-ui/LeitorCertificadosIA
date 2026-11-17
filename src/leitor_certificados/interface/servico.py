@@ -45,7 +45,8 @@ from ..conferencia.padroes import SituacaoPadrao, data_br
 from ..conferencia.plano import PlanosDQ05
 from ..ficticio.gerar import gabarito_atual
 from ..leitura import Pagina
-from ..leitura.ler import ler_pdf
+from ..leitura.folhas import empilhar, juntar
+from ..leitura.ler import ler_folha, ler_pdf, quantas_folhas
 from ..registro import RegistroAnalises
 
 RAIZ = Path(__file__).resolve().parents[3]
@@ -130,7 +131,7 @@ class Analise:
         palavras = [dataclasses.replace(p, texto=self.textos_certos[i])
                     if i in self.textos_certos else p
                     for i, p in enumerate(self.pagina.palavras)]
-        return Pagina(self.pagina.origem, palavras, self.pagina.rotacao)
+        return Pagina(self.pagina.origem, palavras, self.pagina.rotacao, self.pagina.folhas)
 
     def certeza(self, i: int) -> float:
         return 1.0 if i in self.corrigidas else self.previsoes[i][1]
@@ -151,16 +152,26 @@ def _nada(_: str) -> None:
 
 # ---------------------------------------------------------------- folha (imagem)
 
-def renderizar_folha(caminho: Path | str, rotacao: int = 0, escala: float = 2.0) -> Image.Image:
-    """A primeira página como imagem. Com `rotacao=180` a imagem é virada para ficar em pé: as
+def _padroes_completos(certificado: CertificadoLido) -> bool:
+    """Achou padrão de verdade (com código E validade)? Um número solto marcado como validade
+    (ex.: "100" na folha dos pontos) não conta: senão a folha dos padrões ficaria de fora."""
+    return any(p.codigo and p.validade for p in certificado.padroes)
+
+
+def renderizar_folha(caminho: Path | str, rotacao: int = 0, escala: float = 2.0,
+                     folhas: tuple[int, ...] = (0,)) -> Image.Image:
+    """As folhas usadas como imagem, uma embaixo da outra (a 1ª, quase sempre). Com
+    `rotacao=180` a imagem é virada para ficar em pé: as
     caixas do OCR estão nesse quadro (o OCR leu a folha já virada), então imagem e caixas só
     combinam se a imagem for virada também."""
     documento = pdfium.PdfDocument(str(caminho))
     try:
-        imagem = documento[0].render(scale=escala).to_pil().convert("RGB")
+        imagens = [documento[f].render(scale=escala).to_pil().convert("RGB") for f in folhas]
     finally:
         documento.close()
-    return imagem.rotate(180) if rotacao == 180 else imagem
+    if rotacao == 180:
+        imagens = [i.rotate(180) for i in imagens]
+    return empilhar(imagens)
 
 
 # ---------------------------------------------------------------- correções (JSON)
@@ -276,7 +287,7 @@ def gravar_texto(pastas: Pastas, analise: Analise, indice: int, texto: str) -> b
 
 def _gravar(pastas: Pastas, analise: Analise, itens: list[dict], manual: dict) -> None:
     conteudo = {"origem": analise.pagina.origem, "rotacao": analise.pagina.rotacao,
-                "palavras": itens}
+                "folhas": list(analise.pagina.folhas), "palavras": itens}
     if manual:
         conteudo["manual"] = manual
     pastas.rascunhos.mkdir(parents=True, exist_ok=True)
@@ -455,13 +466,14 @@ class Servico:
             raise RuntimeError("o modelo ainda não está pronto")
         caminho = Path(caminho)
         progresso("Lendo o certificado (o OCR pode levar alguns segundos)")
-        pagina = ler_pdf(caminho)[0]  # só a primeira página nesta versão
+        pagina = self._ler_folhas_necessarias(caminho, progresso)
         # análise nova: o rascunho de uma análise anterior não registrada é jogado fora
         # (correção sem registro vale só para aquela análise na tela; decisão de 2026-11-17)
         arquivo_de_correcoes(self.pastas, caminho).unlink(missing_ok=True)
         dados = _ler_arquivo(self.pastas, caminho)
         analise = Analise(
-            caminho=caminho, pagina=pagina, imagem=renderizar_folha(caminho, pagina.rotacao),
+            caminho=caminho, pagina=pagina,
+            imagem=renderizar_folha(caminho, pagina.rotacao, folhas=pagina.folhas),
             previsoes=[], rotulos=[], manual=dict(dados.get("manual", {})),
             textos_certos=_textos_existentes(dados, pagina))
         progresso("Descobrindo o que é cada palavra")
@@ -475,6 +487,30 @@ class Servico:
         progresso("Conferindo com o plano")
         self.recalcular(analise)
         return analise
+
+    def _ler_folhas_necessarias(self, caminho: Path, progresso: Progresso) -> Pagina:
+        """A 1ª folha sempre; outra só se tiver pontos ou padrões que faltaram nas anteriores
+        (folha só com notas, observações ou assinatura fica de fora). Decisão do usuário,
+        2026-11-17. A folha seguinte só é lida (OCR) se ainda falta algo."""
+        total = quantas_folhas(caminho)
+        primeira = ler_folha(caminho, 0)
+        lidas, numeros = [primeira], [0]
+        achou = montar_certificado(self.modelo, primeira)
+        falta_pontos, falta_padroes = not achou.pontos, not _padroes_completos(achou)
+        for numero in range(1, total):
+            if not (falta_pontos or falta_padroes):
+                break
+            progresso(f"Lendo a folha {numero + 1} de {total}")
+            folha = ler_folha(caminho, numero)
+            achou = montar_certificado(self.modelo, folha)
+            traz_pontos = falta_pontos and bool(achou.pontos)
+            traz_padroes = falta_padroes and _padroes_completos(achou)
+            if traz_pontos or traz_padroes:
+                lidas.append(folha)
+                numeros.append(numero)
+                falta_pontos = falta_pontos and not traz_pontos
+                falta_padroes = falta_padroes and not traz_padroes
+        return juntar(lidas, numeros)
 
     def recalcular(self, analise: Analise) -> None:
         """Lê de novo os campos e os pontos (com os textos corrigidos à mão) e confere. Rápido:
@@ -574,13 +610,14 @@ class Servico:
         lista = marcas_da_analise(analise)
         marcas = desenhar_marcas(lista, altura / largura)
         sobrepor(analise.caminho, self.pasta_registro / nome, [(marcas, 0, 0, 1)],
-                 analise.pagina.rotacao)
+                 analise.pagina.rotacao, analise.pagina.folhas)
         # para a aprovação: o PDF original e onde fica cada check (para redesenhar tudo verde)
         original = self.pasta_registro / f"originais/{numero_registro:05d}_{analise.caminho.name}"
         original.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(analise.caminho, original)
         (self.pasta_registro / (nome + ".marcas.json")).write_text(json.dumps(
             {"proporcao": altura / largura, "rotacao": analise.pagina.rotacao,
+             "folhas": list(analise.pagina.folhas),
              "marcas": [{"caixa": list(m.caixa), "faixa": m.faixa} for m in lista]}),
             encoding="utf-8")
         return nome
@@ -602,7 +639,7 @@ class Servico:
         verdes = [Marca(tuple(m["caixa"]), VERDE, "✓", m["faixa"]) for m in dados["marcas"]]
         destino = self.pasta_registro / f"aprovados/{id_:05d}_verde_{certificado}"
         sobrepor(original, destino, [(desenhar_marcas(verdes, dados["proporcao"]), 0, 0, 1)],
-                 int(dados.get("rotacao", 0)))
+                 int(dados.get("rotacao", 0)), tuple(dados.get("folhas", [0])))
         return destino
 
     def arquivo_do_registro(self, nome: str | None) -> Path | None:
