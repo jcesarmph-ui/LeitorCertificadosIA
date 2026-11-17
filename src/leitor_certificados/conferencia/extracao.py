@@ -213,4 +213,15 @@ def montar_certificado(modelo: Pipeline, pagina: Pagina, limiar: float = LIMIAR_
     return CertificadoLido(
         codigo, pontos, tuple(p.texto for p in ordem), faixa,
         data_calibracao=" ".join(p.texto for p in data_palavras) or None,
-        padroes=montar_padroes(pagina, [r for r, _ in previsoes]))
+        padroes=_padroes(pagina, [r for r, _ in previsoes]))
+
+
+def _padroes(pagina: Pagina, rotulos: list[str]) -> tuple[PadraoLido, ...]:
+    """Os padrões pela tabela (quantos são e a validade de cada um; o código não importa,
+    pedido do usuário de 2026-11-17). Sem a tabela, pelo que o modelo marcou."""
+    from .tabela_padroes import padroes_por_regra
+
+    tabela = padroes_por_regra(pagina)
+    if tabela is None:
+        return montar_padroes(pagina, rotulos)
+    return tuple(PadraoLido(codigo=None, validade=v, caixa=c) for v, c in tabela)

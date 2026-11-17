@@ -32,6 +32,9 @@ _ANO_MES_DIA = re.compile(r"(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)")
 _EXTENSO = re.compile(r"(?<!\d)(\d{1,2})\s*(?:de\s+)?([a-z]{3})[a-z]*\.?\s*(?:de\s+)?/?\s*(\d{4})")
 _EXTENSO_BARRA = re.compile(r"(?<!\d)(\d{1,2})\s*/\s*([a-z]{3})[a-z]*\s*/\s*(\d{4})")
 _MES_ANO = re.compile(r"(?<![\d/.\-])(\d{1,2})\s*[/.\-]\s*(\d{4})(?![\d/.\-])")
+# "fev/30", "fev/2030", "fevereiro de 2030" (mês pelo nome e ano)
+_NOME_ANO = re.compile(r"(?<![a-z])([a-z]{3})[a-z]*\.?\s*(?:[/.\-]|de)?\s*(\d{4}|\d{2})(?!\d)")
+_MES_ANO_CURTO = re.compile(r"^\s*(\d{1,2})\s*/\s*(\d{2})\s*$")  # só "02/30", sozinho na coluna
 
 
 def _sem_acento(texto: str) -> str:
@@ -88,6 +91,14 @@ def ler_validade(texto: str | None) -> Validade | None:
         mes, ano = int(achado[1]), int(achado[2])
         if 1 <= mes <= 12:
             return Validade(date(ano, mes, calendar.monthrange(ano, mes)[1]), True)
+    t = _sem_acento(texto)
+    for achado in _NOME_ANO.finditer(t):
+        if mes := _mes_por_nome(achado[1]):
+            ano = _ano(achado[2])
+            return Validade(date(ano, mes, calendar.monthrange(ano, mes)[1]), True)
+    if (achado := _MES_ANO_CURTO.match(t)) and 1 <= int(achado[1]) <= 12:
+        mes, ano = int(achado[1]), _ano(achado[2])
+        return Validade(date(ano, mes, calendar.monthrange(ano, mes)[1]), True)
     return None
 
 
@@ -144,9 +155,9 @@ def conferir_padroes(padroes: list[tuple[str | None, str | None, tuple | None]],
             ("data da calibração não encontrada" if not data_calibracao_texto
              else f"data da calibração não entendida ({data_calibracao_texto})")
             + ": validade dos padrões não conferida")
-    for codigo, validade_texto, caixa in padroes:
+    for numero, (codigo, validade_texto, caixa) in enumerate(padroes, start=1):
         validade = ler_validade(validade_texto)
-        nome = codigo or "sem código"
+        nome = codigo or f"nº {numero}"
         if validade is None:
             motivo = ("validade não encontrada" if not validade_texto
                       else f"validade não entendida ({validade_texto})")

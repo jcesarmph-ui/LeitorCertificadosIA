@@ -41,7 +41,7 @@ from ..conferencia.avaliacao import Avaliacao, Resultado, erro_com_incerteza
 from ..conferencia.conferir import Conferencia, PontoConferido, conferir
 from ..conferencia.criterio import SituacaoCriterio, descrever_criterio
 from ..conferencia.extracao import CertificadoLido, montar_certificado
-from ..conferencia.padroes import SituacaoPadrao, data_br
+from ..conferencia.padroes import SituacaoPadrao, data_br, ler_validade
 from ..conferencia.plano import PlanosDQ05
 from ..ficticio.gerar import gabarito_atual
 from ..leitura import Pagina
@@ -153,9 +153,10 @@ def _nada(_: str) -> None:
 # ---------------------------------------------------------------- folha (imagem)
 
 def _padroes_completos(certificado: CertificadoLido) -> bool:
-    """Achou padrão de verdade (com código E validade)? Um número solto marcado como validade
-    (ex.: "100" na folha dos pontos) não conta: senão a folha dos padrões ficaria de fora."""
-    return any(p.codigo and p.validade for p in certificado.padroes)
+    """Achou padrão de verdade (com uma validade que é data)? Um número solto marcado como
+    validade (ex.: "100" na folha dos pontos) não conta: senão a folha dos padrões ficaria de
+    fora."""
+    return any(ler_validade(p.validade) for p in certificado.padroes)
 
 
 def renderizar_folha(caminho: Path | str, rotacao: int = 0, escala: float = 2.0,
@@ -886,7 +887,7 @@ def descrever_padroes(conferencia: Conferencia | None) -> list[LinhaPadrao]:
         return []
     data_cal = conferencia.padroes.data_calibracao
     linhas = []
-    for p in conferencia.padroes.padroes:
+    for numero, p in enumerate(conferencia.padroes.padroes, start=1):
         validade = p.validade_texto or "não lida"
         if p.validade and p.validade.so_mes:
             validade += f" (até {data_br(p.validade.ate)})"
@@ -898,6 +899,7 @@ def descrever_padroes(conferencia: Conferencia | None) -> list[LinhaPadrao]:
                     "reprovam, continua REPROVADO")
         else:
             dica = f"Não conferido: {p.motivo} (só avisa: o parecer não muda)"
-        linhas.append(LinhaPadrao(p.codigo or "sem código", validade, p.situacao,
-                                  f"Padrão {p.codigo or 'sem código'}\n{dica}", p.caixa))
+        nome = p.codigo or f"nº {numero}"
+        linhas.append(LinhaPadrao(nome, validade, p.situacao, f"Padrão {nome}\n{dica}",
+                                  p.caixa))
     return linhas
