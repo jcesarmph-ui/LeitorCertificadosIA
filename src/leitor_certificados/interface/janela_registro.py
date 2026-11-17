@@ -44,10 +44,7 @@ class PerguntaAprovacao(QDialog):
         self.aprovado = True
         self._preferencias = QSettings("LeitorCertificadosIA", "aprovacao")
         coluna = QVBoxLayout(self)
-        explica = QLabel(
-            f"Certificado {certificado}.\n"
-            "Aprovar: o PDF fica com todos os checks verdes e o carimbo ( X ) APROVADO.\n"
-            "Rejeitar: os checks ficam como o leitor viu e o carimbo ( X ) REPROVADO.")
+        explica = QLabel(f"Certificado {certificado}.")
         explica.setWordWrap(True)
         coluna.addWidget(explica)
         formulario = QFormLayout()

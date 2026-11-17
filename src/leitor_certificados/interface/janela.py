@@ -53,6 +53,7 @@ from .estilo import (
 )
 from .folha import FolhaView, tipo_do_rotulo
 from .icones import icone
+from .interruptor import Interruptor
 from .janela_registro import JanelaRegistro, PerguntaAprovacao
 from .legenda import icone_do_rotulo
 from .quadro import QuadroPonto
@@ -382,10 +383,8 @@ class Janela(QMainWindow):
         pdlay.addWidget(self.tabela_padroes, 1)
         # os padrões vêm em outro certificado (ex.: durômetro): a pessoa marca e a falta da
         # validade no certificado deixa de deixar pendente (pedido do usuário, 2026-11-17)
-        self.botao_padroes = QPushButton("PADRÕES CALIBRADOS")
-        self.botao_padroes.setObjectName("padroesCalibrados")
-        self.botao_padroes.setCheckable(True)
-        self.botao_padroes.setCursor(Qt.CursorShape.PointingHandCursor)
+        # liga/desliga: começa desligado; ligado, a bolinha vai para a direita e fica verde
+        self.botao_padroes = Interruptor("PADRÕES CALIBRADOS")
         self.botao_padroes.setToolTip(
             "Ligue quando os padrões vierem em outro certificado e estiverem calibrados: a "
             "falta da validade dos padrões neste certificado deixa de deixar o parecer "
