@@ -27,7 +27,11 @@ def carregar_marcacao(arquivo: Path | str) -> tuple[Pagina, list[str]]:
 
     Se a pessoa corrigiu o texto que o OCR leu errado (`texto_certo`, duplo clique na tela), o
     treino usa o texto corrigido: o modelo aprende com o que está realmente escrito."""
-    dados = json.loads(Path(arquivo).read_text(encoding="utf-8"))
+    return marcacao_de_dados(json.loads(Path(arquivo).read_text(encoding="utf-8")))
+
+
+def marcacao_de_dados(dados: dict) -> tuple[Pagina, list[str]]:
+    """O mesmo que `carregar_marcacao`, para a folha corrigida guardada no registro."""
     palavras = [Palavra(i.get("texto_certo") or i["texto"], tuple(i["caixa"]), i["confianca"])
                 for i in dados["palavras"]]
     pagina = Pagina(dados["origem"], palavras, dados.get("rotacao", 0))

@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.8.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-0.10.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -283,6 +283,19 @@ não der para comparar, aparece um aviso amarelo — o parecer continua vindo da
 - Muitos avisos ganham **rolagem própria** e não escondem mais a tabela de pontos.
 </details>
 
+<details>
+<summary><b>Novidades da versão 0.10.0: registro das análises</b></summary>
+
+- **Registrar**: cada análise pode ser guardada num registro (quem, em qual computador, quando,
+  o que foi lido, o parecer e o que foi corrigido), aberto por um ícone discreto no canto de cima,
+  com **Lixeira** (restaurar ou apagar de vez) e cópia em **planilha**.
+- **A correção só ensina depois de registrada**: um teste ou correção feita por engano não entra
+  no aprendizado; mandar para a Lixeira tira do treino, e o modelo aprende de novo sozinho.
+- **Unidade em cada valor** dos pontos conferidos (mm, °, kgf…), na tabela e no quadrinho de
+  comparação.
+- **Arrastar o PDF** funciona em qualquer ponto da janela, inclusive em cima da folha.
+</details>
+
 | Prova (150 certificados fictícios) | Pareceres certos | Pendentes | Decisão errada |
 |---|---|---|---|
 | Digital, certificados novos | 30 de 30 | 0 | 0 |
@@ -468,7 +481,8 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Colunas "Erro Máximo" e "Critério de aceitação", comparador cadastro × certificado e Erro ± U igual ao do sistema de calibração (0.7.0)
 - [x] Validade dos padrões — conferir que cada padrão usado estava válido no dia da calibração (0.8.0)
 - [x] Conferência de conta e goniômetro — o número só vale se fecha a conta; graus e minutos lidos e mostrados como no certificado (0.9.0)
-- [ ] Registro de cada análise — quem, quando, o que foi lido e corrigido (rastreabilidade)
+- [x] Registro de cada análise — quem, quando, o que foi lido e corrigido, com Lixeira; a correção só ensina depois de registrada (0.10.0)
+- [ ] PDF com mais de uma folha — ler só as folhas necessárias
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
 - [ ] Previsão da deriva — prever quando cada instrumento sai da tolerância e sugerir a periodicidade de calibração
 

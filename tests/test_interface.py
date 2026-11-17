@@ -97,7 +97,7 @@ def test_sem_banco_a_conferencia_fica_de_fora_com_aviso(mundo):
 def test_correcao_cria_arquivo_e_nao_apaga_as_anteriores(mundo):
     servico, pastas, certificado = mundo
     analise = servico.analisar(certificado)
-    arquivo = pastas.marcacao / f"{certificado.stem}.palavras.json"
+    arquivo = arquivo_de_correcoes(pastas, certificado)  # o rascunho da análise aberta
     assert not arquivo.exists()
     assert gravar_correcao(pastas, analise, [0, 1], "tecnico") == 2
     dados = json.loads(arquivo.read_text(encoding="utf-8"))["palavras"]
@@ -109,21 +109,38 @@ def test_correcao_cria_arquivo_e_nao_apaga_as_anteriores(mundo):
     dados = json.loads(arquivo.read_text(encoding="utf-8"))["palavras"]
     assert [d["certo"] for d in dados[:3]] == ["tecnico", "tecnico", "cliente"]
     assert analise.corrigidas >= {0, 1, 2}
-    # reabrir mostra o que foi corrigido
-    de_novo = servico.analisar(certificado)
-    assert de_novo.rotulos[0] == "tecnico" and 0 in de_novo.corrigidas
     with pytest.raises(ValueError):
         gravar_correcao(pastas, analise, [0], "rótulo que não existe")
+    # sem registrar, reabrir começa do zero (a correção valia só para aquela análise)
+    de_novo = servico.analisar(certificado)
+    assert not de_novo.corrigidas and not arquivo.exists()
+    # registrada, a correção fica oficial e volta ao reabrir
+    gravar_correcao(pastas, de_novo, [0, 1], "tecnico")
+    numero_registro = servico.registrar(de_novo)
+    assert not arquivo.exists()  # o rascunho virou registro
+    reaberta = servico.analisar(certificado)
+    assert reaberta.rotulos[0] == "tecnico" and {0, 1} <= reaberta.corrigidas
+    # na Lixeira, a correção sai; restaurada, volta
+    servico.registro.mandar_para_lixeira(numero_registro)
+    assert not servico.analisar(certificado).corrigidas
+    servico.registro.restaurar(numero_registro)
+    assert 0 in servico.analisar(certificado).corrigidas
+    servico.registro.mandar_para_lixeira(numero_registro)  # não atrapalha os outros testes
 
 
 def test_aprender_com_as_correcoes_salva_o_modelo(mundo):
     servico, pastas, certificado = mundo
     analise = servico.analisar(certificado)
-    gravar_correcao(pastas, analise, [0], "outro")
+    gravar_correcao(pastas, analise, [0], "outro" if analise.rotulos[0] != "outro" else "tecnico")
+    servico.aprender()
+    assert not servico.precisa_aprender()
+    servico.registrar(analise)
+    assert servico.precisa_aprender()  # registrada, a correção espera o treino
     antes = pastas.modelo.stat().st_mtime_ns
     time.sleep(0.05)
     assert servico.aprender() >= 1  # o certificado corrigido entrou no treino
     assert pastas.modelo.stat().st_mtime_ns > antes
+    assert not servico.precisa_aprender()
 
 
 def test_folha_de_cabeca_para_baixo_e_virada_em_pe(mundo):
@@ -179,7 +196,13 @@ def test_janela_corrigir_varias_palavras_conta_pendentes(app, mundo):
     janela.aplicar_rotulo([3, 4], "fabricante")
     assert janela.analise.rotulos[3] == "fabricante"
     assert not janela.folha._caixas[3].selecionada  # a seleção some depois de aplicar
+    # a correção só ensina depois de registrada (rascunho não conta)
+    assert "(" not in janela.botao_aprender.text()
+    janela.registrar()
     assert "(" in janela.botao_aprender.text()  # mostra quantas correções esperam
+    assert not janela.botao_registrar.isEnabled()  # já registrada
+    janela.aplicar_rotulo([5], "fabricante")
+    assert janela.botao_registrar.isEnabled()  # corrigiu de novo: registra outra vez
     janela.close()
 
 
@@ -235,6 +258,7 @@ def test_valor_digitado_a_mao_confere_na_hora_e_volta_ao_reabrir(mundo):
     gravar_correcao(pastas, analise, [0], analise.rotulos[0])
     dados = json.loads(arquivo_de_correcoes(pastas, certificado).read_text(encoding="utf-8"))
     assert dados["manual"] == {"codigo": "ZZ-9999"}
+    numero_registro = servico.registrar(analise)  # registrado: o digitado volta ao reabrir
     reaberta = servico.analisar(certificado)
     assert reaberta.manual == {"codigo": "ZZ-9999"}
     assert reaberta.conferencia.resultado == Resultado.PENDENTE
@@ -246,6 +270,7 @@ def test_valor_digitado_a_mao_confere_na_hora_e_volta_ao_reabrir(mundo):
         arquivo_de_correcoes(pastas, certificado).read_text(encoding="utf-8"))
     with pytest.raises(ValueError):
         gravar_manual(pastas, reaberta, "fabricante", "x")
+    servico.registro.mandar_para_lixeira(numero_registro)  # não atrapalha os outros testes
 
 
 def test_certeza_baixa_vira_revisar_e_o_ponto_mostra_a_certeza(mundo):
@@ -435,7 +460,8 @@ def test_duplo_clique_corrige_o_texto_e_confere_de_novo(app, mundo):
     assert itens["palavras"][indice]["texto_certo"] == "XYZ-123"
     assert itens["palavras"][indice]["texto"] == lido  # o que o OCR leu continua guardado
     assert "XYZ-123" in janela.analise.certificado.textos  # a conferência usou o texto novo
-    # reabrir reaplica; Esc no editor cancela sem mudar nada
+    # registrado, reabrir reaplica; Esc no editor cancela sem mudar nada
+    numero_registro = servico.registrar(janela.analise)
     reaberta = servico.analisar(certificado)
     assert reaberta.textos_certos == {indice: "XYZ-123"}
     folha.abrir_editor(indice)
@@ -444,6 +470,7 @@ def test_duplo_clique_corrige_o_texto_e_confere_de_novo(app, mundo):
     # escrever de novo o texto lido apaga a correção
     janela.corrigir_texto(indice, lido)
     assert janela.analise.textos_certos == {}
+    servico.registro.mandar_para_lixeira(numero_registro)  # não atrapalha os outros testes
     janela.close()
 
 
@@ -611,3 +638,92 @@ def test_caixa_padroes_mostra_cada_padrao_e_o_vencido_fica_amarelo(app, mundo):
     assert janela.tabela_padroes.item(1, 2).background().color().name() == FAIXA_FORA.lower()
     assert janela.tabela_padroes.item(2, 2).background().color().name() == AMARELO.lower()
     janela.close()
+
+
+def test_pontos_mostram_a_unidade_em_cada_valor(app, mundo):
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    janela.show()
+    janela.abrir(certificado)
+    esperar(app, janela)
+    linha = janela.linhas[0]
+    for valor in (linha.nominal, linha.encontrado, linha.erro, linha.incerteza,
+                  linha.erro_mais_u, linha.tolerancia):
+        assert valor.endswith(" mm"), valor
+    assert janela.tabela.item(0, 0).text().endswith(" mm")
+    assert " mm" in linha.dica()  # a dica e o quadrinho usam os mesmos textos
+    janela.close()
+
+
+def test_arrastar_pdf_para_cima_da_folha_abre_o_certificado(app, mundo):
+    from PySide6.QtCore import QMimeData, QPointF, QUrl
+    from PySide6.QtGui import QDragEnterEvent, QDropEvent
+
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    janela.show()
+    abertos = []
+    janela.abrir = abertos.append  # só confere que chegou; a análise é testada em outro lugar
+    dados = QMimeData()
+    dados.setUrls([QUrl.fromLocalFile(str(certificado))])
+    entrar = QDragEnterEvent(QPoint(20, 20), Qt.DropAction.CopyAction, dados,
+                             Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+    QApplication.sendEvent(janela.folha.viewport(), entrar)
+    assert entrar.isAccepted()  # o cursor mostra que pode soltar ali
+    soltar = QDropEvent(QPointF(20, 20), Qt.DropAction.CopyAction, dados,
+                        Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier)
+    QApplication.sendEvent(janela.folha.viewport(), soltar)  # a folha engolia o arquivo
+    assert abertos == [certificado]
+    janela.close()
+
+
+def test_janela_do_registro_lixeira_restaurar_e_apagar(app, mundo, monkeypatch, tmp_path):
+    from PySide6.QtWidgets import QMessageBox
+
+    from leitor_certificados.interface.janela_registro import JanelaRegistro
+    from leitor_certificados.registro import RegistroAnalises
+
+    registro = RegistroAnalises(tmp_path / "registro.db")
+    for n in (1, 2):
+        registro.registrar(
+            usuario="ana", pc="PC-1", certificado=f"cert_{n}.pdf", chave=f"cert_{n}",
+            sha256="x", codigo=f"MC-{n}", plano="Plano", parecer="APROVADO",
+            motivos={"erros": [], "avisos": []}, lido={}, correcoes=n, textos=0, manual={},
+            marcacao=None, versao_programa="0", versao_modelo="0")
+    janela = JanelaRegistro(registro)
+    assert janela.aba_registro.tabela.rowCount() == 2
+    assert not janela.botao_lixeira.isEnabled()  # nada escolhido
+    janela.aba_registro.tabela.selectRow(0)
+    assert "cert_2.pdf" in janela.aba_registro.detalhe.text()  # o mais novo primeiro
+    # responde "Sim" à pergunta "Apagar pode tirar esse aprendizado. Tem certeza?"
+    monkeypatch.setattr(JanelaRegistro, "_confirmar", lambda self, t, x: True)
+    janela.mandar_para_lixeira()
+    assert janela.aba_registro.tabela.rowCount() == 1 and janela.mexeu
+    janela.abas.setCurrentWidget(janela.aba_lixeira)
+    assert janela.botao_restaurar.isVisible() or not janela.isVisible()
+    janela.aba_lixeira.tabela.selectRow(0)
+    janela.restaurar()
+    assert janela.aba_registro.tabela.rowCount() == 2
+    janela.abas.setCurrentWidget(janela.aba_registro)
+    janela.aba_registro.tabela.selectRow(0)
+    janela.mandar_para_lixeira()
+    janela.abas.setCurrentWidget(janela.aba_lixeira)
+    janela.aba_lixeira.tabela.selectRow(0)
+    janela.apagar_de_vez()
+    assert janela.aba_lixeira.tabela.rowCount() == 0
+    assert len(registro.listar()) == 1
+    assert QMessageBox  # (a caixa de pergunta de verdade não abre no teste)
+
+
+def test_unidade_em_graus_decimais_fica_grudada():
+    from types import SimpleNamespace
+
+    from leitor_certificados.interface.servico import unidade_dos_pontos
+
+    ponto = SimpleNamespace(lido=SimpleNamespace(graus_minutos=False))
+    conferencia = SimpleNamespace(pontos=[ponto], faixa_certificado="0° a 360°",
+                                  cadastro={}, faixa_plano=None)
+    analise = SimpleNamespace(conferencia=conferencia, manual={}, campos={})
+    assert unidade_dos_pontos(analise) == "°"
+    ponto.lido.graus_minutos = True  # em graus e minutos o ° já vem em cada valor
+    assert unidade_dos_pontos(analise) == ""

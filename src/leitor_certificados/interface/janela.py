@@ -10,10 +10,11 @@ from __future__ import annotations
 import html
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QDragEnterEvent, QDropEvent, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QComboBox,
     QFileDialog,
     QFrame,
@@ -32,6 +33,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -49,6 +51,8 @@ from .estilo import (
     cor,
 )
 from .folha import FolhaView, tipo_do_rotulo
+from .icones import icone
+from .janela_registro import JanelaRegistro
 from .legenda import icone_do_rotulo
 from .quadro import QuadroPonto
 from .servico import (
@@ -92,9 +96,12 @@ class Janela(QMainWindow):
         self._vez = 0  # muda a cada trabalho novo ou cancelado: resultado de vez antiga é jogado
         self._anterior: Analise | None = None  # para voltar se a análise for cancelada
         self.quadro: QuadroPonto | None = None
-        self._pendentes = 0  # correções feitas e ainda não aprendidas pelo modelo
+        self._pendentes = 0  # correções registradas e ainda não aprendidas pelo modelo
+        self._rascunho = 0  # correções desta análise que ainda não foram registradas
+        self._registrado = False  # a análise aberta já foi registrada?
         self.setWindowTitle(f"Leitor de Certificados — v{__version__}")
         self.setAcceptDrops(True)
+        QApplication.instance().installEventFilter(self)  # arrastar o PDF (ver eventFilter)
         self._montar()
         self.avisar("Abra um certificado para começar.", "dica")
 
@@ -118,7 +125,18 @@ class Janela(QMainWindow):
         versao.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
         cabecalho.addWidget(espaco, 1)
         cabecalho.addWidget(titulo, 3)
-        cabecalho.addWidget(versao, 1)
+        self.botao_registro = QToolButton()
+        self.botao_registro.setObjectName("botaoRegistro")
+        self.botao_registro.setIcon(icone("history", cor("texto")))
+        self.botao_registro.setIconSize(QSize(26, 26))
+        self.botao_registro.setToolTip("Registro das análises")
+        self.botao_registro.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.botao_registro.clicked.connect(self.abrir_registro)
+        canto = QHBoxLayout()
+        canto.addStretch(1)
+        canto.addWidget(self.botao_registro, 0, Qt.AlignmentFlag.AlignTop)
+        canto.addWidget(versao, 0, Qt.AlignmentFlag.AlignTop)
+        cabecalho.addLayout(canto, 1)
         coluna.addLayout(cabecalho)
 
         # --- faixa 2: botões e andamento
@@ -137,7 +155,13 @@ class Janela(QMainWindow):
             "Treina o modelo de novo com os certificados fictícios e com os reais que você "
             "corrigiu (os reais pesam 5 vezes mais), e confere o certificado aberto outra vez.")
         self.botao_aprender.clicked.connect(self.aprender)
+        self.botao_registrar = QPushButton("Registrar")
+        self.botao_registrar.setToolTip(
+            "Guarda esta análise no registro (ícone do relógio, no canto de cima). As correções "
+            "só ensinam o modelo depois de registradas.")
+        self.botao_registrar.clicked.connect(self.registrar)
         botoes.addWidget(self.botao_abrir)
+        botoes.addWidget(self.botao_registrar)
         botoes.addWidget(self.botao_corrigir)
         botoes.addWidget(self.botao_aprender)
         botoes.addSpacing(16)
@@ -404,6 +428,9 @@ class Janela(QMainWindow):
         self.botao_abrir.setText("Analisar outro" if self.analise is not None
                                  else "Abrir certificado")
         self.botao_corrigir.setEnabled(livre and self.analise is not None)
+        self.botao_registrar.setEnabled(livre and self.analise is not None
+                                        and not self._registrado)
+        self.botao_registrar.setText("Registrada" if self._registrado else "Registrar")
         self.botao_aprender.setEnabled(livre)
         self.botao_aprender.setText(
             f"Aprender com as correções ({self._pendentes})" if self._pendentes
@@ -488,7 +515,9 @@ class Janela(QMainWindow):
             self.avisar(f"Não consegui abrir {Path(caminho).name}: {erro}", "erro")
             return
         self._anterior = self.analise
+        self._anterior_estado = (self._registrado, self._rascunho)
         self.analise = None
+        self._registrado, self._rascunho = False, 0
         self.botao_corrigir.setChecked(False)
         self._limpar_painel()
         self.folha.mostrar_imagem(previa)
@@ -510,6 +539,7 @@ class Janela(QMainWindow):
         self.folha.parar_brilho()
         anterior, self._anterior = self._anterior, None
         if anterior is not None:
+            self._registrado, self._rascunho = self._anterior_estado
             self.mostrar_analise(anterior)
         else:
             self.folha.mostrar_mensagem("Abra um certificado (PDF) ou arraste o arquivo para cá")
@@ -757,11 +787,39 @@ class Janela(QMainWindow):
             return
         self.folha.limpar_selecao()  # repinta com os rótulos novos
         if mudaram:
-            self._pendentes += mudaram
-            self._atualizar_botoes()
+            self._rascunho += mudaram
+            self._corrigiu()
         self.avisar(
             f"{len(indices)} palavra(s) marcada(s) como “{ROTULOS[rotulo]}”. "
-            "Quando terminar, clique em Aprender com as correções.", "info")
+            "Quando terminar, clique em Registrar.", "info")
+
+    def _corrigiu(self) -> None:
+        """Corrigir de novo depois de registrar: dá para registrar outra vez."""
+        self._registrado = False
+        self._atualizar_botoes()
+
+    def abrir_registro(self) -> None:
+        """A janelinha do registro. Ao fechar, se algo mudou o que ensina o modelo (ida ou
+        volta da Lixeira), ele aprende de novo em segundo plano."""
+        janela = JanelaRegistro(self.servico.registro, self)
+        janela.exec()
+        if janela.mexeu and not self.ocupado and self.servico.precisa_aprender():
+            self.avisar("O registro mudou: o modelo está aprendendo de novo.", "dica")
+            self.aprender()
+
+    def registrar(self) -> None:
+        if self.analise is None or self.ocupado or self._registrado:
+            return
+        try:
+            numero_registro = self.servico.registrar(self.analise)
+        except Exception as erro:
+            self.avisar(f"Não consegui registrar: {erro}", "erro")
+            return
+        self._registrado = True
+        self._pendentes += self._rascunho
+        self._rascunho = 0
+        self._atualizar_botoes()
+        self.avisar(f"Análise registrada (nº {numero_registro}).", "info")
 
     def _mostrar_valor_manual(self) -> None:
         campo = self.campo_manual.currentData()
@@ -780,6 +838,7 @@ class Janela(QMainWindow):
         except Exception as erro:
             self.avisar(f"Não consegui usar o valor digitado: {erro}", "erro")
             return
+        self._corrigiu()
         self.mostrar_analise(self.analise)
         nome = CAMPOS_MANUAIS[campo]
         self.avisar(f"{nome}: usando “{valor}” (digitado)." if valor
@@ -835,6 +894,7 @@ class Janela(QMainWindow):
         except Exception as erro:
             self.avisar(f"Não consegui corrigir o texto: {erro}", "erro")
             return
+        self._corrigiu()
         self.mostrar_analise(self.analise)
         self.avisar(f"Texto corrigido: lido “{lido}” → “{texto.strip()}”. A conferência foi "
                     "refeita." if ficou else f"Voltou ao texto lido: “{lido}”.", "info")
@@ -868,15 +928,41 @@ class Janela(QMainWindow):
         self.tabela.clearSelection()
 
     # ================================================================== arrastar e soltar
-    def dragEnterEvent(self, evento: QDragEnterEvent) -> None:
-        urls = evento.mimeData().urls()
+    # arrastar o PDF: vale em qualquer ponto da janela. A folha (QGraphicsView) e os campos
+    # aceitam "soltar" por conta própria e engoliam o arquivo; por isso o filtro abaixo pega o
+    # PDF antes de qualquer peça da tela.
+    @staticmethod
+    def _pdf_arrastado(evento) -> Path | None:
+        urls = evento.mimeData().urls() if evento.mimeData() else []
         if len(urls) == 1 and urls[0].toLocalFile().lower().endswith(".pdf"):
+            return Path(urls[0].toLocalFile())
+        return None
+
+    def eventFilter(self, objeto, evento) -> bool:
+        tipo = evento.type()
+        if tipo in (QEvent.Type.DragEnter, QEvent.Type.DragMove, QEvent.Type.Drop):
+            if (isinstance(objeto, QWidget) and objeto.window() is self
+                    and self._pdf_arrastado(evento) is not None):
+                if tipo == QEvent.Type.Drop:
+                    self.dropEvent(evento)
+                else:
+                    evento.acceptProposedAction()
+                return True
+        return super().eventFilter(objeto, evento)
+
+    def dragEnterEvent(self, evento: QDragEnterEvent) -> None:
+        if self._pdf_arrastado(evento) is not None:
             evento.acceptProposedAction()
 
     def dropEvent(self, evento: QDropEvent) -> None:
-        self.abrir(Path(evento.mimeData().urls()[0].toLocalFile()))
+        caminho = self._pdf_arrastado(evento)
+        if caminho is None:
+            return
+        evento.acceptProposedAction()
+        self.abrir(caminho)
 
     def closeEvent(self, evento) -> None:
+        QApplication.instance().removeEventFilter(self)
         # espera o trabalho em segundo plano acabar, para não derrubar uma thread no meio
         for tarefa in list(self._tarefas):
             if tarefa.isRunning():
