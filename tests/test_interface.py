@@ -727,3 +727,73 @@ def test_unidade_em_graus_decimais_fica_grudada():
     assert unidade_dos_pontos(analise) == "°"
     ponto.lido.graus_minutos = True  # em graus e minutos o ° já vem em cada valor
     assert unidade_dos_pontos(analise) == ""
+
+
+def test_aprovacao_final_carimba_e_vale_mais_que_a_ia(app, mundo, monkeypatch):
+    import pypdfium2 as pdfium
+
+    from leitor_certificados.interface.janela_registro import JanelaRegistro
+
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    janela.show()
+    janela.abrir(certificado)
+    esperar(app, janela)
+    janela.registrar()
+    registro = servico.registro.listar()[0]
+    conferido = servico.arquivo_do_registro(registro.arquivo_conferido)
+    assert conferido is not None  # a cópia com os checks foi guardada ao registrar
+    assert conferido.read_bytes() != certificado.read_bytes()  # o original não muda
+
+    lista = JanelaRegistro(servico.registro, janela, servico)
+    lista.aba_registro.tabela.selectRow(0)
+    assert lista.botao_aprovar.isEnabled()
+    lista.aprovar_com("Fulano de Tal", "1234", "17/11/2026")
+    aprovado = servico.registro.obter(registro.id)
+    assert aprovado.aprovado and aprovado.parecer_final == "APROVADO"
+    assert aprovado.aprovado_re == "1234" and aprovado.aprovado_data == "17/11/2026"
+    assert aprovado.parecer == registro.parecer  # o parecer da IA continua guardado
+    pdf = servico.arquivo_do_registro(aprovado.arquivo_aprovado)
+    assert pdf is not None and len(pdfium.PdfDocument(str(pdf))) == 1
+    assert "APROVADO por Fulano de Tal" in lista.aba_registro.detalhe.text()
+    assert lista.botao_desaprovar.isVisible() or not lista.isVisible()
+
+    monkeypatch.setattr(JanelaRegistro, "_confirmar", lambda self, t, x: True)
+    lista.apagar_aprovacao()  # feita sem querer: some, junto com o PDF carimbado
+    assert not servico.registro.obter(registro.id).aprovado
+    assert not pdf.exists()
+    janela.close()
+
+
+def test_registro_antigo_ganha_as_colunas_da_aprovacao(tmp_path):
+    import sqlite3
+
+    from leitor_certificados.registro import _CRIAR, RegistroAnalises
+
+    caminho = tmp_path / "antigo.db"
+    con = sqlite3.connect(caminho)
+    con.executescript(_CRIAR)  # o banco da versão 0.10.0, sem as colunas novas
+    con.execute("INSERT INTO analises (data_hora, usuario, pc, certificado, chave, sha256, "
+                "motivos, lido, correcoes, textos, manual, versao_programa, versao_modelo) "
+                "VALUES ('2026-11-17 10:00:00', 'ana', 'PC', 'a.pdf', 'a', 'x', '{}', '{}', "
+                "0, 0, '{}', '0.10.0', 'm')")
+    con.commit()
+    con.close()
+    registro = RegistroAnalises(caminho)
+    antigo = registro.listar()[0]
+    assert not antigo.aprovado and antigo.arquivo_conferido is None
+    registro.aprovar(antigo.id, nome="Ana", re="9", data="17/11/2026", usuario="ana",
+                     pc="PC", arquivo="aprovados/x.pdf")
+    assert registro.obter(antigo.id).parecer_final == "APROVADO"
+
+
+def test_carimbo_cai_em_lugar_livre_embaixo():
+    from PIL import Image, ImageDraw
+
+    from leitor_certificados.carimbo import lugar_livre
+
+    folha = Image.new("RGB", (600, 850), "white")
+    ImageDraw.Draw(folha).rectangle((40, 40, 560, 600), fill="black")  # texto em cima
+    esquerda, topo = lugar_livre(folha)
+    assert topo > 600 / 850  # embaixo do texto
+    assert esquerda > 0.5  # do lado direito, como o carimbo de papel

@@ -505,7 +505,63 @@ class Servico:
             versao_programa=__version__, versao_modelo=self.versao_do_modelo())
         # registrado: o rascunho já é oficial
         arquivo_de_correcoes(self.pastas, analise.caminho).unlink(missing_ok=True)
+        # a cópia do PDF com os checks, para o auditor ver o que foi conferido (etapa 11)
+        try:
+            self.registro.guardar_conferido(numero_registro,
+                                            self._guardar_conferido(numero_registro, analise))
+        except Exception:  # sem a cópia o registro continua valendo; só não dá para aprovar
+            pass
         return numero_registro
+
+    @property
+    def pasta_registro(self) -> Path:
+        return self.pastas.registro.parent
+
+    def _guardar_conferido(self, numero_registro: int, analise: Analise) -> str:
+        from ..carimbo import sobrepor
+        from .folha_conferida import desenhar_marcas, marcas_da_analise
+
+        nome = f"conferidos/{numero_registro:05d}_{analise.caminho.name}"
+        largura, altura = analise.imagem.size
+        marcas = desenhar_marcas(marcas_da_analise(analise), altura / largura)
+        sobrepor(analise.caminho, self.pasta_registro / nome, [(marcas, 0, 0, 1)],
+                 analise.pagina.rotacao)
+        return nome
+
+    def arquivo_do_registro(self, nome: str | None) -> Path | None:
+        """O caminho de um PDF guardado pelo registro (conferido ou aprovado), se existe."""
+        if not nome:
+            return None
+        caminho = self.pasta_registro / nome
+        return caminho if caminho.exists() else None
+
+    def aprovar(self, id_: int, nome: str, re: str, data: str) -> Path:
+        """Aprovação final pelo responsável: carimba a cópia conferida (checks) com o nome,
+        o RE e a data, e o registro passa a constar APROVADO."""
+        from ..carimbo import carimbar_pdf
+
+        r = self.registro.obter(id_)
+        if r is None:
+            raise ValueError("registro não encontrado")
+        conferido = self.arquivo_do_registro(r.arquivo_conferido)
+        if conferido is None:
+            raise ValueError("este registro é de antes da aprovação existir e não tem a cópia "
+                             "do PDF com os checks: abra o certificado e registre de novo")
+        destino = f"aprovados/{id_:05d}_{r.certificado}"
+        carimbar_pdf(conferido, self.pasta_registro / destino, nome.strip(), re.strip(),
+                     data.strip(), int(r.lido.get("rotacao", 0)))
+        self.registro.aprovar(id_, nome=nome.strip(), re=re.strip(), data=data.strip(),
+                              usuario=_usuario(), pc=_computador(), arquivo=destino)
+        return self.pasta_registro / destino
+
+    def apagar_aprovacao(self, id_: int) -> None:
+        r = self.registro.obter(id_)
+        if r is None:
+            return
+        arquivo = self.arquivo_do_registro(r.arquivo_aprovado)
+        self.registro.apagar_aprovacao(id_)
+        if arquivo is not None:
+            arquivo.unlink(missing_ok=True)
 
 
 def _usuario() -> str:
@@ -536,7 +592,8 @@ def _o_que_foi_lido(analise: Analise) -> dict:
               for linha in descrever_pontos(analise.conferencia)]
     padroes = [{"codigo": p.codigo, "validade": p.validade, "situacao": p.situacao.value}
                for p in descrever_padroes(analise.conferencia)]
-    return {"campos": dict(analise.campos), "pontos": pontos, "padroes": padroes}
+    return {"campos": dict(analise.campos), "pontos": pontos, "padroes": padroes,
+            "rotacao": analise.pagina.rotacao}
 
 
 # ---------------------------------------------------------------- texto para a tela

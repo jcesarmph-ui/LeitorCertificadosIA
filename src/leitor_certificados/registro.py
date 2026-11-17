@@ -20,7 +20,19 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-ESQUEMA = 1
+ESQUEMA = 2  # 2: aprovação final pelo responsável e PDFs guardados (etapa 11)
+
+# colunas que o esquema 2 acrescenta (o banco antigo ganha as colunas ao abrir; nada se perde)
+_COLUNAS_NOVAS = {
+    "arquivo_conferido": "TEXT",  # cópia do PDF com os checks da conferência
+    "aprovado_por": "TEXT",       # nome do responsável que aprovou de vez
+    "aprovado_re": "TEXT",        # RE (matrícula) do responsável
+    "aprovado_data": "TEXT",      # data da aprovação, como digitada (dd/mm/aaaa)
+    "aprovado_em": "TEXT",        # quando foi clicado (data e hora), usuário e PC: auditoria
+    "aprovado_usuario": "TEXT",
+    "aprovado_pc": "TEXT",
+    "arquivo_aprovado": "TEXT",   # cópia do PDF com os checks e o carimbo
+}
 
 _CRIAR = """
 CREATE TABLE IF NOT EXISTS metadados (chave TEXT PRIMARY KEY, valor TEXT);
@@ -69,6 +81,24 @@ class Registro:
     versao_programa: str
     versao_modelo: str
     na_lixeira_em: str | None
+    arquivo_conferido: str | None = None
+    aprovado_por: str | None = None
+    aprovado_re: str | None = None
+    aprovado_data: str | None = None
+    aprovado_em: str | None = None
+    aprovado_usuario: str | None = None
+    aprovado_pc: str | None = None
+    arquivo_aprovado: str | None = None
+
+    @property
+    def aprovado(self) -> bool:
+        """O responsável aprovou de vez (vale mais que o parecer da IA)."""
+        return bool(self.aprovado_por)
+
+    @property
+    def parecer_final(self) -> str | None:
+        """O que vale: APROVADO pelo responsável ou, sem isso, o parecer da IA."""
+        return "APROVADO" if self.aprovado else self.parecer
 
     @property
     def ensina(self) -> bool:
@@ -94,7 +124,12 @@ class RegistroAnalises:
         con.execute("PRAGMA journal_mode=DELETE")
         con.execute("PRAGMA busy_timeout=10000")
         con.executescript(_CRIAR)
-        con.execute("INSERT OR IGNORE INTO metadados VALUES ('esquema', ?)", (str(ESQUEMA),))
+        existentes = {linha[1] for linha in con.execute("PRAGMA table_info(analises)")}
+        with con:
+            for coluna, tipo in _COLUNAS_NOVAS.items():
+                if coluna not in existentes:
+                    con.execute(f"ALTER TABLE analises ADD COLUMN {coluna} {tipo}")
+            con.execute("INSERT OR REPLACE INTO metadados VALUES ('esquema', ?)", (str(ESQUEMA),))
         return con
 
     def _executar(self, sql: str, parametros: tuple = ()) -> list[sqlite3.Row]:
@@ -136,6 +171,25 @@ class RegistroAnalises:
                 return int(cursor.lastrowid)
         finally:
             con.close()
+
+    def guardar_conferido(self, id_: int, arquivo: str) -> None:
+        self._executar("UPDATE analises SET arquivo_conferido = ? WHERE id = ?", (arquivo, id_))
+
+    def aprovar(self, id_: int, *, nome: str, re: str, data: str, usuario: str, pc: str,
+                arquivo: str) -> None:
+        """Aprovação final pelo responsável: o registro passa a constar APROVADO, mesmo que a
+        IA tenha dado pendente ou reprovado. O parecer da IA continua guardado."""
+        self._executar(
+            "UPDATE analises SET aprovado_por = ?, aprovado_re = ?, aprovado_data = ?, "
+            "aprovado_em = ?, aprovado_usuario = ?, aprovado_pc = ?, arquivo_aprovado = ? "
+            "WHERE id = ?", (nome, re, data, _agora(), usuario, pc, arquivo, id_))
+
+    def apagar_aprovacao(self, id_: int) -> None:
+        """Aprovação feita sem querer: some (decisão do usuário, 2026-11-17)."""
+        self._executar(
+            "UPDATE analises SET aprovado_por = NULL, aprovado_re = NULL, aprovado_data = NULL, "
+            "aprovado_em = NULL, aprovado_usuario = NULL, aprovado_pc = NULL, "
+            "arquivo_aprovado = NULL WHERE id = ?", (id_,))
 
     def mandar_para_lixeira(self, id_: int) -> None:
         self._executar("UPDATE analises SET na_lixeira_em = ? WHERE id = ?", (_agora(), id_))
@@ -180,7 +234,9 @@ class RegistroAnalises:
         cabecalho = ["Nº", "Data e hora", "Usuário", "PC", "Certificado", "SHA-256",
                      "Código", "Plano", "Parecer", "Problemas", "Avisos",
                      "Palavras corrigidas", "Textos corrigidos", "Digitado à mão",
-                     "Versão do programa", "Versão do modelo", "Na Lixeira desde"]
+                     "Versão do programa", "Versão do modelo", "Na Lixeira desde",
+                     "Parecer final", "Aprovado por", "RE", "Data da aprovação",
+                     "Aprovação registrada em"]
         livro = Workbook()
         abas = [(livro.active, "Registro", False), (None, "Lixeira", True)]
         for aba, nome, lixeira in abas:
@@ -197,7 +253,11 @@ class RegistroAnalises:
                     "\n".join(r.motivos.get("avisos", [])),
                     r.correcoes, r.textos,
                     "; ".join(f"{k}: {v}" for k, v in r.manual.items()),
-                    r.versao_programa, r.versao_modelo, r.na_lixeira_em or ""])
+                    r.versao_programa, r.versao_modelo, r.na_lixeira_em or "",
+                    r.parecer_final or "", r.aprovado_por or "", r.aprovado_re or "",
+                    r.aprovado_data or "",
+                    f"{r.aprovado_em} ({r.aprovado_usuario} - {r.aprovado_pc})"
+                    if r.aprovado else ""])
             aba.freeze_panes = "A2"
             aba.auto_filter.ref = aba.dimensions
             for coluna in aba.columns:

@@ -801,7 +801,7 @@ class Janela(QMainWindow):
     def abrir_registro(self) -> None:
         """A janelinha do registro. Ao fechar, se algo mudou o que ensina o modelo (ida ou
         volta da Lixeira), ele aprende de novo em segundo plano."""
-        janela = JanelaRegistro(self.servico.registro, self)
+        janela = JanelaRegistro(self.servico.registro, self, self.servico)
         janela.exec()
         if janela.mexeu and not self.ocupado and self.servico.precisa_aprender():
             self.avisar("O registro mudou: o modelo está aprendendo de novo.", "dica")
