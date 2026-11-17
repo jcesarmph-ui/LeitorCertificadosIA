@@ -797,3 +797,25 @@ def test_carimbo_cai_em_lugar_livre_embaixo():
     esquerda, topo = lugar_livre(folha)
     assert topo > 600 / 850  # embaixo do texto
     assert esquerda > 0.5  # do lado direito, como o carimbo de papel
+
+
+def test_aprovar_pela_tela_principal_e_ignorar_valor(app, mundo):
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    janela.show()
+    janela.abrir(certificado)
+    esperar(app, janela)
+    assert not janela.botao_aprovar.isEnabled()  # só depois de registrar
+    # "Ignorar este valor": o rótulo vira "outro" e a conferência é refeita na hora
+    indice = next(i for i, r in enumerate(janela.analise.rotulos) if r == "codigo")
+    janela.aplicar_rotulo([indice], "outro")
+    assert janela.analise.rotulos[indice] == "outro"
+    janela.registrar()
+    assert janela.botao_aprovar.isEnabled()
+    janela.aprovar_com("Fulano de Tal", "1234", "17/11/2026")
+    assert janela.botao_aprovar.text() == "Aprovado" and not janela.botao_aprovar.isEnabled()
+    assert janela.ultimo_pdf_aprovado.exists()
+    assert servico.registro.obter(janela._numero_registro).parecer_final == "APROVADO"
+    sobras = list((servico.pasta_registro / "aprovados").glob("*_verde_*"))
+    assert not sobras  # o passo do meio (só os checks verdes) é apagado
+    janela.close()

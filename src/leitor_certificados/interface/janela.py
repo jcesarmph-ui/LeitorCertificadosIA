@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -52,7 +53,7 @@ from .estilo import (
 )
 from .folha import FolhaView, tipo_do_rotulo
 from .icones import icone
-from .janela_registro import JanelaRegistro
+from .janela_registro import JanelaRegistro, PerguntaAprovacao
 from .legenda import icone_do_rotulo
 from .quadro import QuadroPonto
 from .servico import (
@@ -99,6 +100,8 @@ class Janela(QMainWindow):
         self._pendentes = 0  # correções registradas e ainda não aprendidas pelo modelo
         self._rascunho = 0  # correções desta análise que ainda não foram registradas
         self._registrado = False  # a análise aberta já foi registrada?
+        self._numero_registro: int | None = None
+        self._aprovado = False
         self.setWindowTitle(f"Leitor de Certificados — v{__version__}")
         self.setAcceptDrops(True)
         QApplication.instance().installEventFilter(self)  # arrastar o PDF (ver eventFilter)
@@ -160,8 +163,15 @@ class Janela(QMainWindow):
             "Guarda esta análise no registro (ícone do relógio, no canto de cima). As correções "
             "só ensinam o modelo depois de registradas.")
         self.botao_registrar.clicked.connect(self.registrar)
+        self.botao_aprovar = QPushButton("Aprovar")
+        self.botao_aprovar.setToolTip(
+            "Depois de registrar: aprovação final pelo responsável (nome, RE e data), mesmo que "
+            "o leitor tenha apontado algo ignorável. O PDF ganha o carimbo e os checks ficam "
+            "todos verdes.")
+        self.botao_aprovar.clicked.connect(self.aprovar)
         botoes.addWidget(self.botao_abrir)
         botoes.addWidget(self.botao_registrar)
+        botoes.addWidget(self.botao_aprovar)
         botoes.addWidget(self.botao_corrigir)
         botoes.addWidget(self.botao_aprender)
         botoes.addSpacing(16)
@@ -444,6 +454,8 @@ class Janela(QMainWindow):
         self.botao_registrar.setEnabled(livre and self.analise is not None
                                         and not self._registrado)
         self.botao_registrar.setText("Registrada" if self._registrado else "Registrar")
+        self.botao_aprovar.setEnabled(livre and self._registrado and not self._aprovado)
+        self.botao_aprovar.setText("Aprovado" if self._aprovado else "Aprovar")
         self.botao_aprender.setEnabled(livre)
         self.botao_aprender.setText(
             f"Aprender com as correções ({self._pendentes})" if self._pendentes
@@ -528,9 +540,11 @@ class Janela(QMainWindow):
             self.avisar(f"Não consegui abrir {Path(caminho).name}: {erro}", "erro")
             return
         self._anterior = self.analise
-        self._anterior_estado = (self._registrado, self._rascunho)
+        self._anterior_estado = (self._registrado, self._rascunho, self._numero_registro,
+                                 self._aprovado)
         self.analise = None
         self._registrado, self._rascunho = False, 0
+        self._numero_registro, self._aprovado = None, False
         self.botao_corrigir.setChecked(False)
         self._limpar_painel()
         self.folha.mostrar_imagem(previa)
@@ -552,7 +566,8 @@ class Janela(QMainWindow):
         self.folha.parar_brilho()
         anterior, self._anterior = self._anterior, None
         if anterior is not None:
-            self._registrado, self._rascunho = self._anterior_estado
+            (self._registrado, self._rascunho, self._numero_registro,
+             self._aprovado) = self._anterior_estado
             self.mostrar_analise(anterior)
         else:
             self.folha.mostrar_mensagem("Abra um certificado (PDF) ou arraste o arquivo para cá")
@@ -793,6 +808,14 @@ class Janela(QMainWindow):
         if self.analise is None:
             return
         menu = QMenu(self)
+        # o atalho mais usado: um número que não tem nada a ver com a análise (ex.: um "100"
+        # perdido no rodapé que virou padrão) — vira "Outro (não é dado)" e sai da conferência
+        ignorar = menu.addAction("Ignorar este valor")
+        ignorar.setData("outro")
+        fonte = ignorar.font()
+        fonte.setBold(True)
+        ignorar.setFont(fonte)
+        menu.addSeparator()
         for rotulo, nome in ROTULOS.items():
             acao = menu.addAction(icone_do_rotulo(rotulo), nome)  # a cor ao lado do nome
             acao.setData(rotulo)
@@ -810,6 +833,12 @@ class Janela(QMainWindow):
             return
         self.folha.limpar_selecao()  # repinta com os rótulos novos
         if mudaram:
+            # confere de novo na hora: o que mudou de rótulo entra ou sai da conferência
+            try:
+                self.servico.recalcular(self.analise)
+            except Exception as erro:
+                self.avisar(f"Não consegui conferir de novo: {erro}", "erro")
+            self.mostrar_analise(self.analise)
             self._rascunho += mudaram
             self._corrigiu()
         self.avisar(
@@ -839,10 +868,32 @@ class Janela(QMainWindow):
             self.avisar(f"Não consegui registrar: {erro}", "erro")
             return
         self._registrado = True
+        self._numero_registro = numero_registro
+        self._aprovado = False
         self._pendentes += self._rascunho
         self._rascunho = 0
         self._atualizar_botoes()
         self.avisar(f"Análise registrada (nº {numero_registro}).", "info")
+
+    def aprovar(self) -> None:
+        if not self._registrado or self._numero_registro is None or self.analise is None:
+            return
+        pergunta = PerguntaAprovacao(self.analise.caminho.name, self)
+        if pergunta.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.aprovar_com(*pergunta.valores())
+
+    def aprovar_com(self, nome: str, re: str, data: str) -> None:
+        try:
+            pdf = self.servico.aprovar(self._numero_registro, nome, re, data)
+        except Exception as erro:
+            self.avisar(f"Não consegui aprovar: {erro}", "erro")
+            return
+        self._aprovado = True
+        self._atualizar_botoes()
+        self.avisar(f"Certificado APROVADO por {nome} (RE {re}) em {data}. O PDF carimbado "
+                    "fica no registro (ícone do relógio → Abrir PDF).", "info")
+        self.ultimo_pdf_aprovado = pdf
 
     def marcar_padroes_calibrados(self, ligado: bool) -> None:
         if self.analise is None:

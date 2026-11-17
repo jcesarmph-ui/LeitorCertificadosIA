@@ -23,6 +23,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import socket
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -442,8 +443,14 @@ class Servico:
         """Lê de novo os campos e os pontos (com os textos corrigidos à mão) e confere. Rápido:
         não refaz o OCR, por isso pode rodar direto na tela depois de uma correção de texto."""
         pagina = analise.pagina_corrigida()
-        analise.campos = ml.ler_campos(self.modelo, pagina)
-        analise.certificado = montar_certificado(self.modelo, pagina)
+        # o rótulo que a pessoa corrigiu vale mais que o palpite do modelo (com certeza total):
+        # "Ignorar este valor" tira o número da conferência na hora, sem esperar o treino
+        previsoes = ml.prever(self.modelo, pagina)
+        for i in analise.corrigidas:
+            if i < len(previsoes) and i < len(analise.rotulos):
+                previsoes[i] = (analise.rotulos[i], 1.0)
+        analise.campos = ml.ler_campos(self.modelo, pagina, previsoes)
+        analise.certificado = montar_certificado(self.modelo, pagina, previsoes=previsoes)
         self.reconferir(analise)
 
     def reconferir(self, analise: Analise) -> None:
@@ -525,10 +532,39 @@ class Servico:
 
         nome = f"conferidos/{numero_registro:05d}_{analise.caminho.name}"
         largura, altura = analise.imagem.size
-        marcas = desenhar_marcas(marcas_da_analise(analise), altura / largura)
+        lista = marcas_da_analise(analise)
+        marcas = desenhar_marcas(lista, altura / largura)
         sobrepor(analise.caminho, self.pasta_registro / nome, [(marcas, 0, 0, 1)],
                  analise.pagina.rotacao)
+        # para a aprovação: o PDF original e onde fica cada check (para redesenhar tudo verde)
+        original = self.pasta_registro / f"originais/{numero_registro:05d}_{analise.caminho.name}"
+        original.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(analise.caminho, original)
+        (self.pasta_registro / (nome + ".marcas.json")).write_text(json.dumps(
+            {"proporcao": altura / largura, "rotacao": analise.pagina.rotacao,
+             "marcas": [{"caixa": list(m.caixa), "faixa": m.faixa} for m in lista]}),
+            encoding="utf-8")
         return nome
+
+    def _verde_para_aprovar(self, id_: int, conferido_nome: str, certificado: str) -> Path:
+        """Na aprovação, todos os checks ficam verdes: o responsável julgou que o que o leitor
+        apontou é ignorável (pedido do usuário, 2026-11-17). Sem o original guardado (registro
+        antigo), usa a cópia conferida como está."""
+        from ..carimbo import sobrepor
+        from .estilo import VERDE
+        from .folha_conferida import Marca, desenhar_marcas
+
+        conferido = self.pasta_registro / conferido_nome
+        original = self.pasta_registro / f"originais/{id_:05d}_{certificado}"
+        arquivo_marcas = self.pasta_registro / (conferido_nome + ".marcas.json")
+        if not (original.exists() and arquivo_marcas.exists()):
+            return conferido
+        dados = json.loads(arquivo_marcas.read_text(encoding="utf-8"))
+        verdes = [Marca(tuple(m["caixa"]), VERDE, "✓", m["faixa"]) for m in dados["marcas"]]
+        destino = self.pasta_registro / f"aprovados/{id_:05d}_verde_{certificado}"
+        sobrepor(original, destino, [(desenhar_marcas(verdes, dados["proporcao"]), 0, 0, 1)],
+                 int(dados.get("rotacao", 0)))
+        return destino
 
     def arquivo_do_registro(self, nome: str | None) -> Path | None:
         """O caminho de um PDF guardado pelo registro (conferido ou aprovado), se existe."""
@@ -550,8 +586,11 @@ class Servico:
             raise ValueError("este registro é de antes da aprovação existir e não tem a cópia "
                              "do PDF com os checks: abra o certificado e registre de novo")
         destino = f"aprovados/{id_:05d}_{r.certificado}"
-        carimbar_pdf(conferido, self.pasta_registro / destino, nome.strip(), re.strip(),
+        base = self._verde_para_aprovar(id_, r.arquivo_conferido, r.certificado)
+        carimbar_pdf(base, self.pasta_registro / destino, nome.strip(), re.strip(),
                      data.strip(), int(r.lido.get("rotacao", 0)))
+        if base != conferido:
+            base.unlink(missing_ok=True)  # o passo do meio (só os checks verdes)
         self.registro.aprovar(id_, nome=nome.strip(), re=re.strip(), data=data.strip(),
                               usuario=_usuario(), pc=_computador(), arquivo=destino)
         return self.pasta_registro / destino

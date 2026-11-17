@@ -143,11 +143,12 @@ def montar_padroes(pagina: Pagina, rotulos: list[str]) -> tuple[PadraoLido, ...]
     return tuple(padroes)
 
 
-def montar_certificado(modelo: Pipeline, pagina: Pagina,
-                       limiar: float = LIMIAR_CERTEZA) -> CertificadoLido:
+def montar_certificado(modelo: Pipeline, pagina: Pagina, limiar: float = LIMIAR_CERTEZA,
+                       previsoes: list[tuple[str, float]] | None = None) -> CertificadoLido:
     """Usa o modelo para achar o código do instrumento e os pontos da tabela. Palavras com
-    certeza abaixo do `limiar` não entram (ficam como "outro")."""
-    previsoes = com_limiar(prever(modelo, pagina), limiar)
+    certeza abaixo do `limiar` não entram (ficam como "outro"). `previsoes` já prontas (com as
+    correções da pessoa no lugar do palpite) evitam perguntar ao modelo de novo."""
+    previsoes = com_limiar(previsoes or prever(modelo, pagina), limiar)
     codigo_palavras = [
         p for p, (rotulo, _) in zip(pagina.palavras, previsoes, strict=True) if rotulo == "codigo"
     ]
