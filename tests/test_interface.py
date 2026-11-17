@@ -97,7 +97,7 @@ def test_sem_banco_a_conferencia_fica_de_fora_com_aviso(mundo):
 def test_correcao_cria_arquivo_e_nao_apaga_as_anteriores(mundo):
     servico, pastas, certificado = mundo
     analise = servico.analisar(certificado)
-    arquivo = pastas.marcacao / f"{certificado.stem}.palavras.json"
+    arquivo = arquivo_de_correcoes(pastas, certificado)  # o rascunho da análise aberta
     assert not arquivo.exists()
     assert gravar_correcao(pastas, analise, [0, 1], "tecnico") == 2
     dados = json.loads(arquivo.read_text(encoding="utf-8"))["palavras"]
@@ -109,21 +109,38 @@ def test_correcao_cria_arquivo_e_nao_apaga_as_anteriores(mundo):
     dados = json.loads(arquivo.read_text(encoding="utf-8"))["palavras"]
     assert [d["certo"] for d in dados[:3]] == ["tecnico", "tecnico", "cliente"]
     assert analise.corrigidas >= {0, 1, 2}
-    # reabrir mostra o que foi corrigido
-    de_novo = servico.analisar(certificado)
-    assert de_novo.rotulos[0] == "tecnico" and 0 in de_novo.corrigidas
     with pytest.raises(ValueError):
         gravar_correcao(pastas, analise, [0], "rótulo que não existe")
+    # sem registrar, reabrir começa do zero (a correção valia só para aquela análise)
+    de_novo = servico.analisar(certificado)
+    assert not de_novo.corrigidas and not arquivo.exists()
+    # registrada, a correção fica oficial e volta ao reabrir
+    gravar_correcao(pastas, de_novo, [0, 1], "tecnico")
+    numero_registro = servico.registrar(de_novo)
+    assert not arquivo.exists()  # o rascunho virou registro
+    reaberta = servico.analisar(certificado)
+    assert reaberta.rotulos[0] == "tecnico" and {0, 1} <= reaberta.corrigidas
+    # na Lixeira, a correção sai; restaurada, volta
+    servico.registro.mandar_para_lixeira(numero_registro)
+    assert not servico.analisar(certificado).corrigidas
+    servico.registro.restaurar(numero_registro)
+    assert 0 in servico.analisar(certificado).corrigidas
+    servico.registro.mandar_para_lixeira(numero_registro)  # não atrapalha os outros testes
 
 
 def test_aprender_com_as_correcoes_salva_o_modelo(mundo):
     servico, pastas, certificado = mundo
     analise = servico.analisar(certificado)
-    gravar_correcao(pastas, analise, [0], "outro")
+    gravar_correcao(pastas, analise, [0], "outro" if analise.rotulos[0] != "outro" else "tecnico")
+    servico.aprender()
+    assert not servico.precisa_aprender()
+    servico.registrar(analise)
+    assert servico.precisa_aprender()  # registrada, a correção espera o treino
     antes = pastas.modelo.stat().st_mtime_ns
     time.sleep(0.05)
     assert servico.aprender() >= 1  # o certificado corrigido entrou no treino
     assert pastas.modelo.stat().st_mtime_ns > antes
+    assert not servico.precisa_aprender()
 
 
 def test_folha_de_cabeca_para_baixo_e_virada_em_pe(mundo):
@@ -235,6 +252,7 @@ def test_valor_digitado_a_mao_confere_na_hora_e_volta_ao_reabrir(mundo):
     gravar_correcao(pastas, analise, [0], analise.rotulos[0])
     dados = json.loads(arquivo_de_correcoes(pastas, certificado).read_text(encoding="utf-8"))
     assert dados["manual"] == {"codigo": "ZZ-9999"}
+    numero_registro = servico.registrar(analise)  # registrado: o digitado volta ao reabrir
     reaberta = servico.analisar(certificado)
     assert reaberta.manual == {"codigo": "ZZ-9999"}
     assert reaberta.conferencia.resultado == Resultado.PENDENTE
@@ -246,6 +264,7 @@ def test_valor_digitado_a_mao_confere_na_hora_e_volta_ao_reabrir(mundo):
         arquivo_de_correcoes(pastas, certificado).read_text(encoding="utf-8"))
     with pytest.raises(ValueError):
         gravar_manual(pastas, reaberta, "fabricante", "x")
+    servico.registro.mandar_para_lixeira(numero_registro)  # não atrapalha os outros testes
 
 
 def test_certeza_baixa_vira_revisar_e_o_ponto_mostra_a_certeza(mundo):
@@ -435,7 +454,8 @@ def test_duplo_clique_corrige_o_texto_e_confere_de_novo(app, mundo):
     assert itens["palavras"][indice]["texto_certo"] == "XYZ-123"
     assert itens["palavras"][indice]["texto"] == lido  # o que o OCR leu continua guardado
     assert "XYZ-123" in janela.analise.certificado.textos  # a conferência usou o texto novo
-    # reabrir reaplica; Esc no editor cancela sem mudar nada
+    # registrado, reabrir reaplica; Esc no editor cancela sem mudar nada
+    numero_registro = servico.registrar(janela.analise)
     reaberta = servico.analisar(certificado)
     assert reaberta.textos_certos == {indice: "XYZ-123"}
     folha.abrir_editor(indice)
@@ -444,6 +464,7 @@ def test_duplo_clique_corrige_o_texto_e_confere_de_novo(app, mundo):
     # escrever de novo o texto lido apaga a correção
     janela.corrigir_texto(indice, lido)
     assert janela.analise.textos_certos == {}
+    servico.registro.mandar_para_lixeira(numero_registro)  # não atrapalha os outros testes
     janela.close()
 
 

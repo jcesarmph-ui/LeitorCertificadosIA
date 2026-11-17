@@ -4,8 +4,12 @@ Tudo aqui pode ser testado sem abrir janela. A interface só chama estas funçõ
 plano, porque o OCR e o treino demoram) e desenha o que elas devolvem.
 
 Onde ficam as coisas (todas FORA do Git — ADR 0002; `dados/` e `modelos/` estão no .gitignore):
-- `dados/reais_marcacao/<nome>.palavras.json` — as correções feitas à mão (e os valores
-  digitados, na chave `manual`);
+- `dados/rascunhos/<nome>.palavras.json` — as correções da análise aberta (e os valores
+  digitados, na chave `manual`). Só valem para a tela até a pessoa clicar em "Registrar";
+- `dados/registro/registro.db` — o registro das análises (etapa 10, ADR 0012): cada registro
+  guarda a folha corrigida, e é ela que ensina o modelo;
+- `dados/reais_marcacao/<nome>.palavras.json` — as correções feitas antes do registro (etapas
+  5 a 9); continuam ensinando, a não ser que um registro do mesmo certificado as substitua;
 - `dados/ficticios/` — certificados inventados usados no treino base;
 - `dados/banco_dq05/release_1_2_0/calibracao.db` — cópia do banco dos planos (só leitura);
 - `modelos/modelo_atual.joblib` — o modelo treinado.
@@ -14,16 +18,22 @@ Onde ficam as coisas (todas FORA do Git — ADR 0002; `dados/` e `modelos/` est�
 from __future__ import annotations
 
 import dataclasses
+import getpass
+import hashlib
 import json
+import os
+import socket
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 import pypdfium2 as pdfium
 from PIL import Image
 
+from .. import __version__
 from ..aprendizado import modelo as ml
-from ..aprendizado.correcoes import carregar_pasta, treinar_com_correcoes
+from ..aprendizado.correcoes import marcacao_de_dados, treinar_com_correcoes
 from ..aprendizado.rotulos import rotular
 from ..conferencia.avaliacao import Avaliacao, Resultado, erro_com_incerteza
 from ..conferencia.conferir import Conferencia, PontoConferido, conferir
@@ -34,6 +44,7 @@ from ..conferencia.plano import PlanosDQ05
 from ..ficticio.gerar import gabarito_atual
 from ..leitura import Pagina
 from ..leitura.ler import ler_pdf
+from ..registro import RegistroAnalises
 
 RAIZ = Path(__file__).resolve().parents[3]
 
@@ -79,6 +90,13 @@ class Pastas:
     banco: Path = RAIZ / "dados" / "banco_dq05" / "release_1_2_0" / "calibracao.db"
     modelo: Path = RAIZ / "modelos" / "modelo_atual.joblib"
     quantidade_ficticios: int = 150  # tantos certificados inventados no treino
+    # ao lado da pasta de marcação, se não for dito outro lugar (nos testes, tudo na temporária)
+    rascunhos: Path | None = None
+    registro: Path | None = None
+
+    def __post_init__(self) -> None:
+        self.rascunhos = self.rascunhos or self.marcacao.parent / "rascunhos"
+        self.registro = self.registro or self.marcacao.parent / "registro" / "registro.db"
 
 
 @dataclass
@@ -146,7 +164,39 @@ def renderizar_folha(caminho: Path | str, rotacao: int = 0, escala: float = 2.0)
 # ---------------------------------------------------------------- correções (JSON)
 
 def arquivo_de_correcoes(pastas: Pastas, certificado: Path) -> Path:
-    return pastas.marcacao / f"{certificado.stem}.palavras.json"
+    """O rascunho das correções da análise aberta (ainda não registrado)."""
+    return pastas.rascunhos / f"{Path(certificado).stem}.palavras.json"
+
+
+def _ensina(dados: dict) -> bool:
+    """A folha tem alguma correção de rótulo ou de texto? (só o digitado à mão não ensina)"""
+    return any(i["certo"] != i["rotulo"] or i.get("texto_certo")
+               for i in dados.get("palavras", []))
+
+
+def correcoes_oficiais(pastas: Pastas, so_as_que_ensinam: bool = True) -> dict[str, dict]:
+    """{nome do certificado: folha corrigida} — o que ensina o modelo: as correções antigas
+    (`reais_marcacao`, de antes do registro) e, por cima, as dos registros ativos. Um registro
+    na Lixeira não conta, e então a correção antiga do mesmo certificado (se houver) volta."""
+    oficiais: dict[str, dict] = {}
+    if pastas.marcacao.exists():
+        for arquivo in sorted(pastas.marcacao.glob("*.palavras.json")):
+            chave = arquivo.name.removesuffix(".palavras.json")
+            oficiais[chave] = json.loads(arquivo.read_text(encoding="utf-8"))
+    for chave, marcacao in RegistroAnalises(pastas.registro).vigentes().items():
+        if marcacao:
+            oficiais[chave] = marcacao
+        else:
+            oficiais.pop(chave, None)  # o registro mais novo desfez todas as correções
+    if so_as_que_ensinam:
+        oficiais = {k: v for k, v in oficiais.items() if _ensina(v)}
+    return oficiais
+
+
+def assinatura_das_correcoes(oficiais: dict[str, dict]) -> str:
+    """Uma "impressão digital" do que ensina o modelo: muda se qualquer correção mudar."""
+    texto = json.dumps(oficiais, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(texto.encode("utf-8")).hexdigest()
 
 
 def _lido_confere(itens: list[dict], pagina: Pagina) -> bool:
@@ -156,8 +206,12 @@ def _lido_confere(itens: list[dict], pagina: Pagina) -> bool:
 
 
 def _ler_arquivo(pastas: Pastas, caminho: Path) -> dict:
+    """As correções que valem para a tela: o rascunho, se a pessoa já mexeu nesta análise;
+    senão as oficiais (registradas ou antigas)."""
     arquivo = arquivo_de_correcoes(pastas, caminho)
-    return json.loads(arquivo.read_text(encoding="utf-8")) if arquivo.exists() else {}
+    if arquivo.exists():
+        return json.loads(arquivo.read_text(encoding="utf-8"))
+    return correcoes_oficiais(pastas, so_as_que_ensinam=False).get(Path(caminho).stem, {})
 
 
 def _correcoes_existentes(dados: dict, pagina: Pagina) -> dict[int, str]:
@@ -223,7 +277,7 @@ def _gravar(pastas: Pastas, analise: Analise, itens: list[dict], manual: dict) -
                 "palavras": itens}
     if manual:
         conteudo["manual"] = manual
-    pastas.marcacao.mkdir(parents=True, exist_ok=True)
+    pastas.rascunhos.mkdir(parents=True, exist_ok=True)
     arquivo_de_correcoes(pastas, analise.caminho).write_text(
         json.dumps(conteudo, ensure_ascii=False, indent=1), encoding="utf-8")
 
@@ -302,25 +356,43 @@ class Servico:
         """Treina com fictícios + reais corrigidos (peso 5 nos reais), salva e passa a usar.
         Devolve quantos certificados reais entraram."""
         paginas, rotulos = self._carregar_ficticios(progresso)
-        reais = carregar_pasta(self.pastas.marcacao) if self.pastas.marcacao.exists() else []
+        oficiais = correcoes_oficiais(self.pastas)
+        reais = [marcacao_de_dados(d) for _, d in sorted(oficiais.items())]
         progresso(f"Treinando o modelo ({len(paginas)} fictícios + {len(reais)} reais corrigidos)")
         modelo = treinar_com_correcoes(paginas, rotulos, reais)
         self.pastas.modelo.parent.mkdir(parents=True, exist_ok=True)
         ml.salvar(modelo, self.pastas.modelo)
+        self._arquivo_assinatura().write_text(assinatura_das_correcoes(oficiais),
+                                              encoding="utf-8")
         self.modelo = modelo
         return len(reais)
 
+    def _arquivo_assinatura(self) -> Path:
+        return self.pastas.modelo.with_suffix(".correcoes.txt")
+
+    def versao_do_modelo(self) -> str:
+        """Identifica o modelo em uso: quando foi treinado + começo da assinatura."""
+        if not self.pastas.modelo.exists():
+            return "—"
+        quando = datetime.fromtimestamp(self.pastas.modelo.stat().st_mtime)
+        arquivo = self._arquivo_assinatura()
+        assinatura = arquivo.read_text(encoding="utf-8")[:8] if arquivo.exists() else "?"
+        return f"{quando:%Y-%m-%d %H:%M} ({assinatura})"
+
+    def precisa_aprender(self) -> bool:
+        """As correções oficiais mudaram desde o último treino (registro novo, Lixeira…)?"""
+        arquivo = self._arquivo_assinatura()
+        atual = assinatura_das_correcoes(correcoes_oficiais(self.pastas))
+        return not arquivo.exists() or arquivo.read_text(encoding="utf-8") != atual
+
     def _modelo_em_dia(self, modelo) -> bool:
-        """O modelo salvo serve se é mais novo que todas as correções e conhece todos os
-        rótulos usados nelas (um modelo de antes da etapa 8 não conhecia os padrões)."""
-        marcacoes = (list(self.pastas.marcacao.glob("*.palavras.json"))
-                     if self.pastas.marcacao.exists() else [])
-        salvo_em = self.pastas.modelo.stat().st_mtime
-        if any(a.stat().st_mtime > salvo_em for a in marcacoes):
+        """O modelo salvo serve se foi treinado com as correções oficiais de agora e conhece
+        todos os rótulos usados nelas (um modelo de antes da etapa 8 não conhecia os padrões)."""
+        if self.precisa_aprender():
             return False
         conhecidos = set(getattr(modelo, "classes_", ()))
-        usados = {it["certo"] for a in marcacoes
-                  for it in json.loads(a.read_text(encoding="utf-8"))["palavras"]}
+        usados = {it["certo"] for d in correcoes_oficiais(self.pastas).values()
+                  for it in d["palavras"]}
         return usados <= conhecidos
 
     def preparar_modelo(self, progresso: Progresso = _nada) -> str:
@@ -345,6 +417,9 @@ class Servico:
         caminho = Path(caminho)
         progresso("Lendo o certificado (o OCR pode levar alguns segundos)")
         pagina = ler_pdf(caminho)[0]  # só a primeira página nesta versão
+        # análise nova: o rascunho de uma análise anterior não registrada é jogado fora
+        # (correção sem registro vale só para aquela análise na tela; decisão de 2026-11-17)
+        arquivo_de_correcoes(self.pastas, caminho).unlink(missing_ok=True)
         dados = _ler_arquivo(self.pastas, caminho)
         analise = Analise(
             caminho=caminho, pagina=pagina, imagem=renderizar_folha(caminho, pagina.rotacao),
@@ -399,6 +474,68 @@ class Servico:
             analise.avisos.append(f"Não consegui conferir com o plano: {erro}")
         finally:
             planos.fechar()
+
+    # -- registro (etapa 10) --------------------------------------------------------------
+    @property
+    def registro(self) -> RegistroAnalises:
+        return RegistroAnalises(self.pastas.registro)
+
+    def registrar(self, analise: Analise) -> int:
+        """Guarda a análise no registro e devolve o número dela. As correções feitas nesta
+        análise passam a ser oficiais (ensinam o modelo no próximo treino)."""
+        dados = _ler_arquivo(self.pastas, analise.caminho)
+        itens = dados.get("palavras", [])
+        correcoes = sum(i["certo"] != i["rotulo"] for i in itens)
+        textos = sum(bool(i.get("texto_certo")) for i in itens)
+        # a folha corrigida (com o digitado à mão, para voltar ao reabrir); só o que tem
+        # correção de rótulo ou de texto ensina o modelo
+        marcacao = dados if (correcoes or textos or analise.manual) else None
+        c = analise.conferencia
+        numero_registro = self.registro.registrar(
+            usuario=_usuario(), pc=_computador(), certificado=analise.caminho.name,
+            chave=analise.caminho.stem, sha256=_sha256(analise.caminho),
+            codigo=c.codigo if c else analise.manual.get("codigo") or analise.campos.get("codigo"),
+            plano=c.plano_nome if c else None,
+            parecer=c.resultado.value if c else None,
+            motivos={"erros": list(c.erros) if c else [],
+                     "avisos": (list(c.avisos) if c else []) + list(analise.avisos)},
+            lido=_o_que_foi_lido(analise), correcoes=correcoes, textos=textos,
+            manual=dict(analise.manual), marcacao=marcacao,
+            versao_programa=__version__, versao_modelo=self.versao_do_modelo())
+        # registrado: o rascunho já é oficial
+        arquivo_de_correcoes(self.pastas, analise.caminho).unlink(missing_ok=True)
+        return numero_registro
+
+
+def _usuario() -> str:
+    try:
+        return getpass.getuser()
+    except Exception:
+        return os.environ.get("USERNAME", "?")
+
+
+def _computador() -> str:
+    return os.environ.get("COMPUTERNAME") or socket.gethostname()
+
+
+def _sha256(caminho: Path) -> str:
+    resumo = hashlib.sha256()
+    with open(caminho, "rb") as arquivo:
+        for bloco in iter(lambda: arquivo.read(1 << 16), b""):
+            resumo.update(bloco)
+    return resumo.hexdigest()
+
+
+def _o_que_foi_lido(analise: Analise) -> dict:
+    """O que o programa leu e conferiu, em texto (para o registro)."""
+    pontos = [{"nominal": linha.nominal, "encontrado": linha.encontrado, "erro": linha.erro,
+               "incerteza": linha.incerteza, "erro_mais_u": linha.erro_mais_u,
+               "tolerancia": linha.tolerancia, "criterio": linha.criterio,
+               "resultado": linha.resultado.value, "motivo": linha.motivo}
+              for linha in descrever_pontos(analise.conferencia)]
+    padroes = [{"codigo": p.codigo, "validade": p.validade, "situacao": p.situacao.value}
+               for p in descrever_padroes(analise.conferencia)]
+    return {"campos": dict(analise.campos), "pontos": pontos, "padroes": padroes}
 
 
 # ---------------------------------------------------------------- texto para a tela

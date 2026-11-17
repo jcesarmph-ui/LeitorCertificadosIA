@@ -18,6 +18,7 @@ dependencies = [
     "onnxruntime>=1.18",  # etapa 2: roda os modelos do OCR neste computador, sem internet
     "scikit-learn>=1.5",  # etapa 3: o modelo de machine learning que aprende o que cada palavra é
     "numpy>=2.0",       # etapa 2: a imagem vira uma tabela de números para o OCR
+    "openpyxl>=3.1",    # etapa 10: a planilha do registro das análises (.xlsx)
 ]
 
 [project.optional-dependencies]
