@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.12.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-0.13.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -297,6 +297,23 @@ não der para comparar, aparece um aviso amarelo — o parecer continua vindo da
 </details>
 
 <details>
+<summary><b>Novidades da versão 0.13.0: pronto para entrar no sistema de calibração</b></summary>
+
+- O leitor passa a ser uma **peça do sistema de calibração**: a pessoa lê o certificado,
+  confere e decide, e o sistema **preenche a calibração sozinho**, sem digitar ponto por ponto.
+- Cada ponto conferido sai com a **linha do plano** a que pertence, com o valor encontrado, o
+  erro, a incerteza e o resultado, mais a data, os padrões, a decisão e o PDF carimbado.
+- **Um só aprendizado para todos**: as correções de qualquer pessoa ensinam o mesmo modelo.
+
+```mermaid
+flowchart LR
+    S[Sistema de calibração] -- abre o PDF --> L[Leitor]
+    L -- confere e a pessoa decide --> R[Saída: pontos + decisão + PDF]
+    R -- preenche --> S
+```
+</details>
+
+<details>
 <summary><b>Novidades da versão 0.12.0: certificado com mais de uma folha</b></summary>
 
 - **Lê só as folhas necessárias**: a 1ª sempre; outra folha só entra se trouxer **pontos ou
@@ -531,6 +548,8 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Registro de cada análise — quem, quando, o que foi lido e corrigido, com Lixeira; a correção só ensina depois de registrada (0.10.0)
 - [x] Aprovação final pelo responsável, com carimbo digital e os checks no PDF (0.11.0)
 - [x] PDF com mais de uma folha — ler só as folhas necessárias (0.12.0)
+- [x] Saída para o sistema de calibração: os pontos entram sozinhos na calibração (0.13.0)
+- [ ] Encaixe no sistema de calibração (botão "Ler certificado com IA", feito no outro projeto)
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
 - [ ] Previsão da deriva — prever quando cada instrumento sai da tolerância e sugerir a periodicidade de calibração
 

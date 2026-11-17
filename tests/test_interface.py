@@ -958,3 +958,30 @@ def test_padroes_calibrados_so_libera_quando_falta_conferir(app, mundo):
     janela.mostrar_analise(janela.analise)
     assert janela.botao_padroes.isEnabled() and not janela.botao_padroes.isChecked()
     janela.close()
+
+
+# ---------------------------------------------------------------- etapa 13: saída para o sistema
+
+def test_saida_para_o_sistema_de_calibracao(app, mundo):
+    import json
+
+    servico, _, certificado = mundo
+    janela = Janela(servico)
+    recebidas = []
+    janela.registrado.connect(recebidas.append)
+    janela.show()
+    janela.abrir(certificado)
+    esperar(app, janela)
+    janela.registrar_com(True, "Fulano de Tal", "1234", "17/11/2026")
+    assert len(recebidas) == 1
+    saida = recebidas[0]
+    json.dumps(saida)  # só tipos simples: vira JSON sem esforço
+    assert saida["versao_saida"] == 1
+    assert saida["decisao"] == "APROVADO" and saida["re"] == "1234"
+    assert saida["pdf_final"] and saida["pdf_final"].endswith(".pdf")
+    assert saida["codigo"] == janela.analise.conferencia.codigo
+    # cada ponto aponta a linha do plano no banco do DQ05 (o sistema preenche sozinho)
+    assert saida["pontos"] and all(p["id_ponto_plano"] for p in saida["pontos"])
+    assert len({p["id_ponto_plano"] for p in saida["pontos"]}) == len(saida["pontos"])
+    assert all("encontrado" in p and "resultado" in p for p in saida["pontos"])
+    janela.close()
