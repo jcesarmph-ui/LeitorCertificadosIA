@@ -10,7 +10,7 @@ from __future__ import annotations
 import html
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtCore import QPoint, QSize, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QDragEnterEvent, QDropEvent, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -49,6 +50,7 @@ from .estilo import (
     cor,
 )
 from .folha import FolhaView, tipo_do_rotulo
+from .icones import icone
 from .legenda import icone_do_rotulo
 from .quadro import QuadroPonto
 from .servico import (
@@ -118,7 +120,17 @@ class Janela(QMainWindow):
         versao.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
         cabecalho.addWidget(espaco, 1)
         cabecalho.addWidget(titulo, 3)
-        cabecalho.addWidget(versao, 1)
+        self.botao_registro = QToolButton()
+        self.botao_registro.setObjectName("botaoRegistro")
+        self.botao_registro.setIcon(icone("history", cor("texto")))
+        self.botao_registro.setIconSize(QSize(26, 26))
+        self.botao_registro.setToolTip("Registro das análises")
+        self.botao_registro.setCursor(Qt.CursorShape.PointingHandCursor)
+        canto = QHBoxLayout()
+        canto.addStretch(1)
+        canto.addWidget(self.botao_registro, 0, Qt.AlignmentFlag.AlignTop)
+        canto.addWidget(versao, 0, Qt.AlignmentFlag.AlignTop)
+        cabecalho.addLayout(canto, 1)
         coluna.addLayout(cabecalho)
 
         # --- faixa 2: botões e andamento

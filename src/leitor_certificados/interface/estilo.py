@@ -93,6 +93,10 @@ QLabel#titulo {{
     font-size: 22pt; font-weight: bold; letter-spacing: 3px; color: {t['titulo']};
 }}
 QLabel#versao {{ color: {t['dica']}; font-size: 11pt; }}
+QToolButton#botaoRegistro {{ background: transparent; border: 1px solid {t['contorno']};
+    border-radius: 6px; padding: 3px; }}
+QToolButton#botaoRegistro:hover {{ background: {t['selecao']}; }}
+QToolButton#botaoRegistro:pressed {{ background: {t['pressionado']}; }}
 QLabel#dica {{ color: {t['dica']}; font-style: italic; }}
 QLabel#avisos {{ font-size: 12pt; }}
 QLabel#parecer {{ font-size: 28pt; font-weight: bold; border-radius: 4px; padding: 10px; }}
