@@ -694,7 +694,7 @@ def test_janela_do_registro_lixeira_restaurar_e_apagar(app, mundo, monkeypatch, 
     assert janela.aba_registro.tabela.rowCount() == 2
     assert not janela.botao_lixeira.isEnabled()  # nada escolhido
     janela.aba_registro.tabela.selectRow(0)
-    assert "cert_2.pdf" in janela.aba_registro.detalhe.text()  # o mais novo primeiro
+    assert janela.aba_registro.escolhido().certificado == "cert_2.pdf"  # o mais novo primeiro
     # responde "Sim" à pergunta "Apagar pode tirar esse aprendizado. Tem certeza?"
     monkeypatch.setattr(JanelaRegistro, "_confirmar", lambda self, t, x: True)
     janela.mandar_para_lixeira()
@@ -755,7 +755,6 @@ def test_aprovacao_final_carimba_e_vale_mais_que_a_ia(app, mundo, monkeypatch):
     assert aprovado.parecer == registro.parecer  # o parecer da IA continua guardado
     pdf = servico.arquivo_do_registro(aprovado.arquivo_aprovado)
     assert pdf is not None and len(pdfium.PdfDocument(str(pdf))) == 1
-    assert "APROVADO por Fulano de Tal" in lista.aba_registro.detalhe.text()
     assert lista.botao_desaprovar.text() == "Apagar decisão"
     assert lista.botao_desaprovar.isVisible() or not lista.isVisible()
 

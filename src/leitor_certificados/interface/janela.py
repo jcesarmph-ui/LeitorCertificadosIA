@@ -10,7 +10,7 @@ from __future__ import annotations
 import html
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QDragEnterEvent, QDropEvent, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -34,7 +34,6 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -52,7 +51,6 @@ from .estilo import (
     cor,
 )
 from .folha import FolhaView, tipo_do_rotulo
-from .icones import icone
 from .interruptor import Interruptor
 from .janela_registro import JanelaRegistro, PerguntaAprovacao
 from .legenda import icone_do_rotulo
@@ -132,18 +130,7 @@ class Janela(QMainWindow):
         versao.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
         cabecalho.addWidget(espaco, 1)
         cabecalho.addWidget(titulo, 3)
-        self.botao_registro = QToolButton()
-        self.botao_registro.setObjectName("botaoRegistro")
-        self.botao_registro.setIcon(icone("history", cor("texto")))
-        self.botao_registro.setIconSize(QSize(26, 26))
-        self.botao_registro.setToolTip("Registro das análises")
-        self.botao_registro.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.botao_registro.clicked.connect(self.abrir_registro)
-        canto = QHBoxLayout()
-        canto.addStretch(1)
-        canto.addWidget(self.botao_registro, 0, Qt.AlignmentFlag.AlignTop)
-        canto.addWidget(versao, 0, Qt.AlignmentFlag.AlignTop)
-        cabecalho.addLayout(canto, 1)
+        cabecalho.addWidget(versao, 1, Qt.AlignmentFlag.AlignTop)
         coluna.addLayout(cabecalho)
 
         # --- faixa 2: botões e andamento
@@ -162,9 +149,13 @@ class Janela(QMainWindow):
             "Treina o modelo de novo com os certificados fictícios e com os reais que você "
             "corrigiu (os reais pesam 5 vezes mais), e confere o certificado aberto outra vez.")
         self.botao_aprender.clicked.connect(self.aprender)
+        # os registros: botão igual aos outros, abre uma tela cheia (pedido de 2026-11-17)
+        self.botao_registro = QPushButton("Registros")
+        self.botao_registro.setToolTip("As análises registradas, a Lixeira e a planilha")
+        self.botao_registro.clicked.connect(self.abrir_registro)
         self.botao_registrar = QPushButton("Registrar")
         self.botao_registrar.setToolTip(
-            "Guarda esta análise no registro (ícone do relógio, no canto de cima) com a sua "
+            "Guarda esta análise no registro (botão Registros) com a sua "
             "decisão: aprovar ou rejeitar o certificado (nome, RE e data; o PDF ganha o "
             "carimbo). As correções só ensinam o modelo depois de registradas.")
         self.botao_registrar.clicked.connect(self.registrar)
@@ -172,6 +163,7 @@ class Janela(QMainWindow):
         botoes.addWidget(self.botao_registrar)
         botoes.addWidget(self.botao_corrigir)
         botoes.addWidget(self.botao_aprender)
+        botoes.addWidget(self.botao_registro)
         botoes.addSpacing(16)
         self.andamento = QLabel("")
         self.andamento.setObjectName("dica")
@@ -943,13 +935,13 @@ class Janela(QMainWindow):
             pdf = self.servico.aprovar(numero_registro, nome, re, data, aprovado)
         except Exception as erro:
             self.avisar(f"Análise registrada (nº {numero_registro}), mas não consegui carimbar "
-                        f"o PDF: {erro}. Dá para decidir pelo registro (ícone do relógio).",
+                        f"o PDF: {erro}. Dá para decidir pelo botão Registros.",
                         "erro")
             return
         self._aprovado = aprovado
         self.ultimo_pdf_aprovado = pdf
         self.avisar(f"Registrado (nº {numero_registro}): {decisao} por {nome} (RE {re}) em "
-                    f"{data}. O PDF carimbado fica no registro (ícone do relógio → Abrir PDF).",
+                    f"{data}. O PDF carimbado fica no registro (Registros → Abrir PDF).",
                     "info")
 
     def marcar_padroes_calibrados(self, ligado: bool) -> None:

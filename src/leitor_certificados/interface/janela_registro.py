@@ -103,26 +103,6 @@ def _data_br(data_hora: str) -> str:
         return data_hora
 
 
-def detalhes(r: Registro) -> str:
-    """Texto da linha escolhida, embaixo da tabela."""
-    partes = [f"Nº {r.id} — {r.certificado}",
-              f"Registrado em {_data_br(r.data_hora)} por {r.usuario} ({r.pc})",
-              f"Plano: {r.plano or '—'}    Parecer da IA: {r.parecer or '—'}",
-              f"Palavras corrigidas: {r.correcoes}    Textos corrigidos: {r.textos}"]
-    if r.decidido:
-        partes.insert(3, f"{r.parecer_final} por {r.aprovado_por} (RE {r.aprovado_re}) em "
-                         f"{r.aprovado_data} — clicado em {_data_br(r.aprovado_em)} por "
-                         f"{r.aprovado_usuario} ({r.aprovado_pc})")
-    if r.manual:
-        partes.append("Digitado à mão: " + "; ".join(f"{k}: {v}" for k, v in r.manual.items()))
-    partes += [f"Problema: {e}" for e in r.motivos.get("erros", [])]
-    partes += [f"Aviso: {a}" for a in r.motivos.get("avisos", [])]
-    if r.na_lixeira_em:
-        partes.append(f"Na Lixeira desde {_data_br(r.na_lixeira_em)}")
-    partes.append(f"Programa {r.versao_programa}, modelo {r.versao_modelo}")
-    return "\n".join(partes)
-
-
 class _Aba(QWidget):
     """Uma tabela de registros + os detalhes da linha escolhida."""
 
@@ -142,13 +122,11 @@ class _Aba(QWidget):
         cab = self.tabela.horizontalHeader()
         cab.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         cab.setSectionResizeMode(COLUNAS.index("Certificado"), QHeaderView.ResizeMode.Stretch)
-        # o clique (não a mudança de seleção) mostra os detalhes, mesmo na linha já escolhida
-        self.tabela.cellClicked.connect(lambda *_: self._mostrar_detalhes())
+        # clicar numa linha só a escolhe (sem o texto com os detalhes embaixo: pedido de
+        # 2026-11-17); o aviso de baixo só aparece com a lista vazia
         self.tabela.itemSelectionChanged.connect(self._mostrar_detalhes)
         self.detalhe = QLabel("")
         self.detalhe.setObjectName("dica")
-        self.detalhe.setWordWrap(True)
-        self.detalhe.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         coluna.addWidget(self.tabela, 1)
         coluna.addWidget(self.detalhe)
         self.recarregar()
@@ -173,14 +151,8 @@ class _Aba(QWidget):
         return self.itens[linha]
 
     def _mostrar_detalhes(self) -> None:
-        r = self.escolhido()
-        if r is not None:
-            self.detalhe.setText(detalhes(r))
-        elif not self.itens:
-            self.detalhe.setText("A Lixeira está vazia." if self.lixeira
-                                 else "Nenhuma análise registrada ainda.")
-        else:
-            self.detalhe.setText("Clique numa linha para ver os detalhes.")
+        self.detalhe.setText("" if self.itens else "A Lixeira está vazia." if self.lixeira
+                             else "Nenhuma análise registrada ainda.")
         self.detalhe.setVisible(bool(self.detalhe.text()))
         self.mudou_escolha()
 
@@ -242,7 +214,7 @@ class JanelaRegistro(QDialog):
         self.aba_lixeira.mudou_escolha = self._atualizar_botoes
         self.abas.currentChanged.connect(lambda _: self._atualizar_botoes())
         self._atualizar_botoes()
-        self.resize(1100, 650)
+        self.setWindowState(Qt.WindowState.WindowMaximized)  # tela cheia, como o programa
 
     # ------------------------------------------------------------------ estado
     def _aba(self) -> _Aba:
