@@ -56,7 +56,7 @@
 
 Este projeto nasceu do [**Sistema de Gestão de Calibração**](https://github.com/jcesarmph-ui/SistemaCalibracao),
 um aplicativo desktop em uso corporativo. Lá, cada calibração é digitada à mão a partir do
-certificado do laboratório. A pergunta deste projeto é: **dá para uma IA gratuita, rodando no
+certificado do laboratório. A pergunta deste projeto é: **é possível uma IA gratuita, rodando no
 próprio computador, ler o certificado e conferir sozinha?**
 
 É um projeto para **aprender e mostrar o aprendizado**: cada etapa mede o acerto do modelo e
@@ -106,9 +106,9 @@ mindmap
 | | |
 |---|---|
 | ![Analisando](docs/telas/02_analisando.png) | ![Conta do ponto](docs/telas/03_conta_do_ponto.png) |
-| *Analisando um escaneado: uma faixa de "raio X" percorre a folha enquanto o OCR lê; dá para cancelar.* | *Clique num ponto: a conta completa e a certeza do modelo em cada número.* |
+| *Analisando um escaneado: uma faixa de "raio X" percorre a folha enquanto o OCR lê; é possível cancelar.* | *Clique num ponto: a conta completa e a certeza do modelo em cada número.* |
 | ![Reprovado](docs/telas/04_reprovado_escaneado.png) | ![Corrigir](docs/telas/05_corrigir.png) |
-| *Escaneado com pontos fora da tolerância: ✗ vermelho na folha e na tabela.* | *Modo Corrigir: clicar numa palavra corrige o rótulo ou o texto; o que não dá para ler (ex.: código a caneta) pode ser digitado à mão.* |
+| *Escaneado com pontos fora da tolerância: ✗ vermelho na folha e na tabela.* | *Modo Corrigir: clicar numa palavra corrige o rótulo ou o texto; o que não pode ser lido (ex.: código a caneta) pode ser digitado à mão.* |
 
 <p align="center">
   <img src="docs/telas/06_padrao_vencido.png" alt="Padrão vencido" width="100%"/>
@@ -131,14 +131,14 @@ flowchart LR
 Um modelo de machine learning **aprende com exemplos que têm resposta**. Por isso o projeto começa
 gerando certificados fictícios junto com o **gabarito** (o que o modelo deveria encontrar). Parte
 deles serve para **treinar**; a outra parte, que o modelo nunca viu, serve para **testar** e medir
-o acerto de verdade.
+o acerto real.
 
 ## 🔒 Dados fictícios
 
 > [!IMPORTANT]
 > Este repositório é público e **não contém nenhum certificado real**. Todos os certificados,
 > laboratórios, instrumentos, números e pessoas que aparecem aqui são **inventados** pelo próprio
-> projeto. Testes com certificados reais acontecem só no computador do autor, e aqui aparecem apenas
+> projeto. Testes com certificados reais acontecem só em ambiente local, fora do repositório, e aqui aparecem apenas
 > os **números de acerto**.
 
 ## 🧾 Certificados fictícios
@@ -188,7 +188,7 @@ corrigido:
 - No escaneado, conferem que o PDF **não tem texto nenhum** (só imagem) e que dentro das caixas
   giradas há tinta — ou seja, elas acompanharam o giro da folha.
 - Pontos coerentes: erro = encontrado − nominal; o primeiro e o último ponto são o começo e o fim
-  da faixa; os do meio são valores "redondos", como num certificado de verdade.
+  da faixa; os do meio são valores "redondos", como num certificado real.
 - Cada certificado tem a sua **semente**: gerar de novo produz exatamente o mesmo arquivo, para
   repetir treinos e comparar resultados de forma justa.
 - Exemplos prontos (um de cada laboratório) em [`exemplos/`](exemplos/).
@@ -217,7 +217,7 @@ apóstrofo) e o nome do laboratório grudado no endereço:
 </p>
 
 > [!NOTE]
-> Os fictícios são mais limpos que os escaneados de verdade: num teste com um escaneado real, a
+> Os fictícios são mais limpos que os escaneados reais: num teste com um escaneado real, a
 > confiança média do OCR ficou bem abaixo da dos fictícios. Por isso o gerador imita um scanner
 > mais ruim (150 dpi, mais ruído) e a etapa 5 vai mostrar o acerto real, sem esconder a diferença.
 
@@ -245,7 +245,7 @@ da caixa do gabarito com o rótulo certo.</sub>
 > [!NOTE]
 > A prova que conta é a do laboratório novo. O primeiro modelo tirava 100 % nos laboratórios que já
 > conhecia e só **76,7 %** das palavras (**54,2 %** dos campos) no laboratório novo: decorava mais do
-> que entendia. As pistas numéricas e de pedaços de letras subiram esse número sem mexer no teste. O
+> que entendia. As pistas numéricas e de pedaços de letras subiram esse número sem alterar o teste. O
 > que ainda erra é estrutura que nenhum laboratório de treino tinha — a cura é **mais variedade**:
 > cada tipo novo de certificado entra no treino e o modelo é medido de novo.
 
@@ -362,7 +362,7 @@ flowchart LR
   computador); uma decisão feita sem querer pode ser apagada.
 - **Ignorar pendência**: cada aviso amarelo tem o botão "IGNORAR PENDÊNCIA"; com todas ignoradas
   (e nenhum problema vermelho), o pendente conta como aprovado. O que foi ignorado fica no
-  registro, e dá para voltar atrás.
+  registro, e é possível desfazer.
 - **Durômetro**: o ponto do plano pode ser um **intervalo numa escala** ("67 a 80 HR15T"); o
   padrão do certificado tem de estar dentro dele, e cada valor aparece com a sua escala.
 </details>
@@ -393,7 +393,7 @@ da calibração, e a conferência olha cada padrão
 | ✗ Padrão vencido e pontos reprovados | Continua **REPROVADO**, com os dois motivos em vermelho. |
 | ! Validade ou data não lida | Aviso amarelo dizendo o que conferir e parecer **PENDENTE** (reprovado continua reprovado). |
 
-Os laboratórios reais escrevem essa tabela de jeitos bem diferentes — e com **armadilhas**: a
+Os laboratórios reais escrevem essa tabela de formas muito diferentes — e com **armadilhas**: a
 "Validade" do próprio certificado no topo da folha e a "Data da calibração" **do padrão** não
 são o que se procura. Os 6 laboratórios inventados ganharam tabelas de padrões variadas, com as
 mesmas armadilhas, e cerca de 1 em cada 8 com um padrão vencido.
@@ -526,9 +526,9 @@ o parecer **PENDENTE**, em vez de aprovar sozinho.
 ## 🔏 Assinatura digital do PDF aprovado
 
 Ao aprovar, o PDF sai **carimbado e lacrado**: uma impressão digital (hash) do arquivo inteiro é
-assinada e gravada dentro do próprio PDF. Se alguém mexer no arquivo depois, o Adobe Reader avisa
+assinada e gravada dentro do próprio PDF. Se o arquivo for alterado depois, o Adobe Reader avisa
 "o documento foi alterado". O certificado é próprio (gratuito, criado uma vez, fora do Git): prova
-que o PDF não foi mexido, sem validade legal fora da empresa. (0.14.0)
+que o PDF não foi alterado, sem validade legal fora da empresa. (0.14.0)
 
 ## 🛠️ Tecnologias
 
