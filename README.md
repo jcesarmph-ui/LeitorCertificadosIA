@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/tipo-machine_learning-purple?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/dados-100%25_fictícios-brightgreen?style=flat-square" alt="Dados"/>
   <img src="https://img.shields.io/badge/custo-gratuito_e_local-success?style=flat-square" alt="Custo"/>
-  <img src="https://img.shields.io/badge/versão-0.13.0_em_desenvolvimento-orange?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/status-em_uso_no_sistema_de_calibração-brightgreen?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
 </p>
 
@@ -26,6 +26,13 @@
   Projeto de estudo de <b>machine learning</b>: um modelo que lê <b>certificados de calibração em
   PDF</b> — digitais ou escaneados —, encontra os dados importantes e confere se o instrumento está
   dentro da tolerância do plano de calibração, considerando a incerteza de medição.
+</p>
+
+<p align="center">
+  ✅ <b>Em funcionamento</b> dentro do <a href="https://github.com/jcesarmph-ui/SistemaCalibracao">Sistema
+  de Gestão de Calibração</a> (versão 1.4.0): ao registrar uma calibração, o botão
+  <b>"Preencher os pontos com IA"</b> lê o certificado e preenche os pontos sozinho — a pessoa
+  confere e salva.
 </p>
 
 <p align="center">
@@ -558,7 +565,7 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] PDF com mais de uma folha — ler só as folhas necessárias (0.12.0)
 - [x] Saída para o sistema de calibração: os pontos entram sozinhos na calibração (0.13.0)
 - [x] Assinatura digital do PDF aprovado — lacre contra alteração (0.14.0)
-- [ ] Encaixe no sistema de calibração (botão "Ler certificado com IA", feito no outro projeto)
+- [x] Em funcionamento no sistema de calibração: botão "Preencher os pontos com IA" na Nova calibração (sistema 1.4.0)
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
 - [ ] Previsão da deriva — prever quando cada instrumento sai da tolerância e sugerir a periodicidade de calibração
 
