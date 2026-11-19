@@ -393,7 +393,7 @@ class Servico:
             total = self.pastas.quantidade_ficticios
             for n in range(1, total + 1):
                 if n % 10 == 1:
-                    progresso(f"Preparando certificados de treino ({n} de {total})")
+                    progresso(f"Preparando a IA ({round(90 * n / total)}%)")
                 # gera os que faltam e refaz os de um gerador antigo (laboratório novo etc.)
                 gabarito = gabarito_atual(self.pastas.ficticios, n)
                 gab = json.loads(gabarito.read_text(encoding="utf-8"))
@@ -409,7 +409,7 @@ class Servico:
         paginas, rotulos = self._carregar_ficticios(progresso)
         oficiais = correcoes_oficiais(self.pastas)
         reais = [marcacao_de_dados(d) for _, d in sorted(oficiais.items())]
-        progresso(f"Treinando o modelo ({len(paginas)} fictícios + {len(reais)} reais corrigidos)")
+        progresso("Preparando a IA (90%): aprendendo com as correções")
         modelo = treinar_com_correcoes(paginas, rotulos, reais)
         self.pastas.modelo.parent.mkdir(parents=True, exist_ok=True)
         ml.salvar(modelo, self.pastas.modelo)
@@ -452,12 +452,12 @@ class Servico:
             try:
                 modelo = ml.abrir(self.pastas.modelo)
             except Exception:  # arquivo estragado ou de outra versão do scikit-learn
-                progresso("O modelo salvo não abriu; treinando de novo")
+                progresso("Preparando a IA")
             else:
                 if self._modelo_em_dia(modelo):
                     self.modelo = modelo
                     return "salvo"
-                progresso("O modelo salvo é antigo (há correções ou rótulos novos); treinando")
+                progresso("Preparando a IA: há correções novas para aprender")
         self.aprender(progresso)
         return "treinado"
 

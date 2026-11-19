@@ -80,6 +80,17 @@ def montar_estilo(chave: str | None = None) -> str:
 QMainWindow, QWidget#raiz, QScrollArea, QScrollArea > QWidget > QWidget {{
     background: {t['fundo']};
 }}
+QDialog, QMessageBox {{ background: {t['caixa']}; }}
+QCalendarWidget QWidget {{ alternate-background-color: {t['campo']}; }}
+QCalendarWidget QAbstractItemView {{ background: {t['campo']}; color: {t['texto']};
+    selection-background-color: {t['selecao']}; selection-color: {t['texto']}; }}
+QCalendarWidget QAbstractItemView:disabled {{ color: {t['desabilitado']}; }}
+QCalendarWidget #qt_calendar_navigationbar {{ background: {t['caixa']}; }}
+QCalendarWidget QToolButton {{ color: {t['titulo']}; background: transparent;
+    padding: 4px 10px; }}
+QCalendarWidget QToolButton:hover {{ background: {t['selecao']}; border-radius: 4px; }}
+QCalendarWidget QMenu {{ background: {t['campo']}; color: {t['texto']}; }}
+QCalendarWidget QSpinBox {{ background: {t['campo']}; color: {t['texto']}; }}
 QGroupBox {{
     background: {t['caixa']}; border: 1px solid {t['contorno']}; border-radius: 4px;
     margin-top: 14px; padding: 10px 8px 8px 8px;
@@ -124,11 +135,11 @@ QHeaderView::section {{
     background: {t['caixa']}; color: {t['titulo']}; border: 1px solid {t['borda_campo']};
     padding: 4px; font-weight: bold;
 }}
-QLineEdit, QComboBox {{
+QLineEdit, QComboBox, QDateEdit {{
     background: {t['campo']}; color: {t['texto']}; border: 1px solid {t['borda_campo']};
     border-radius: 3px; padding: 4px 8px; selection-background-color: {t['selecao']};
 }}
-QLineEdit:focus, QComboBox:focus {{ border: 1px solid {t['contorno']}; }}
+QLineEdit:focus, QComboBox:focus, QDateEdit:focus {{ border: 1px solid {t['contorno']}; }}
 QComboBox QAbstractItemView {{
     background: {t['campo']}; color: {t['texto']}; border: 1px solid {t['contorno']};
     selection-background-color: {t['selecao']}; selection-color: {t['texto']};
