@@ -516,6 +516,13 @@ o parecer **PENDENTE**, em vez de aprovar sozinho.
 > Medir também achou um defeito na leitura: o carimbo "ESTE CERTIFICADO FOI ANALISADO" enganava a
 > detecção de folha de cabeça para baixo. Depois de corrigir, esse escaneado foi de ~30 % para 96 %.
 
+## 🔏 Assinatura digital do PDF aprovado
+
+Ao aprovar, o PDF sai **carimbado e lacrado**: uma impressão digital (hash) do arquivo inteiro é
+assinada e gravada dentro do próprio PDF. Se alguém mexer no arquivo depois, o Adobe Reader avisa
+"o documento foi alterado". O certificado é próprio (gratuito, criado uma vez, fora do Git): prova
+que o PDF não foi mexido, sem validade legal fora da empresa. (0.14.0)
+
 ## 🛠️ Tecnologias
 
 | Tecnologia | Aplicação no projeto |
@@ -526,6 +533,7 @@ o parecer **PENDENTE**, em vez de aprovar sozinho.
 | pypdfium2 | Transforma o PDF em imagem (para o "escaneado") e lê o texto do PDF. |
 | Pillow | Imita o scanner: giro, ruído, desfoque e compressão JPEG. |
 | RapidOCR (ONNX) | OCR local e gratuito: lê os certificados escaneados, palavra por palavra, com a confiança de cada uma. |
+| pyHanko | Assinatura digital do PDF aprovado (lacre contra alteração), com certificado próprio. |
 | PySide6 (Qt) | Interface desktop: a folha com os checks, o parecer, a correção pela tela e o retreino com um clique. |
 | pytest + ruff | Testes automáticos com certificados fictícios e padronização do código. |
 | Git + GitHub | Uma branch e um pull request por etapa; decisões registradas em ADRs. |
@@ -549,6 +557,7 @@ Decisões de arquitetura: [`docs/decisoes/`](docs/decisoes/).
 - [x] Aprovação final pelo responsável, com carimbo digital e os checks no PDF (0.11.0)
 - [x] PDF com mais de uma folha — ler só as folhas necessárias (0.12.0)
 - [x] Saída para o sistema de calibração: os pontos entram sozinhos na calibração (0.13.0)
+- [x] Assinatura digital do PDF aprovado — lacre contra alteração (0.14.0)
 - [ ] Encaixe no sistema de calibração (botão "Ler certificado com IA", feito no outro projeto)
 - [ ] Etapa 5 — Teste com certificados reais (só os números de acerto aparecem aqui)
 - [ ] Previsão da deriva — prever quando cada instrumento sai da tolerância e sugerir a periodicidade de calibração

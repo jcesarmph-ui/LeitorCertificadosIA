@@ -19,6 +19,7 @@ dependencies = [
     "scikit-learn>=1.5",  # etapa 3: o modelo de machine learning que aprende o que cada palavra é
     "numpy>=2.0",       # etapa 2: a imagem vira uma tabela de números para o OCR
     "openpyxl>=3.1",    # etapa 10: a planilha do registro das análises (.xlsx)
+    "pyhanko>=0.25",    # etapa 14: assinatura digital do PDF aprovado (lacre contra alteração)
 ]
 
 [project.optional-dependencies]
