@@ -669,6 +669,12 @@ class Servico:
                 if aprovado else conferido)
         carimbar_pdf(base, self.pasta_registro / destino, nome.strip(), re.strip(),
                      data.strip(), int(r.lido.get("rotacao", 0)), aprovado)
+        # Lacre digital por cima do carimbo: mexer no PDF depois quebra a assinatura
+        from ..assinatura import ARQUIVO, assinar_pdf
+
+        assinar_pdf(self.pasta_registro / destino, self.pastas.registro.parent / ARQUIVO,
+                    f"{'Aprovado' if aprovado else 'Reprovado'} por {nome.strip()} "
+                    f"(RE {re.strip()}) em {data.strip()}")
         if base != conferido:
             base.unlink(missing_ok=True)  # o passo do meio (só os checks verdes)
         self.registro.aprovar(id_, nome=nome.strip(), re=re.strip(), data=data.strip(),

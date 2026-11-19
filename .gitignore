@@ -29,3 +29,6 @@ modelos/
 
 # instruções do Claude Code: ficam só no PC (cópia no repositório privado claude-config)
 CLAUDE.md
+
+# chave da assinatura digital: nunca no Git
+*.pfx
