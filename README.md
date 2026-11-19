@@ -138,7 +138,7 @@ o acerto de verdade.
 > [!IMPORTANT]
 > Este repositório é público e **não contém nenhum certificado real**. Todos os certificados,
 > laboratórios, instrumentos, números e pessoas que aparecem aqui são **inventados** pelo próprio
-> projeto. Testes com certificados reais acontecem só no computador do autor, e aqui aparecem apenas
+> projeto. Testes com certificados reais acontecem só em ambiente local, fora do repositório, e aqui aparecem apenas
 > os **números de acerto**.
 
 ## 🧾 Certificados fictícios
