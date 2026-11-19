@@ -393,7 +393,7 @@ da calibração, e a conferência olha cada padrão
 | ✗ Padrão vencido e pontos reprovados | Continua **REPROVADO**, com os dois motivos em vermelho. |
 | ! Validade ou data não lida | Aviso amarelo dizendo o que conferir e parecer **PENDENTE** (reprovado continua reprovado). |
 
-Os laboratórios reais escrevem essa tabela de jeitos bem diferentes — e com **armadilhas**: a
+Os laboratórios reais escrevem essa tabela de formas muito diferentes — e com **armadilhas**: a
 "Validade" do próprio certificado no topo da folha e a "Data da calibração" **do padrão** não
 são o que se procura. Os 6 laboratórios inventados ganharam tabelas de padrões variadas, com as
 mesmas armadilhas, e cerca de 1 em cada 8 com um padrão vencido.
