@@ -82,12 +82,24 @@ def _sem_zeros(chave: str) -> str:
     return re.sub(r"(?<!\d)0+(?=\d)", "", chave)
 
 
+def uri_somente_leitura(caminho: Path) -> str:
+    r"""Endereço `file:` para abrir o banco só para leitura, também numa pasta da rede.
+
+    Caminho da rede (\\servidor\pasta) precisa de quatro barras ("file:////servidor/…"): com
+    duas, o SQLite toma o servidor como "authority" e recusa ("invalid uri authority").
+    `?` e `#` no nome são codificados para não virarem parte do endereço."""
+    texto = Path(caminho).as_posix().replace("%", "%25").replace("?", "%3F").replace("#", "%23")
+    if texto.startswith("//"):
+        texto = "//" + texto
+    return f"file:{texto}?mode=ro"
+
+
 class PlanosDQ05:
     """Lê instrumentos e planos de uma cópia do banco do DQ05, sem nunca alterar nada."""
 
     def __init__(self, caminho: Path | str):
         caminho = Path(caminho).resolve()
-        self._con = sqlite3.connect(f"file:{caminho.as_posix()}?mode=ro", uri=True)
+        self._con = sqlite3.connect(uri_somente_leitura(caminho), uri=True)
         self._con.row_factory = sqlite3.Row
         self._plano_por_codigo: dict[str, int] = {}
         self._faixa_por_codigo: dict[str, str | None] = {}
